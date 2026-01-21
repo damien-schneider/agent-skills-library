@@ -14,6 +14,8 @@ Biome (the underlying engine) provides robust linting and formatting. Most issue
 
 ## Core Principles
 
+**Code quality and maintainability are the top priority above all else.** Every decision must serve these goals.
+
 Write code that is **accessible, performant, type-safe, and maintainable**. Focus on clarity and explicit intent over brevity.
 
 ### Type Safety & Explicitness
@@ -64,6 +66,7 @@ Write code that is **accessible, performant, type-safe, and maintainable**. Focu
 
 ### Code Organization
 
+- **Keep files under 400 lines** - split large files into smaller, focused modules
 - Keep functions focused and under reasonable cognitive complexity limits
 - Extract complex conditions into well-named boolean variables
 - Use early returns to reduce nesting

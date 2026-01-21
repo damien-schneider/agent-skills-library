@@ -1,0 +1,363 @@
+"use client";
+
+import { motion } from "framer-motion";
+import {
+  Bookmark,
+  BookmarkCheck,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Copy,
+  Sparkles,
+  User,
+} from "lucide-react";
+import { useState } from "react";
+import { SignInDialog } from "@/shared/components/ui/sign-in-dialog";
+import { formatSkillName } from "@/shared/lib/utils";
+
+interface SkillHeaderProps {
+  skill: { name: string; description: string };
+  category?: { name: string; color: string; skillCount: number };
+}
+
+export function SkillHeader({ skill, category }: SkillHeaderProps) {
+  return (
+    <motion.div
+      animate={{ opacity: 1, y: 0 }}
+      className="mb-16 text-center"
+      initial={{ opacity: 0, y: 20 }}
+      transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+    >
+      <motion.div
+        animate={{ opacity: 1, scale: 1 }}
+        className="mb-6 inline-flex items-center gap-2 rounded-full px-4 py-1.5"
+        initial={{ opacity: 0, scale: 0.9 }}
+        style={{
+          backgroundColor: `${category?.color}20`,
+          color: category?.color,
+        }}
+        transition={{ delay: 0.1 }}
+      >
+        <span className="font-semibold text-sm">{category?.name}</span>
+        <span className="text-xs opacity-70">
+          ({category?.skillCount} skills)
+        </span>
+      </motion.div>
+
+      <h1
+        className="mb-4 text-balance text-4xl text-foreground leading-tight md:text-5xl"
+        style={{ fontFamily: "var(--font-display)" }}
+      >
+        {formatSkillName(skill.name)}
+      </h1>
+
+      <p className="mx-auto max-w-2xl text-lg text-muted-foreground">
+        {skill.description}
+      </p>
+    </motion.div>
+  );
+}
+
+interface FrontmatterCardProps {
+  skill: {
+    name: string;
+    description: string;
+    authorName: string;
+    tags: string[];
+    _creationTime: number;
+  };
+  category?: { name: string };
+  copied: boolean;
+  onCopy: () => void;
+  formatDate: (timestamp: number) => string;
+}
+
+export function FrontmatterCard({
+  skill,
+  category,
+  copied,
+  onCopy,
+  formatDate,
+}: FrontmatterCardProps) {
+  return (
+    <motion.div
+      animate={{ opacity: 1, y: 0 }}
+      className="relative col-span-12 overflow-hidden rounded-3xl border border-border bg-card p-6 shadow-sm lg:col-span-8"
+      initial={{ opacity: 0, y: 20 }}
+      transition={{ delay: 0.15 }}
+    >
+      <div className="mb-5 flex items-center justify-between">
+        <h2 className="font-semibold text-muted-foreground/60 text-sm uppercase tracking-wider">
+          Frontmatter
+        </h2>
+        <motion.button
+          className="flex items-center gap-1.5 rounded-lg bg-muted px-3 py-1.5 font-medium text-muted-foreground text-xs transition-colors hover:bg-muted/80 hover:text-foreground"
+          onClick={onCopy}
+          whileTap={{ scale: 0.95 }}
+        >
+          {copied ? (
+            <Check className="h-3.5 w-3.5 text-emerald-500" />
+          ) : (
+            <Copy className="h-3.5 w-3.5" />
+          )}
+          {copied ? "Copied" : "Copy"}
+        </motion.button>
+      </div>
+
+      <div className="space-y-2 rounded-2xl bg-muted/50 p-5 font-mono text-sm">
+        <div className="text-muted-foreground/40">---</div>
+        <div>
+          <span className="text-primary">name:</span>{" "}
+          <span className="text-foreground">{formatSkillName(skill.name)}</span>
+        </div>
+        <div>
+          <span className="text-primary">description:</span>{" "}
+          <span className="text-foreground">{skill.description}</span>
+        </div>
+        <div>
+          <span className="text-primary">category:</span>{" "}
+          <span className="text-foreground">{category?.name}</span>
+        </div>
+        <div>
+          <span className="text-primary">author:</span>{" "}
+          <span className="text-foreground">{skill.authorName}</span>
+        </div>
+        <div>
+          <span className="text-primary">tags:</span>{" "}
+          <span className="text-foreground">
+            [
+            {skill.tags.map((t, i) => (
+              <span key={t}>
+                <span className="text-emerald-500">{t}</span>
+                {i < skill.tags.length - 1 && ", "}
+              </span>
+            ))}
+            ]
+          </span>
+        </div>
+        <div>
+          <span className="text-primary">created:</span>{" "}
+          <span className="text-foreground">
+            {formatDate(skill._creationTime)}
+          </span>
+        </div>
+        <div className="text-muted-foreground/40">---</div>
+      </div>
+    </motion.div>
+  );
+}
+
+interface SidebarCardsProps {
+  skill: { authorName: string; votes: number; userVote?: "up" | "down" | null };
+  session: { user?: { id: string } } | null;
+  handleVote: (direction: "up" | "down") => Promise<void>;
+  isSaved?: boolean;
+  onToggleSave?: () => Promise<void>;
+}
+
+export function SidebarCards({
+  skill,
+  session,
+  handleVote,
+  isSaved = false,
+  onToggleSave,
+}: SidebarCardsProps) {
+  const [showSignInDialog, setShowSignInDialog] = useState(false);
+
+  const onVoteClick = async (direction: "up" | "down") => {
+    if (!session?.user) {
+      setShowSignInDialog(true);
+      return;
+    }
+    await handleVote(direction);
+  };
+
+  const onSaveClick = async () => {
+    if (!session?.user) {
+      setShowSignInDialog(true);
+      return;
+    }
+    if (onToggleSave) {
+      await onToggleSave();
+    }
+  };
+
+  return (
+    <motion.div
+      animate={{ opacity: 1, y: 0 }}
+      className="col-span-12 flex flex-col gap-4 lg:col-span-4"
+      initial={{ opacity: 0, y: 20 }}
+      transition={{ delay: 0.2 }}
+    >
+      <div className="flex items-center gap-4 rounded-3xl border border-border bg-card p-5 shadow-sm">
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-muted">
+          <User className="h-5 w-5 text-muted-foreground" />
+        </div>
+        <div className="flex-1">
+          <p className="font-semibold text-foreground">{skill.authorName}</p>
+          <p className="text-muted-foreground text-sm">Contributor</p>
+        </div>
+        {onToggleSave && (
+          <motion.button
+            className={`flex h-10 w-10 items-center justify-center rounded-xl transition-all duration-200 ${
+              isSaved
+                ? "bg-amber-500 text-white shadow-amber-500/20 shadow-lg"
+                : "border border-border bg-card text-muted-foreground hover:border-amber-200 hover:bg-amber-500/10 hover:text-amber-500"
+            }`}
+            onClick={onSaveClick}
+            title={isSaved ? "Remove from library" : "Save to library"}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            {isSaved ? (
+              <BookmarkCheck className="h-5 w-5" />
+            ) : (
+              <Bookmark className="h-5 w-5" />
+            )}
+          </motion.button>
+        )}
+      </div>
+
+      <div className="rounded-3xl border border-border bg-card p-5 shadow-sm">
+        <div className="mb-4 flex items-center justify-center gap-8">
+          <motion.button
+            className={`flex h-12 w-12 items-center justify-center rounded-xl transition-all duration-200 ${
+              skill.userVote === "up"
+                ? "bg-emerald-500 text-white shadow-emerald-500/20 shadow-lg"
+                : "border border-border bg-card text-muted-foreground hover:border-emerald-200 hover:bg-emerald-500/10 hover:text-emerald-500"
+            }`}
+            onClick={() => onVoteClick("up")}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <ChevronUp className="h-6 w-6" strokeWidth={2.5} />
+          </motion.button>
+
+          <div className="flex flex-col items-center">
+            <span className="mb-1 font-bold text-5xl text-foreground">
+              {skill.votes > 0 ? "+" : ""}
+              {skill.votes}
+            </span>
+            <span className="font-medium text-muted-foreground text-xs uppercase tracking-wider">
+              votes
+            </span>
+          </div>
+
+          <motion.button
+            className={`flex h-12 w-12 items-center justify-center rounded-xl transition-all duration-200 ${
+              skill.userVote === "down"
+                ? "bg-rose-500 text-white shadow-lg shadow-rose-500/20"
+                : "border border-border bg-card text-muted-foreground hover:border-rose-200 hover:bg-rose-500/10 hover:text-rose-500"
+            }`}
+            onClick={() => onVoteClick("down")}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <ChevronDown className="h-6 w-6" strokeWidth={2.5} />
+          </motion.button>
+        </div>
+      </div>
+
+      <SignInDialog
+        description="You need to be signed in to vote or save skills. Sign in or create an account to get started."
+        onOpenChange={setShowSignInDialog}
+        open={showSignInDialog}
+        title="Sign in to continue"
+      />
+    </motion.div>
+  );
+}
+
+interface AIScoreCardProps {
+  aiScore: {
+    overall: number;
+    clarity: number;
+    usefulness: number;
+    completeness: number;
+  };
+}
+
+export function AIScoreCard({ aiScore }: AIScoreCardProps) {
+  return (
+    <motion.div
+      animate={{ opacity: 1, y: 0 }}
+      className="col-span-12 rounded-3xl border border-indigo-500/20 bg-gradient-to-br from-indigo-500/5 to-purple-500/5 p-6 lg:col-span-4"
+      initial={{ opacity: 0, y: 20 }}
+      transition={{ delay: 0.25 }}
+    >
+      <div className="mb-4 flex items-center gap-2">
+        <Sparkles className="h-4 w-4 text-indigo-500" />
+        <h3 className="font-semibold text-indigo-500 text-sm">AI Analysis</h3>
+      </div>
+
+      <div className="mb-4 flex items-center gap-4">
+        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-muted shadow-sm">
+          <span className="font-bold text-2xl text-indigo-500">
+            {aiScore.overall}
+          </span>
+        </div>
+        <div className="text-muted-foreground text-xs leading-relaxed">
+          Overall quality score based on clarity, usefulness, and completeness
+        </div>
+      </div>
+
+      <div className="space-y-2.5">
+        {[
+          { label: "Clarity", value: aiScore.clarity },
+          { label: "Usefulness", value: aiScore.usefulness },
+          { label: "Completeness", value: aiScore.completeness },
+        ].map((score) => (
+          <div className="flex items-center gap-3" key={score.label}>
+            <span className="w-24 text-muted-foreground text-xs">
+              {score.label}
+            </span>
+            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+              <motion.div
+                animate={{ width: `${score.value}%` }}
+                className="h-full rounded-full bg-gradient-to-r from-indigo-400 to-purple-400"
+                initial={{ width: 0 }}
+                transition={{ duration: 0.8, delay: 0.4 }}
+              />
+            </div>
+            <span className="w-6 font-semibold text-foreground text-xs">
+              {score.value}
+            </span>
+          </div>
+        ))}
+      </div>
+    </motion.div>
+  );
+}
+
+interface TagsCardProps {
+  tags: string[];
+  aiScore?: { overall: number } | null;
+}
+
+export function TagsCard({ tags, aiScore }: TagsCardProps) {
+  return (
+    <motion.div
+      animate={{ opacity: 1, y: 0 }}
+      className={`col-span-12 ${aiScore ? "lg:col-span-8" : "lg:col-span-12"} rounded-3xl border border-border bg-card p-6 shadow-sm`}
+      initial={{ opacity: 0, y: 20 }}
+      transition={{ delay: 0.3 }}
+    >
+      <h3 className="mb-4 font-semibold text-muted-foreground/60 text-sm uppercase tracking-wider">
+        Tags
+      </h3>
+      <div className="flex flex-wrap gap-2">
+        {tags.map((tag, index) => (
+          <motion.span
+            animate={{ opacity: 1, scale: 1 }}
+            className="cursor-default rounded-full bg-muted px-4 py-2 font-medium text-foreground text-sm transition-colors hover:bg-muted/80"
+            initial={{ opacity: 0, scale: 0.8 }}
+            key={tag}
+            transition={{ delay: 0.35 + index * 0.03 }}
+          >
+            {tag}
+          </motion.span>
+        ))}
+      </div>
+    </motion.div>
+  );
+}

@@ -17,7 +17,11 @@
       }
     },
     {
-      "includes": ["apps/web/src/components/ui/**/*"],
+      "includes": [
+        "apps/web/src/shared/components/ui/**/*",
+        "apps/web/src/features/*/index.ts",
+        "apps/web/src/features/*/lib/index.ts"
+      ],
       "linter": {
         "rules": {
           "a11y": {
@@ -30,7 +34,8 @@
             "noRedundantRoles": "off"
           },
           "performance": {
-            "noNamespaceImport": "off"
+            "noNamespaceImport": "off",
+            "noBarrelFile": "off"
           },
           "style": {
             "useConsistentTypeDefinitions": "off",

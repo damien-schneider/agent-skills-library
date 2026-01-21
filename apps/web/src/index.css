@@ -37,6 +37,22 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /* Folder colors for skill categories */
+  --folder-blue: oklch(0.65 0.18 240);
+  --folder-coral: oklch(0.7 0.18 30);
+  --folder-green: oklch(0.7 0.16 145);
+  --folder-amber: oklch(0.8 0.16 80);
+  --folder-purple: oklch(0.65 0.2 300);
+  --folder-teal: oklch(0.7 0.14 185);
+
+  /* Skill card colors */
+  --skill-yellow: oklch(0.92 0.08 100);
+  --skill-green: oklch(0.9 0.1 145);
+  --skill-lavender: oklch(0.9 0.08 300);
+  --skill-peach: oklch(0.92 0.1 30);
+  --skill-blue: oklch(0.88 0.1 220);
+  --skill-teal: oklch(0.9 0.08 180);
 }
 
 .dark {
@@ -74,7 +90,26 @@
 }
 
 @theme inline {
-  --font-sans: "Inter Variable", sans-serif;
+  --font-sans: "DM Sans", "Inter Variable", system-ui, sans-serif;
+  --font-display: "Instrument Serif", Georgia, serif;
+  --font-mono: "Geist Mono", ui-monospace, monospace;
+
+  /* Folder colors */
+  --color-folder-blue: var(--folder-blue);
+  --color-folder-coral: var(--folder-coral);
+  --color-folder-green: var(--folder-green);
+  --color-folder-amber: var(--folder-amber);
+  --color-folder-purple: var(--folder-purple);
+  --color-folder-teal: var(--folder-teal);
+
+  /* Skill card colors */
+  --color-skill-yellow: var(--skill-yellow);
+  --color-skill-green: var(--skill-green);
+  --color-skill-lavender: var(--skill-lavender);
+  --color-skill-peach: var(--skill-peach);
+  --color-skill-blue: var(--skill-blue);
+  --color-skill-teal: var(--skill-teal);
+
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -106,6 +141,7 @@
   --color-card: var(--card);
   --color-foreground: var(--foreground);
   --color-background: var(--background);
+
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -125,4 +161,104 @@
   html {
     @apply font-sans;
   }
+}
+
+/* TipTap Editor Styles */
+.tiptap-editor {
+  @apply font-sans text-foreground;
+}
+
+.tiptap-editor:focus {
+  @apply outline-none;
+}
+
+.tiptap-editor > * + * {
+  @apply mt-3;
+}
+
+/* Headings - matching site typography */
+.tiptap-editor h1 {
+  @apply font-display text-4xl font-bold text-foreground tracking-tight mt-6 mb-4 first:mt-0;
+}
+
+.tiptap-editor h2 {
+  @apply font-display text-2xl font-semibold text-foreground tracking-tight mt-5 mb-3;
+}
+
+.tiptap-editor h3 {
+  @apply font-sans text-xl font-semibold text-foreground mt-4 mb-2;
+}
+
+/* Paragraphs */
+.tiptap-editor p {
+  @apply text-base text-foreground/80 leading-relaxed;
+}
+
+.tiptap-editor p.is-editor-empty:first-child::before {
+  @apply text-foreground/40 float-left h-0 pointer-events-none;
+  content: attr(data-placeholder);
+}
+
+/* Lists */
+.tiptap-editor ul {
+  @apply list-disc pl-6 my-3 space-y-1.5;
+}
+
+.tiptap-editor ol {
+  @apply list-decimal pl-6 my-3 space-y-1.5;
+}
+
+.tiptap-editor li {
+  @apply text-foreground/80;
+}
+
+.tiptap-editor li p {
+  @apply my-0;
+}
+
+/* Blockquote */
+.tiptap-editor blockquote {
+  @apply border-l-4 border-chart-3/40 pl-4 my-4 italic text-foreground/70;
+}
+
+/* Code - inline */
+.tiptap-editor code {
+  @apply font-mono text-sm bg-muted text-muted-foreground px-1.5 py-0.5 rounded-md;
+}
+
+/* Code block */
+.tiptap-editor pre {
+  @apply font-mono text-sm bg-muted/50 text-foreground p-4 rounded-xl my-4 overflow-x-auto border border-border;
+}
+
+.tiptap-editor pre code {
+  @apply bg-transparent text-inherit p-0 rounded-none;
+}
+
+/* Links */
+.tiptap-editor a {
+  @apply text-primary underline underline-offset-2 hover:opacity-80 transition-colors;
+}
+
+/* Strong and emphasis */
+.tiptap-editor strong {
+  @apply font-semibold text-foreground;
+}
+
+.tiptap-editor em {
+  @apply italic;
+}
+
+.tiptap-editor s {
+  @apply line-through text-foreground/60;
+}
+
+/* Horizontal rule */
+.tiptap-editor hr {
+  @apply border-t border-border my-6;
+}
+
+/* Selection */
+.tiptap-editor ::selection {
+  @apply bg-chart-3/20;
 }

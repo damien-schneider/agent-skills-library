@@ -40,7 +40,7 @@ Then, run the development server:
 bun run dev
 ```
 
-Open [http://localhost:3001](http://localhost:3001) in your browser to see the web application.
+Open [http://localhost:3020](http://localhost:3020) in your browser to see the web application.
 Your app will connect to the Convex cloud backend automatically.
 
 ## Git Hooks and Formatting

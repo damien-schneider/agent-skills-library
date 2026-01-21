@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 
 import "../index.css";
-import Header from "@/components/header";
-import Providers from "@/components/providers";
-import { getToken } from "@/lib/auth-server";
+import Header from "@/shared/components/layout/header";
+import Providers from "@/shared/components/layout/providers";
+import { getToken } from "@/shared/lib/auth-server";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,14 +30,21 @@ export default async function RootLayout({
   const token = await getToken();
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        {process.env.NODE_ENV === "development" && (
+          <Script
+            crossOrigin="anonymous"
+            src="//unpkg.com/react-grab/dist/index.global.js"
+            strategy="beforeInteractive"
+          />
+        )}
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <Providers initialToken={token}>
-          <div className="grid h-svh grid-rows-[auto_1fr]">
-            <Header />
-            {children}
-          </div>
+          <Header />
+          {children}
         </Providers>
       </body>
     </html>
