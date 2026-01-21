@@ -16,7 +16,7 @@ export default function Header() {
         <nav className="flex gap-4 text-lg">
           {links.map(({ to, label }) => {
             return (
-              <Link key={to} href={to}>
+              <Link href={to} key={to}>
                 {label}
               </Link>
             );

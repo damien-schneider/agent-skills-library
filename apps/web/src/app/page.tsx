@@ -31,7 +31,7 @@ export default function Home() {
             <div
               className={`h-2 w-2 rounded-full ${healthCheck === "OK" ? "bg-green-500" : healthCheck === undefined ? "bg-orange-400" : "bg-red-500"}`}
             />
-            <span className="text-sm text-muted-foreground">
+            <span className="text-muted-foreground text-sm">
               {healthCheck === undefined
                 ? "Checking..."
                 : healthCheck === "OK"

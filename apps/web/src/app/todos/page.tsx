@@ -1,14 +1,19 @@
 "use client";
 
-import type { Id } from "@skills-agent-library/backend/convex/_generated/dataModel";
-
 import { api } from "@skills-agent-library/backend/convex/_generated/api";
+import type { Id } from "@skills-agent-library/backend/convex/_generated/dataModel";
 import { useMutation, useQuery } from "convex/react";
 import { Loader2, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 
@@ -23,7 +28,9 @@ export default function TodosPage() {
   const handleAddTodo = async (e: React.FormEvent) => {
     e.preventDefault();
     const text = newTodoText.trim();
-    if (!text) return;
+    if (!text) {
+      return;
+    }
     await createTodoMutation({ text });
     setNewTodoText("");
   };
@@ -44,13 +51,16 @@ export default function TodosPage() {
           <CardDescription>Manage your tasks efficiently</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleAddTodo} className="mb-6 flex items-center space-x-2">
+          <form
+            className="mb-6 flex items-center space-x-2"
+            onSubmit={handleAddTodo}
+          >
             <Input
-              value={newTodoText}
               onChange={(e) => setNewTodoText(e.target.value)}
               placeholder="Add a new task..."
+              value={newTodoText}
             />
-            <Button type="submit" disabled={!newTodoText.trim()}>
+            <Button disabled={!newTodoText.trim()} type="submit">
               Add
             </Button>
           </form>
@@ -65,27 +75,29 @@ export default function TodosPage() {
             <ul className="space-y-2">
               {todos.map((todo) => (
                 <li
-                  key={todo._id}
                   className="flex items-center justify-between rounded-md border p-2"
+                  key={todo._id}
                 >
                   <div className="flex items-center space-x-2">
                     <Checkbox
                       checked={todo.completed}
-                      onCheckedChange={() => handleToggleTodo(todo._id, todo.completed)}
                       id={`todo-${todo._id}`}
+                      onCheckedChange={() =>
+                        handleToggleTodo(todo._id, todo.completed)
+                      }
                     />
                     <label
+                      className={`${todo.completed ? "text-muted-foreground line-through" : ""}`}
                       htmlFor={`todo-${todo._id}`}
-                      className={`${todo.completed ? "line-through text-muted-foreground" : ""}`}
                     >
                       {todo.text}
                     </label>
                   </div>
                   <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleDeleteTodo(todo._id)}
                     aria-label="Delete todo"
+                    onClick={() => handleDeleteTodo(todo._id)}
+                    size="icon"
+                    variant="ghost"
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
