@@ -2,8 +2,8 @@
 
 import { api } from "@skills-agent-library/backend/convex/_generated/api";
 import { useMutation } from "convex/react";
-import { motion } from "framer-motion";
 import { ChevronDown, ChevronUp } from "lucide-react";
+import { motion } from "motion/react";
 import Link from "next/link";
 import { useState } from "react";
 

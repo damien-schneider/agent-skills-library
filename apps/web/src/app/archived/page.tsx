@@ -2,8 +2,8 @@
 
 import { api } from "@skills-agent-library/backend/convex/_generated/api";
 import { useMutation, useQuery } from "convex/react";
-import { motion } from "framer-motion";
 import { Archive, RotateCcw, Shield, Trash2 } from "lucide-react";
+import { motion } from "motion/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 

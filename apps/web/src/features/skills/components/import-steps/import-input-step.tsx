@@ -1,6 +1,5 @@
 "use client";
 
-import { motion } from "framer-motion";
 import {
   AlertCircle,
   Eye,
@@ -10,6 +9,7 @@ import {
   Loader2,
   Upload,
 } from "lucide-react";
+import { motion } from "motion/react";
 
 import type { ImportMode } from "../skill-import-form-new";
 

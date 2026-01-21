@@ -2,8 +2,8 @@
 
 import { api } from "@skills-agent-library/backend/convex/_generated/api";
 import { useMutation, useQuery } from "convex/react";
-import { motion } from "framer-motion";
 import { Shield, Trash2, Users } from "lucide-react";
+import { motion } from "motion/react";
 import { useState } from "react";
 
 import { formatSkillName } from "@/shared/lib/utils";

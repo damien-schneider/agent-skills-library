@@ -3,8 +3,8 @@
 import { api } from "@skills-agent-library/backend/convex/_generated/api";
 import { useForm } from "@tanstack/react-form";
 import { useMutation } from "convex/react";
-import { motion } from "framer-motion";
 import { Check, Loader2 } from "lucide-react";
+import { motion } from "motion/react";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { z } from "zod";

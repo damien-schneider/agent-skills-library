@@ -1,5 +1,5 @@
-import { AnimatePresence, motion } from "framer-motion";
 import { AlertCircle } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import { cn } from "@/shared/lib/utils";
 
 interface FieldErrorProps {

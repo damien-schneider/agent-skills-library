@@ -5,7 +5,7 @@ import {
   type useMotionValue,
   useSpring,
   useTransform,
-} from "framer-motion";
+} from "motion/react";
 import { useState } from "react";
 
 interface SkillPreview {

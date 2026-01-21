@@ -2,7 +2,6 @@
 
 import { api } from "@skills-agent-library/backend/convex/_generated/api";
 import { useMutation } from "convex/react";
-import { motion } from "framer-motion";
 import {
   AlertCircle,
   Check,
@@ -12,6 +11,7 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
+import { motion } from "motion/react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 

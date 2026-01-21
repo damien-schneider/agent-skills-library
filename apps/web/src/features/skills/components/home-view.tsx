@@ -2,8 +2,8 @@
 
 import { api } from "@skills-agent-library/backend/convex/_generated/api";
 import { usePaginatedQuery, useQuery } from "convex/react";
-import { AnimatePresence, motion } from "framer-motion";
 import { Filter, Loader2 } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 
 import { useAuthClient } from "@/shared/lib/auth-client";

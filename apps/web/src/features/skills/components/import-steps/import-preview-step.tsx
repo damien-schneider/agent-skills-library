@@ -1,6 +1,5 @@
 "use client";
 
-import { motion } from "framer-motion";
 import {
   AlertCircle,
   AlertTriangle,
@@ -12,6 +11,7 @@ import {
   Loader2,
   Upload,
 } from "lucide-react";
+import { motion } from "motion/react";
 
 import { formatSkillName } from "@/shared/lib/utils";
 

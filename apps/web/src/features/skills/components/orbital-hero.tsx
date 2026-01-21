@@ -17,6 +17,88 @@ interface OrbitalHeroProps {
   skills?: Skill[];
 }
 
+function SearchSuggestionsSkeleton() {
+  return (
+    <div className="space-y-1">
+      {[1, 2, 3].map((i) => (
+        <div
+          className="flex animate-pulse items-center gap-3 rounded-xl px-4 py-3"
+          key={i}
+        >
+          <div className="h-8 w-8 rounded-lg bg-muted/40" />
+          <div className="flex-1 space-y-2">
+            <div className="h-3 w-1/4 rounded bg-muted/40" />
+            <div className="h-2 w-2/3 rounded bg-muted/20" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SearchSuggestions({
+  searchQuery,
+  suggestions,
+}: {
+  searchQuery: string;
+  suggestions: Skill[];
+}) {
+  if (suggestions.length === 0) {
+    return (
+      <div className="px-4 py-8 text-center">
+        <p className="text-muted-foreground text-sm">
+          No skills matching "{searchQuery}"
+        </p>
+      </div>
+    );
+  }
+
+  return suggestions.map((skill, index) => (
+    <motion.a
+      animate={{ opacity: 1, x: 0 }}
+      className="group flex cursor-pointer items-center gap-3 rounded-xl px-4 py-3 transition-colors hover:bg-muted/50"
+      href={`/skills/${skill._id}`}
+      initial={{ opacity: 0, x: -10 }}
+      key={skill._id}
+      onMouseDown={(e) => e.preventDefault()}
+      transition={{
+        duration: 0.2,
+        delay: index * 0.05,
+        ease: [0.22, 1, 0.36, 1],
+      }}
+    >
+      <div
+        className="flex h-8 w-8 items-center justify-center rounded-lg"
+        style={{ backgroundColor: `${skill.color}20` }}
+      >
+        <div
+          className="h-2 w-2 rounded-full"
+          style={{ backgroundColor: skill.color }}
+        />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="truncate font-medium text-foreground text-sm group-hover:text-foreground">
+          {formatSkillName(skill.name)}
+        </p>
+        <p className="truncate text-muted-foreground text-xs">
+          {skill.description}
+        </p>
+      </div>
+      <motion.div
+        className="text-muted-foreground/40"
+        transition={{
+          type: "spring",
+          stiffness: 400,
+          damping: 20,
+        }}
+        whileHover={{ x: 2 }}
+      >
+        <ArrowRight className="h-4 w-4" />
+      </motion.div>
+    </motion.a>
+  ));
+}
+
 const placeholders = [
   "Explore security practices...",
   "Search for UI patterns...",
@@ -39,7 +121,7 @@ export function OrbitalHero({
   const mouseY = useMotionValue(0.5);
 
   // Debounce the search query for suggestions
-  const [debouncedQuery, { isPending }] = useDebouncedValue(
+  const [debouncedQuery, debouncer] = useDebouncedValue(
     searchQuery,
     {
       wait: 200,
@@ -47,6 +129,8 @@ export function OrbitalHero({
     },
     (state) => state
   );
+
+  const { isPending } = debouncer.state;
 
   // Filter skills based on debounced query
   const suggestions = useMemo(() => {
@@ -126,7 +210,7 @@ export function OrbitalHero({
           </div>
         </div>
 
-        <div className="pointer-events-none relative z-20 flex flex-col items-center *:pointer-events-auto">
+        <div className="relative z-20 flex flex-col items-center">
           <motion.div
             animate={{ opacity: 1, y: 0 }}
             className="mb-10 text-center"
@@ -262,74 +346,12 @@ export function OrbitalHero({
                     transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
                   >
                     <div className="p-2">
-                      {isPending && (
-                        <div className="space-y-1">
-                          {[1, 2, 3].map((i) => (
-                            <div
-                              className="flex animate-pulse items-center gap-3 rounded-xl px-4 py-3"
-                              key={i}
-                            >
-                              <div className="h-8 w-8 rounded-lg bg-muted/40" />
-                              <div className="flex-1 space-y-2">
-                                <div className="h-3 w-1/4 rounded bg-muted/40" />
-                                <div className="h-2 w-2/3 rounded bg-muted/20" />
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      {!isPending &&
-                        suggestions.length > 0 &&
-                        suggestions.map((skill, index) => (
-                          <motion.a
-                            animate={{ opacity: 1, x: 0 }}
-                            className="group flex cursor-pointer items-center gap-3 rounded-xl px-4 py-3 transition-colors hover:bg-muted/50"
-                            href={`/skills/${skill._id}`}
-                            initial={{ opacity: 0, x: -10 }}
-                            key={skill._id}
-                            onMouseDown={(e) => e.preventDefault()}
-                            transition={{
-                              duration: 0.2,
-                              delay: index * 0.05,
-                              ease: [0.22, 1, 0.36, 1],
-                            }}
-                          >
-                            <div
-                              className="flex h-8 w-8 items-center justify-center rounded-lg"
-                              style={{ backgroundColor: `${skill.color}20` }}
-                            >
-                              <div
-                                className="h-2 w-2 rounded-full"
-                                style={{ backgroundColor: skill.color }}
-                              />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate font-medium text-foreground text-sm group-hover:text-foreground">
-                                {formatSkillName(skill.name)}
-                              </p>
-                              <p className="truncate text-muted-foreground text-xs">
-                                {skill.description}
-                              </p>
-                            </div>
-                            <motion.div
-                              className="text-muted-foreground/40"
-                              transition={{
-                                type: "spring",
-                                stiffness: 400,
-                                damping: 20,
-                              }}
-                              whileHover={{ x: 2 }}
-                            >
-                              <ArrowRight className="h-4 w-4" />
-                            </motion.div>
-                          </motion.a>
-                        ))}
-                      {!isPending && suggestions.length === 0 && (
-                        <div className="px-4 py-8 text-center">
-                          <p className="text-muted-foreground text-sm">
-                            No skills matching "{searchQuery}"
-                          </p>
-                        </div>
+                      {isPending && <SearchSuggestionsSkeleton />}
+                      {!isPending && (
+                        <SearchSuggestions
+                          searchQuery={searchQuery}
+                          suggestions={suggestions}
+                        />
                       )}
                     </div>
                     <div className="border-border/20 border-t bg-muted/20 px-4 py-2">

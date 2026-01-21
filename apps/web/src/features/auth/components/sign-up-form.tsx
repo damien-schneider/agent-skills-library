@@ -1,8 +1,8 @@
 "use client";
 
 import { useForm } from "@tanstack/react-form";
-import { motion } from "framer-motion";
 import { Loader2, UserPlus } from "lucide-react";
+import { motion } from "motion/react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import z from "zod";
