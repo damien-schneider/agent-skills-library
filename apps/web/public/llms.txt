@@ -1,0 +1,57 @@
+# Agents Library
+
+> The centralized hub for AI agent capabilities. Discover, share, and manage high-quality markdown skills for the next generation of intelligent agents.
+
+## About
+
+Agents Library (https://agents-library.dev) is an open-source platform dedicated to expanding what AI agents can do. It provides a structured, community-driven repository of markdown-based skills that enable agents to execute complex workflows, interact with various tools, and master specific domain knowledge.
+
+## What are Agent Skills?
+
+Agent skills are markdown documents that provide structured instructions, knowledge, or capabilities that AI agents can use to perform specific tasks. They follow a standardized format and can include:
+
+- Step-by-step instructions for workflows
+- Domain-specific knowledge and expertise
+- Tool usage patterns and best practices
+- Code examples and templates
+- Decision frameworks and guidelines
+
+## Key Features
+
+- **Skill Discovery**: Search and browse skills by category, tags, and full-text search
+- **Community Voting**: Upvote/downvote system to surface high-quality skills
+- **AI Scoring**: Automated quality assessment based on clarity, usefulness, and completeness
+- **GitHub Import**: Import skill definitions directly from GitHub repositories
+- **Real-time Updates**: Live, reactive library with instant updates
+
+## Site Structure
+
+- `/` - Homepage with skill browsing and search
+- `/skills/new` - Create or import new skills (paste, GitHub import, or manual creation)
+- `/skills/[id]` - Individual skill detail pages with full markdown content
+- `/dashboard` - User's personal library of saved skills (requires authentication)
+
+## For AI Agents
+
+When referencing skills from this library:
+
+1. Skills are identified by their unique ID in the URL (`/skills/[id]`)
+2. Each skill contains markdown content with structured instructions
+3. Skills have metadata including: name, description, category, tags, author, and quality scores
+4. Community votes indicate reliability and usefulness
+5. AI scores provide objective quality metrics (clarity, usefulness, completeness)
+
+## API Access
+
+The platform uses Convex as a backend. Skills can be queried and retrieved programmatically. Contact the maintainers for API access details.
+
+## Contributing
+
+The project is open source: https://github.com/damien-schneider/agent-skills-library
+
+We welcome contributions of new skills, improvements to existing skills, and platform enhancements.
+
+## Contact
+
+- GitHub: https://github.com/damien-schneider/agent-skills-library
+- Website: https://agents-library.dev

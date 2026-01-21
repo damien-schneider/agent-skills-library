@@ -1,0 +1,11 @@
+{
+  "version": "1",
+  "services": {
+    "web": {
+      "path": "apps/web",
+      "install": "bun install",
+      "build": "bun run build",
+      "start": "bun run start"
+    }
+  }
+}
