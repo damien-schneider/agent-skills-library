@@ -1,0 +1,6 @@
+{
+  "extends": "@skills-agent-library/config/tsconfig.base.json",
+  "compilerOptions": {
+    "strictNullChecks": true
+  }
+}
