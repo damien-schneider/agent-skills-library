@@ -71,7 +71,7 @@ export default function ArchivedPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
+    <div className="min-h-screen bg-linear-to-b from-background to-muted/20">
       <div className="px-6 pt-32 pb-12">
         <motion.div
           animate={{ opacity: 1, y: 0 }}
@@ -103,7 +103,7 @@ export default function ArchivedPage() {
           transition={{ delay: 0.1 }}
         >
           <div className="mb-6 flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-muted-foreground/20 to-muted-foreground/40">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-linear-to-br from-muted-foreground/20 to-muted-foreground/40">
               <Archive className="h-5 w-5 text-foreground" />
             </div>
             <div>

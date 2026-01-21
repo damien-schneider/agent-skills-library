@@ -474,6 +474,43 @@ export const remove = mutation({
   },
 });
 
+export const listArchived = query({
+  args: {
+    userId: v.optional(v.string()),
+  },
+  handler: async (ctx) => {
+    const archivedSkills = await ctx.db
+      .query("skills")
+      .withIndex("by_archived", (q) => q.eq("isArchived", true))
+      .collect();
+
+    // Enforce basic net vote count calculation if denormalized fields are missing
+    return archivedSkills.map((skill) => ({
+      ...skill,
+      upvotes: skill.upvotes ?? 0,
+      downvotes: skill.downvotes ?? 0,
+    }));
+  },
+});
+
+export const unarchive = mutation({
+  args: {
+    id: v.id("skills"),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.id, { isArchived: false });
+  },
+});
+
+export const archive = mutation({
+  args: {
+    id: v.id("skills"),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.id, { isArchived: true });
+  },
+});
+
 export const archiveLowScoreSkills = internalMutation({
   args: {},
   handler: async (ctx) => {
