@@ -1,67 +1,78 @@
-# skills-agent-library
+# Skills Agent Library
 
-This project was created with [Better-T-Stack](https://github.com/AmanVarshney01/create-better-t-stack), a modern TypeScript stack that combines Next.js, Convex, and more.
+[agents-library.dev](https://agents-library.dev)
 
-## Features
+A modern platform for discovering, sharing, and managing high-quality skills for AI agents.
 
-- **TypeScript** - For type safety and improved developer experience
-- **Next.js** - Full-stack React framework
-- **TailwindCSS** - Utility-first CSS for rapid UI development
-- **shadcn/ui** - Reusable UI components
-- **Convex** - Reactive backend-as-a-service platform
-- **Authentication** - Better-Auth
-- **Husky** - Git hooks for code quality
-- **PWA** - Progressive Web App support
-- **Turborepo** - Optimized monorepo build system
+## 🚀 The Hub for Agent Capabilities
 
-## Getting Started
+The **Skills Agent Library** is a centralized ecosystem dedicated to expanding what AI agents can do. It provides a structured, community-driven repository of markdown-based skills that enable agents to execute complex workflows, interact with various tools, and master specific domain knowledge.
 
-First, install the dependencies:
+## ✨ Core Features
 
-```bash
-bun install
-```
+- **🔍 Discover & Explore**: Find the perfect skill for your agent through intuitive categorization, tagging, and powerful search.
+- **🗳️ Community Trust**: A robust voting system ensures the most effective skills rise to the top, providing reliability for your agent deployments.
+- **🤖 Automated Quality Assessment**: Every skill is analyzed by AI to score its clarity, usefulness, and completeness.
+- **📦 Effortless GitHub Integration**: Import and sync skill definitions directly from GitHub repositories to keep your library up to date.
+- **⚡ Real-time Updates**: Experience a live, reactive library where new skills and improvements are reflected instantly.
+- **📱 Accessible Anywhere**: A fully responsive interface that works seamlessly on desktop and mobile, also available as an installable web app.
 
-## Convex Setup
+## 🏗️ Project Structure
 
-This project uses Convex as a backend. You'll need to set up Convex before running the app:
-
-```bash
-bun run dev:setup
-```
-
-Follow the prompts to create a new Convex project and connect it to your application.
-
-Copy environment variables from `packages/backend/.env.local` to `apps/*/.env`.
-
-Then, run the development server:
-
-```bash
-bun run dev
-```
-
-Open [http://localhost:3020](http://localhost:3020) in your browser to see the web application.
-Your app will connect to the Convex cloud backend automatically.
-
-## Git Hooks and Formatting
-
-- Initialize hooks: `bun run prepare`
-
-## Project Structure
-
-```
-skills-agent-library/
+```text
+.
 ├── apps/
-│   ├── web/         # Frontend application (Next.js)
+│   └── web/           # Frontend application & user interface
 ├── packages/
-│   ├── backend/     # Convex backend functions and schema
+│   ├── backend/       # Real-time data management & business logic
+│   ├── config/        # Environment and workspace configurations
+│   └── env/           # Secure environment variable management
+└── AGENTS.md          # AI agent specific usage instructions
 ```
 
-## Available Scripts
+## 🏁 Development Setup
 
-- `bun run dev`: Start all applications in development mode
-- `bun run build`: Build all applications
-- `bun run dev:web`: Start only the web application
-- `bun run dev:setup`: Setup and configure your Convex project
-- `bun run check-types`: Check TypeScript types across all apps
-- `cd apps/web && bun run generate-pwa-assets`: Generate PWA assets
+### Prerequisites
+
+- [Bun](https://bun.sh)
+- [Convex](https://convex.dev) account
+
+### Installation
+
+1.  **Clone the repository**:
+    ```bash
+    git clone https://github.com/damien-schneider/agent-skills-library.git
+    cd agent-skills-library
+    ```
+
+2.  **Install dependencies**:
+    ```bash
+    bun install
+    ```
+
+3.  **Setup Backend**:
+    ```bash
+    bun run dev:setup
+    ```
+
+4.  **Run locally**:
+    ```bash
+    bun run dev
+    ```
+
+Visit [http://localhost:3020](http://localhost:3020) to see your local instance.
+
+## 📜 Repository Scripts
+
+- `bun run dev`: Start development mode.
+- `bun run build`: Create a production build.
+- `bun run check-types`: Validate TypeScript types.
+- `bun x ultracite fix`: Format and lint the codebase.
+
+## 🤝 Contributing
+
+Join us in building the largest library of agent skills! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+## 📄 License
+
+This project is licensed under the [MIT License](LICENSE).

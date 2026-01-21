@@ -126,7 +126,7 @@ export function OrbitalHero({
           </div>
         </div>
 
-        <div className="relative z-20 flex flex-col items-center">
+        <div className="pointer-events-none relative z-20 flex flex-col items-center *:pointer-events-auto">
           <motion.div
             animate={{ opacity: 1, y: 0 }}
             className="mb-10 text-center"

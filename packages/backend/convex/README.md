@@ -1,90 +1,25 @@
-# Welcome to your Convex functions directory!
+# Skills Agent Library - Backend
 
-Write your Convex functions here.
-See https://docs.convex.dev/functions for more.
+This directory contains the [Convex](https://convex.dev) schema and functions that power [agents-library.dev](https://agents-library.dev).
 
-A query function that takes two arguments looks like:
+## 📊 Core Data Model
 
-```ts
-// convex/myFunctions.ts
-import { query } from "./_generated/server";
-import { v } from "convex/values";
+- **`skills`**: The primary entity storing markdown content, metadata (license, compatibility), and AI/Community scores.
+- **`categories`**: Groupings for skills (e.g., "Productivity", "Development", "Research").
+- **`votes`**: Tracking of community sentiment (upvotes/downvotes).
+- **`savedSkills`**: User-specific collections of bookmarked skills.
 
-export const myQueryFunction = query({
-  // Validators for arguments.
-  args: {
-    first: v.number(),
-    second: v.string(),
-  },
+## 🛠️ Key Functionality
 
-  // Function implementation.
-  handler: async (ctx, args) => {
-    // Read the database as many times as you need here.
-    // See https://docs.convex.dev/database/reading-data.
-    const documents = await ctx.db.query("tablename").collect();
+- **Live Queries**: Highly reactive data fetching for real-time library updates.
+- **Mutations**: Atomic operations for voting, saving, and updating skill content.
+- **Background Actions**: Integration with external services (like GitHub) for data ingestion and AI scoring.
 
-    // Arguments passed from the client are properties of the args object.
-    console.log(args.first, args.second);
+## 🚀 Running Locally
 
-    // Write arbitrary JavaScript here: filter, aggregate, build derived data,
-    // remove non-public properties, or create new objects.
-    return documents;
-  },
-});
+From the project root:
+```bash
+bun run dev:server
 ```
 
-Using this query function in a React component looks like:
-
-```ts
-const data = useQuery(api.myFunctions.myQueryFunction, {
-  first: 10,
-  second: "hello",
-});
-```
-
-A mutation function looks like:
-
-```ts
-// convex/myFunctions.ts
-import { mutation } from "./_generated/server";
-import { v } from "convex/values";
-
-export const myMutationFunction = mutation({
-  // Validators for arguments.
-  args: {
-    first: v.string(),
-    second: v.string(),
-  },
-
-  // Function implementation.
-  handler: async (ctx, args) => {
-    // Insert or modify documents in the database here.
-    // Mutations can also read from the database like queries.
-    // See https://docs.convex.dev/database/writing-data.
-    const message = { body: args.first, author: args.second };
-    const id = await ctx.db.insert("messages", message);
-
-    // Optionally, return a value from your mutation.
-    return await ctx.db.get("messages", id);
-  },
-});
-```
-
-Using this mutation function in a React component looks like:
-
-```ts
-const mutation = useMutation(api.myFunctions.myMutationFunction);
-function handleButtonPress() {
-  // fire and forget, the most common way to use mutations
-  mutation({ first: "Hello!", second: "me" });
-  // OR
-  // use the result once the mutation has completed
-  mutation({ first: "Hello!", second: "me" }).then((result) =>
-    console.log(result),
-  );
-}
-```
-
-Use the Convex CLI to push your functions to a deployment. See everything
-the Convex CLI can do by running `npx convex -h` in your project root
-directory. To learn more, launch the docs with `npx convex docs`.
+This will start the Convex development environment and sync your local schema and functions.
