@@ -1,7 +1,14 @@
 {
-  "$schema": "https://railpack.io/schema.json",
-  "provider": "bun",
-  "install": "bun install --frozen-lockfile",
-  "build": "bun run build",
-  "start": "bun run start --filter=web"
+  "$schema": "https://schema.railpack.com",
+  "steps": {
+    "install": {
+      "commands": ["bun install --frozen-lockfile"]
+    },
+    "build": {
+      "commands": ["bun run build"]
+    }
+  },
+  "deploy": {
+    "startCommand": "bun run start"
+  }
 }

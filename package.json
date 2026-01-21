@@ -19,6 +19,7 @@
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
+    "start": "cd apps/web && bun run start",
     "check-types": "turbo check-types",
     "dev:native": "turbo -F native dev",
     "dev:web": "turbo -F web dev",
