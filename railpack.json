@@ -1,11 +1,7 @@
 {
-  "version": "1",
-  "services": {
-    "web": {
-      "path": "apps/web",
-      "install": "bun install",
-      "build": "bun run build",
-      "start": "bun run start"
-    }
-  }
+  "$schema": "https://railpack.io/schema.json",
+  "provider": "bun",
+  "install": "bun install --frozen-lockfile",
+  "build": "bun run build",
+  "start": "bun run start --filter=web"
 }
