@@ -1,7 +1,6 @@
 "use client";
 
 import { AlertCircle, CheckCircle2, Upload, X } from "lucide-react";
-import { motion } from "motion/react";
 
 import { formatSkillName } from "@/shared/lib/utils";
 
@@ -76,16 +75,14 @@ export function ImportResultsStep({
 
       {/* Actions */}
       <div className="flex gap-3">
-        <motion.button
-          className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-border bg-card py-3 font-medium text-foreground transition-colors hover:bg-muted"
+        <button
+          className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-border bg-card py-3 font-medium text-foreground transition-colors hover:scale-101 hover:bg-muted active:scale-99"
           onClick={onReset}
           type="button"
-          whileHover={{ scale: 1.01 }}
-          whileTap={{ scale: 0.99 }}
         >
           <Upload className="h-5 w-5" />
           Import More
-        </motion.button>
+        </button>
       </div>
     </div>
   );

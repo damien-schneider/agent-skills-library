@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  Archive,
-  ArrowLeft,
-  BookMarked,
-  Github,
-  LogIn,
-  Plus,
-} from "lucide-react";
+import { Archive, BookMarked, Github, LogIn, Plus } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -26,13 +19,13 @@ export default function Header() {
   return (
     <motion.header
       animate={{ opacity: 1, y: 0 }}
-      className="fixed top-0 right-0 left-0 z-50 w-full"
+      className="pointer-events-none fixed top-0 right-0 left-0 z-50 w-full"
       initial={{ opacity: 0, y: -10 }}
       transition={{ duration: 0.4, ease: "easeOut" }}
     >
       <div className="mx-auto max-w-7xl px-4 py-6">
         <div
-          className={`flex items-center ${showBackButton ? "justify-between" : "justify-end"} gap-3`}
+          className={`flex items-center ${showBackButton ? "justify-between" : "justify-end"} gap-3 *:pointer-events-auto`}
         >
           <AnimatePresence>
             {showBackButton && (
@@ -43,14 +36,13 @@ export default function Header() {
                 transition={{ duration: 0.3, ease: "easeOut" }}
               >
                 <Link href="/" prefetch>
-                  <motion.button
-                    className="flex items-center gap-2 rounded-full border border-border bg-card/80 px-4 py-2.5 font-medium text-foreground text-sm shadow-sm backdrop-blur-md transition-all duration-200 hover:bg-card"
-                    whileHover={{ scale: 1.02, x: -2 }}
-                    whileTap={{ scale: 0.98 }}
+                  <button
+                    className="flex items-center gap-2 rounded-full border border-border bg-card/80 px-4 py-2.5 font-medium text-foreground text-sm shadow-lg backdrop-blur-md transition-all duration-200 hover:-translate-x-0.5 hover:scale-102 hover:bg-card active:scale-98"
+                    type="button"
                   >
-                    <ArrowLeft className="h-4 w-4" />
+                    <Archive className="h-4 w-4" />
                     Back
-                  </motion.button>
+                  </button>
                 </Link>
               </motion.div>
             )}
@@ -66,14 +58,13 @@ export default function Header() {
                   initial={{ opacity: 0, scale: 0.8 }}
                 >
                   <Link href="/archived" prefetch>
-                    <motion.button
+                    <button
                       aria-label="View archived skills"
-                      className="rounded-full border border-amber-500/30 bg-amber-500/10 p-3 shadow-sm backdrop-blur-md transition-all duration-200 hover:bg-amber-500/20"
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
+                      className="rounded-full border border-amber-500/30 bg-amber-500/10 p-3 shadow-sm backdrop-blur-md transition-all duration-200 hover:scale-105 hover:bg-amber-500/20 active:scale-95"
+                      type="button"
                     >
                       <Archive className="h-5 w-5 text-amber-500" />
-                    </motion.button>
+                    </button>
                   </Link>
                 </motion.div>
               )}
@@ -87,14 +78,13 @@ export default function Header() {
                   initial={{ opacity: 0, scale: 0.8 }}
                 >
                   <Link href="/skills/new" prefetch>
-                    <motion.button
+                    <button
                       aria-label="Create new skill"
-                      className="rounded-full border border-border bg-card/80 p-3 shadow-sm backdrop-blur-md transition-all duration-200 hover:bg-card"
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
+                      className="rounded-full border border-border bg-card/80 p-3 shadow-sm backdrop-blur-md transition-all duration-200 hover:scale-105 hover:bg-card active:scale-95"
+                      type="button"
                     >
                       <Plus className="h-5 w-5 text-foreground" />
-                    </motion.button>
+                    </button>
                   </Link>
                 </motion.div>
               )}
@@ -110,14 +100,13 @@ export default function Header() {
                     key="library"
                   >
                     <Link href="/dashboard" prefetch>
-                      <motion.button
-                        className="flex items-center gap-2 rounded-full border border-border bg-card/80 px-5 py-2.5 font-medium text-foreground text-sm shadow-sm backdrop-blur-md transition-all duration-200 hover:bg-card"
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
+                      <button
+                        className="flex items-center gap-2 rounded-full border border-border bg-card/80 px-5 py-2.5 font-medium text-foreground text-sm shadow-sm backdrop-blur-md transition-all duration-200 hover:scale-102 hover:bg-card active:scale-98"
+                        type="button"
                       >
                         <BookMarked className="h-4 w-4" />
                         My Library
-                      </motion.button>
+                      </button>
                     </Link>
                   </motion.div>
                 ) : (
@@ -128,31 +117,28 @@ export default function Header() {
                     key="connect"
                   >
                     <Link href="/dashboard" prefetch>
-                      <motion.button
-                        className="flex items-center gap-2 rounded-full border border-border bg-card/80 px-5 py-2.5 font-medium text-foreground text-sm shadow-sm backdrop-blur-md transition-all duration-200 hover:bg-card"
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
+                      <button
+                        className="flex items-center gap-2 rounded-full border border-border bg-card/80 px-5 py-2.5 font-medium text-foreground text-sm shadow-sm backdrop-blur-md transition-all duration-200 hover:scale-102 hover:bg-card active:scale-98"
+                        type="button"
                       >
                         <LogIn className="h-4 w-4" />
                         Connect
-                      </motion.button>
+                      </button>
                     </Link>
                   </motion.div>
                 )}
               </AnimatePresence>
             )}
 
-            <motion.a
+            <a
               aria-label="GitHub repository"
-              className="rounded-full border border-border bg-card/80 p-3 shadow-sm backdrop-blur-md transition-all duration-200 hover:bg-card"
+              className="rounded-full border border-border bg-card/80 p-3 shadow-sm backdrop-blur-md transition-all duration-200 hover:scale-105 hover:bg-card active:scale-95"
               href="https://github.com/anomalyco/skills-agent-library"
               rel="noopener noreferrer"
               target="_blank"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
             >
               <Github className="h-5 w-5 text-foreground" />
-            </motion.a>
+            </a>
 
             <ModeToggle />
           </div>

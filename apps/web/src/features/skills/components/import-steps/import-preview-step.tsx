@@ -100,13 +100,11 @@ export function ImportPreviewStep({
           {validSelectedCount} of {previewSkills.length} skills selected
         </p>
 
-        <motion.button
-          className="flex items-center justify-center gap-2 rounded-xl bg-foreground px-6 py-3 font-medium text-background disabled:opacity-50"
+        <button
+          className="flex items-center justify-center gap-2 rounded-xl bg-foreground px-6 py-3 font-medium text-background hover:scale-101 active:scale-99 disabled:opacity-50"
           disabled={isLoading || validSelectedCount === 0}
           onClick={onImport}
           type="button"
-          whileHover={{ scale: 1.01 }}
-          whileTap={{ scale: 0.99 }}
         >
           {isLoading ? (
             <>
@@ -120,7 +118,7 @@ export function ImportPreviewStep({
               {validSelectedCount !== 1 ? "s" : ""}
             </>
           )}
-        </motion.button>
+        </button>
       </div>
     </div>
   );

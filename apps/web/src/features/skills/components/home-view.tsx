@@ -4,7 +4,7 @@ import { api } from "@skills-agent-library/backend/convex/_generated/api";
 import { usePaginatedQuery, useQuery } from "convex/react";
 import { Filter, Loader2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 import { useAuthClient } from "@/shared/lib/auth-client";
 
@@ -20,6 +20,8 @@ export function HomeView() {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<"votes" | "date" | "score">("votes");
 
+  const heroRef = useRef<HTMLDivElement>(null);
+
   const { results, status, loadMore } = usePaginatedQuery(
     api.skills.listPaginated,
     {
@@ -33,22 +35,31 @@ export function HomeView() {
 
   const skills = results as Skill[];
 
-  const handleSearch = () => {
+  const handleSearch = useCallback(() => {
     setTimeout(() => {
       document
         .getElementById("skills-section")
         ?.scrollIntoView({ behavior: "smooth" });
     }, 100);
-  };
+  }, []);
 
-  const handleCategoryClick = (slug: string) => {
+  const handleCategoryClick = useCallback((slug: string) => {
     setSelectedCategory(slug);
     setTimeout(() => {
       document
         .getElementById("skills-section")
         ?.scrollIntoView({ behavior: "smooth" });
     }, 100);
-  };
+  }, []);
+
+  const handleRandomSkill = useCallback(() => {
+    if (skills.length === 0) {
+      return;
+    }
+    const randomIndex = Math.floor(Math.random() * skills.length);
+    const randomSkill = skills[randomIndex];
+    window.location.href = `/skills/${randomSkill._id}`;
+  }, [skills]);
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-background">
@@ -64,26 +75,23 @@ export function HomeView() {
       </div>
 
       <div className="relative z-10">
-        <OrbitalHero
-          onCategoryClick={handleCategoryClick}
-          onSearch={handleSearch}
-          onSearchChange={setSearchQuery}
-          searchQuery={searchQuery}
-          skills={skills}
-        />
+        <div ref={heroRef}>
+          <OrbitalHero
+            onCategoryClick={handleCategoryClick}
+            onRandomSkill={handleRandomSkill}
+            onSearch={handleSearch}
+            onSearchChange={setSearchQuery}
+            searchQuery={searchQuery}
+            skills={skills}
+          />
+        </div>
 
         <section
           className="min-h-screen bg-linear-to-b from-transparent via-background to-background px-6 py-24"
           id="skills-section"
         >
           <div className="mx-auto max-w-7xl">
-            <motion.div
-              className="mb-12"
-              initial={{ opacity: 0, y: 20 }}
-              transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-              viewport={{ once: false, margin: "-100px" }}
-              whileInView={{ opacity: 1, y: 0 }}
-            >
+            <div className="mb-12">
               <h2
                 className="mb-10 text-3xl text-foreground md:text-4xl"
                 style={{ fontFamily: "var(--font-display)" }}
@@ -93,29 +101,22 @@ export function HomeView() {
                   : "All Skills"}
               </h2>
 
-              <motion.div
-                className="flex flex-wrap items-center gap-3"
-                initial={{ opacity: 0, y: 10 }}
-                transition={{ delay: 0.1 }}
-                viewport={{ once: false, margin: "-100px" }}
-                whileInView={{ opacity: 1, y: 0 }}
-              >
+              <div className="flex flex-wrap items-center gap-3">
                 <div className="flex flex-wrap items-center gap-2">
-                  <motion.button
-                    className={`rounded-full px-5 py-2.5 font-medium text-sm transition-all duration-300 ${
+                  <button
+                    className={`rounded-full px-5 py-2.5 font-medium text-sm transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] ${
                       selectedCategory
                         ? "border border-border/50 bg-card/60 text-muted-foreground backdrop-blur-sm hover:bg-card/80"
                         : "bg-foreground text-background shadow-foreground/10 shadow-lg"
                     }`}
                     onClick={() => setSelectedCategory(null)}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
+                    type="button"
                   >
                     All
-                  </motion.button>
+                  </button>
                   {categories.map((category) => (
-                    <motion.button
-                      className={`rounded-full px-5 py-2.5 font-medium text-sm transition-all duration-300 ${
+                    <button
+                      className={`rounded-full px-5 py-2.5 font-medium text-sm transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] ${
                         selectedCategory === category.slug
                           ? "text-white shadow-lg"
                           : "border border-border/50 bg-card/60 text-muted-foreground backdrop-blur-sm hover:bg-card/80"
@@ -130,14 +131,13 @@ export function HomeView() {
                             }
                           : {}
                       }
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
+                      type="button"
                     >
                       {category.name}
                       <span className="ml-1.5 text-xs opacity-70">
                         {category.skillCount}
                       </span>
-                    </motion.button>
+                    </button>
                   ))}
                 </div>
 
@@ -155,18 +155,13 @@ export function HomeView() {
                     <option value="score">AI Score</option>
                   </select>
                 </div>
-              </motion.div>
+              </div>
 
-              <motion.p
-                animate={{ opacity: 1 }}
-                className="mt-8 text-muted-foreground text-sm"
-                initial={{ opacity: 0 }}
-                transition={{ delay: 0.2 }}
-              >
+              <p className="mt-8 text-muted-foreground text-sm">
                 {skills.length} skill
                 {skills.length !== 1 ? "s" : ""} found
-              </motion.p>
-            </motion.div>
+              </p>
+            </div>
 
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 md:gap-8 xl:grid-cols-4">
               <AnimatePresence mode="popLayout">
@@ -196,11 +191,7 @@ export function HomeView() {
             )}
 
             {skills.length === 0 && status === "Exhausted" && (
-              <motion.div
-                animate={{ opacity: 1, y: 0 }}
-                className="py-24 text-center"
-                initial={{ opacity: 0, y: 20 }}
-              >
+              <div className="py-24 text-center">
                 <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-muted/50 backdrop-blur-sm">
                   <Filter className="h-10 w-10 text-muted-foreground/50" />
                 </div>
@@ -210,18 +201,17 @@ export function HomeView() {
                 <p className="mb-8 text-muted-foreground">
                   Try adjusting your filters or search query
                 </p>
-                <motion.button
-                  className="rounded-full bg-foreground px-6 py-3 font-medium text-background text-sm"
+                <button
+                  className="rounded-full bg-foreground px-6 py-3 font-medium text-background text-sm transition-transform hover:scale-[1.02] active:scale-[0.98]"
                   onClick={() => {
                     setSelectedCategory(null);
                     setSearchQuery("");
                   }}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
+                  type="button"
                 >
                   Clear all filters
-                </motion.button>
-              </motion.div>
+                </button>
+              </div>
             )}
           </div>
         </section>

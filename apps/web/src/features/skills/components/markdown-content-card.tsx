@@ -18,7 +18,7 @@ export function MarkdownContentCard({
   return (
     <motion.div
       animate={{ opacity: 1, y: 0 }}
-      className="col-span-12 overflow-hidden rounded-3xl border border-border bg-card shadow-sm"
+      className="col-span-12 overflow-hidden rounded-3xl border border-border bg-card shadow-2xl shadow-black/5"
       initial={{ opacity: 0, y: 20 }}
       transition={{ delay: 0.35 }}
     >
@@ -33,11 +33,10 @@ export function MarkdownContentCard({
             SKILL.md
           </span>
         </div>
-        <motion.button
-          className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 font-medium text-primary-foreground text-sm transition-colors hover:opacity-90"
+        <button
+          className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 font-medium text-primary-foreground text-sm transition-colors hover:scale-102 hover:opacity-90 active:scale-98"
           onClick={onCopy}
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
+          type="button"
         >
           {copied ? (
             <>
@@ -48,7 +47,7 @@ export function MarkdownContentCard({
               <Copy className="h-4 w-4" /> Copy Markdown
             </>
           )}
-        </motion.button>
+        </button>
       </div>
 
       <div

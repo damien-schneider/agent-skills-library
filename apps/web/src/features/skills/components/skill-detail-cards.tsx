@@ -40,7 +40,7 @@ export function SkillHeader({ skill, category }: SkillHeaderProps) {
       >
         <span className="font-semibold text-sm">{category?.name}</span>
         <span className="text-xs opacity-70">
-          ({category?.skillCount} skills)
+          ({category?.skillCount ?? 1} skills)
         </span>
       </motion.div>
 
@@ -82,7 +82,7 @@ export function FrontmatterCard({
   return (
     <motion.div
       animate={{ opacity: 1, y: 0 }}
-      className="relative col-span-12 overflow-hidden rounded-3xl border border-border bg-card p-6 shadow-sm lg:col-span-8"
+      className="relative col-span-12 overflow-hidden rounded-3xl border border-border bg-card p-6 shadow-2xl shadow-black/5 lg:col-span-8"
       initial={{ opacity: 0, y: 20 }}
       transition={{ delay: 0.15 }}
     >
@@ -90,10 +90,10 @@ export function FrontmatterCard({
         <h2 className="font-semibold text-muted-foreground/60 text-sm uppercase tracking-wider">
           Frontmatter
         </h2>
-        <motion.button
-          className="flex items-center gap-1.5 rounded-lg bg-muted px-3 py-1.5 font-medium text-muted-foreground text-xs transition-colors hover:bg-muted/80 hover:text-foreground"
+        <button
+          className="flex items-center gap-1.5 rounded-lg bg-muted px-3 py-1.5 font-medium text-muted-foreground text-xs transition-colors hover:bg-muted/80 hover:text-foreground active:scale-95"
           onClick={onCopy}
-          whileTap={{ scale: 0.95 }}
+          type="button"
         >
           {copied ? (
             <Check className="h-3.5 w-3.5 text-emerald-500" />
@@ -101,7 +101,7 @@ export function FrontmatterCard({
             <Copy className="h-3.5 w-3.5" />
           )}
           {copied ? "Copied" : "Copy"}
-        </motion.button>
+        </button>
       </div>
 
       <div className="space-y-2 rounded-2xl bg-muted/50 p-5 font-mono text-sm">
@@ -189,7 +189,7 @@ export function SidebarCards({
       initial={{ opacity: 0, y: 20 }}
       transition={{ delay: 0.2 }}
     >
-      <div className="flex items-center gap-4 rounded-3xl border border-border bg-card p-5 shadow-sm">
+      <div className="flex items-center gap-4 rounded-3xl border border-border bg-card p-5 shadow-2xl shadow-black/5">
         <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-muted">
           <User className="h-5 w-5 text-muted-foreground" />
         </div>
@@ -198,40 +198,38 @@ export function SidebarCards({
           <p className="text-muted-foreground text-sm">Contributor</p>
         </div>
         {onToggleSave && (
-          <motion.button
+          <button
             className={`flex h-10 w-10 items-center justify-center rounded-xl transition-all duration-200 ${
               isSaved
                 ? "bg-amber-500 text-white shadow-amber-500/20 shadow-lg"
                 : "border border-border bg-card text-muted-foreground hover:border-amber-200 hover:bg-amber-500/10 hover:text-amber-500"
-            }`}
+            } hover:scale-105 active:scale-95`}
             onClick={onSaveClick}
             title={isSaved ? "Remove from library" : "Save to library"}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+            type="button"
           >
             {isSaved ? (
               <BookmarkCheck className="h-5 w-5" />
             ) : (
               <Bookmark className="h-5 w-5" />
             )}
-          </motion.button>
+          </button>
         )}
       </div>
 
-      <div className="rounded-3xl border border-border bg-card p-5 shadow-sm">
+      <div className="rounded-3xl border border-border bg-card p-5 shadow-2xl shadow-black/5">
         <div className="mb-4 flex items-center justify-center gap-8">
-          <motion.button
+          <button
             className={`flex h-12 w-12 items-center justify-center rounded-xl transition-all duration-200 ${
               skill.userVote === "up"
                 ? "bg-emerald-500 text-white shadow-emerald-500/20 shadow-lg"
                 : "border border-border bg-card text-muted-foreground hover:border-emerald-200 hover:bg-emerald-500/10 hover:text-emerald-500"
-            }`}
+            } hover:scale-105 active:scale-95`}
             onClick={() => onVoteClick("up")}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+            type="button"
           >
             <ChevronUp className="h-6 w-6" strokeWidth={2.5} />
-          </motion.button>
+          </button>
 
           <div className="flex flex-col items-center">
             <span className="mb-1 font-bold text-5xl text-foreground">
@@ -243,18 +241,17 @@ export function SidebarCards({
             </span>
           </div>
 
-          <motion.button
+          <button
             className={`flex h-12 w-12 items-center justify-center rounded-xl transition-all duration-200 ${
               skill.userVote === "down"
                 ? "bg-rose-500 text-white shadow-lg shadow-rose-500/20"
                 : "border border-border bg-card text-muted-foreground hover:border-rose-200 hover:bg-rose-500/10 hover:text-rose-500"
-            }`}
+            } hover:scale-105 active:scale-95`}
             onClick={() => onVoteClick("down")}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+            type="button"
           >
             <ChevronDown className="h-6 w-6" strokeWidth={2.5} />
-          </motion.button>
+          </button>
         </div>
       </div>
 

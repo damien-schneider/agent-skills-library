@@ -4,6 +4,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
 
 import "../index.css";
+import Footer from "@/shared/components/layout/footer";
 import Header from "@/shared/components/layout/header";
 import Providers from "@/shared/components/layout/providers";
 import { getToken } from "@/shared/lib/auth-server";
@@ -162,8 +163,11 @@ export default async function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <Providers initialToken={token}>
-          <Header />
-          {children}
+          <div className="flex min-h-screen flex-col">
+            <Header />
+            <div className="flex-1">{children}</div>
+            <Footer />
+          </div>
         </Providers>
       </body>
     </html>

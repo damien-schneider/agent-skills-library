@@ -66,13 +66,11 @@ export function GitHubInputStep({
       )}
 
       {/* Preview Button */}
-      <motion.button
-        className="flex w-full items-center justify-center gap-2 rounded-xl bg-foreground py-3 font-medium text-background disabled:opacity-50"
+      <button
+        className="flex w-full items-center justify-center gap-2 rounded-xl bg-foreground py-3 font-medium text-background hover:scale-101 active:scale-99 disabled:opacity-50"
         disabled={isSubmitDisabled}
         onClick={onFetchPreview}
         type="button"
-        whileHover={{ scale: 1.01 }}
-        whileTap={{ scale: 0.99 }}
       >
         {isLoading ? (
           <>
@@ -85,7 +83,7 @@ export function GitHubInputStep({
             Preview Skills
           </>
         )}
-      </motion.button>
+      </button>
     </>
   );
 }

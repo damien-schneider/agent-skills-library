@@ -1,16 +1,17 @@
 "use client";
 
 import { api } from "@skills-agent-library/backend/convex/_generated/api";
+import type { Id } from "@skills-agent-library/backend/convex/_generated/dataModel";
 import { useMutation } from "convex/react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { motion } from "motion/react";
-import Link from "next/link";
 import { useState } from "react";
 
 import { SignInDialog } from "@/shared/components/ui/sign-in-dialog";
 import { useAuthClient } from "@/shared/lib/auth-client";
 import { cn, formatSkillName } from "@/shared/lib/utils";
 import type { Category, Skill } from "../lib/types";
+import { SkillPreviewDialog } from "./skill-preview-dialog";
 
 interface SkillCardProps {
   skill: Skill;
@@ -23,6 +24,7 @@ export function SkillCard({ skill, index, categories }: SkillCardProps) {
   const vote = useMutation(api.votes.vote);
   const [isHovered, setIsHovered] = useState(false);
   const [showSignInDialog, setShowSignInDialog] = useState(false);
+  const [showPreviewDialog, setShowPreviewDialog] = useState(false);
 
   const category = categories.find((c) => c.slug === skill.category);
 
@@ -42,6 +44,11 @@ export function SkillCard({ skill, index, categories }: SkillCardProps) {
     });
   };
 
+  const handleCardClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setShowPreviewDialog(true);
+  };
+
   const getVoteColor = () => {
     const netVotes = skill.upvotes - skill.downvotes;
     if (netVotes > 0) {
@@ -54,23 +61,26 @@ export function SkillCard({ skill, index, categories }: SkillCardProps) {
   };
 
   return (
-    <motion.article
-      animate={{ opacity: 1, y: 0 }}
-      className="group relative w-full cursor-pointer"
-      initial={{ opacity: 0, y: 20 }}
-      layout
-      layoutId={`skill-card-${skill._id}`}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      style={{ aspectRatio: "280 / 240" }}
-      transition={{
-        duration: 0.5,
-        delay: index * 0.04,
-        ease: [0.22, 1, 0.36, 1],
-        layout: { type: "spring", stiffness: 300, damping: 30 },
-      }}
-    >
-      <Link href={`/skills/${skill._id}`} prefetch>
+    <>
+      <motion.article
+        animate={{ opacity: 1, y: 0 }}
+        className="group relative w-full cursor-pointer"
+        initial={{ opacity: 0, y: 20 }}
+        layout
+        layoutId={`skill-card-${skill._id}`}
+        onClick={handleCardClick}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        style={{
+          aspectRatio: "280 / 240",
+        }}
+        transition={{
+          duration: 0.5,
+          delay: index * 0.04,
+          ease: [0.22, 1, 0.36, 1],
+          layout: { type: "spring", stiffness: 300, damping: 30 },
+        }}
+      >
         <div
           className={cn(
             "absolute inset-0 transition-transform duration-300 ease-out",
@@ -179,59 +189,62 @@ export function SkillCard({ skill, index, categories }: SkillCardProps) {
             </span>
           </div>
         </div>
-      </Link>
 
-      <button
-        aria-label="Upvote"
-        className={cn(
-          "absolute right-[21%] bottom-[1%] flex h-[28.5%] w-[18.5%] min-w-11 flex-col items-center justify-center gap-0.5 rounded-[18px] transition-all duration-200",
-          "z-99 cursor-pointer rounded-t-lg shadow-black/3 shadow-xl active:scale-[0.96]",
-          skill.userVote === "up"
-            ? "bg-emerald-500 text-white shadow-emerald-500/20 shadow-lg"
-            : "border border-border/20 bg-card/80 text-muted-foreground/80 hover:border-emerald-500/10 hover:bg-emerald-500/10 hover:text-emerald-500"
-        )}
-        onClick={(e) => handleVote(e, "up")}
-        type="button"
-      >
-        <ChevronUp className="h-5 w-5" strokeWidth={2.5} />
-        <span className="font-semibold text-xs">{skill.upvotes}</span>
-      </button>
+        <button
+          aria-label="Upvote"
+          className={cn(
+            "absolute right-[21%] bottom-[1%] flex h-[28.5%] w-[18.5%] min-w-11 flex-col items-center justify-center gap-0.5 rounded-[18px] transition-all duration-200",
+            "z-99 cursor-pointer rounded-t-lg shadow-black/3 shadow-xl active:scale-[0.96]",
+            skill.userVote === "up"
+              ? "bg-emerald-500 text-white shadow-emerald-500/20 shadow-lg"
+              : "border border-border/20 bg-card/80 text-muted-foreground/80 hover:border-emerald-500/10 hover:bg-emerald-500/10 hover:text-emerald-500"
+          )}
+          onClick={(e) => handleVote(e, "up")}
+          type="button"
+        >
+          <ChevronUp className="h-5 w-5" strokeWidth={2.5} />
+          <span className="font-semibold text-xs">{skill.upvotes}</span>
+        </button>
 
-      <button
-        aria-label="Downvote"
-        className={cn(
-          "absolute right-[1%] bottom-[1%] flex h-[28.5%] w-[18.5%] min-w-11 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-[18px] rounded-t-lg shadow-black/3 shadow-xl transition-all duration-200",
-          "rounded-tr-lg active:scale-[0.96]",
-          skill.userVote === "down"
-            ? "bg-rose-500 text-white shadow-lg shadow-rose-500/20"
-            : "border border-border/20 bg-card/80 text-muted-foreground/80 hover:border-rose-500/10 hover:bg-rose-500/10 hover:text-rose-500"
-        )}
-        onClick={(e) => handleVote(e, "down")}
-        type="button"
-      >
-        <ChevronDown className="h-5 w-5" strokeWidth={2.5} />
-        <span className="font-semibold text-xs">{skill.downvotes}</span>
-      </button>
+        <button
+          aria-label="Downvote"
+          className={cn(
+            "absolute right-[1%] bottom-[1%] flex h-[28.5%] w-[18.5%] min-w-11 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-[18px] rounded-t-lg shadow-black/3 shadow-xl transition-all duration-200",
+            "rounded-tr-lg active:scale-[0.96]",
+            skill.userVote === "down"
+              ? "bg-rose-500 text-white shadow-lg shadow-rose-500/20"
+              : "border border-border/20 bg-card/80 text-muted-foreground/80 hover:border-rose-500/10 hover:bg-rose-500/10 hover:text-rose-500"
+          )}
+          onClick={(e) => handleVote(e, "down")}
+          type="button"
+        >
+          <ChevronDown className="h-5 w-5" strokeWidth={2.5} />
+          <span className="font-semibold text-xs">{skill.downvotes}</span>
+        </button>
 
-      <p
-        className={cn(
-          "justify-centertransition-opacity absolute top-5 right-5 flex items-center font-bold text-xs tracking-tighter delay-200 duration-200 ease-out",
-          getVoteColor()
-          // isHovered && (skill.upvotes > 0 || skill.downvotes > 0)
-          //   ? "scale-100 opacity-100"
-          //   : "scale-0 opacity-0"
-        )}
-      >
-        {skill.upvotes - skill.downvotes > 0 ? "+" : ""}
-        {skill.upvotes - skill.downvotes}
-      </p>
+        <p
+          className={cn(
+            "justify-centertransition-opacity absolute top-5 right-5 flex items-center font-bold text-xs tracking-tighter delay-200 duration-200 ease-out",
+            getVoteColor()
+          )}
+        >
+          {skill.upvotes - skill.downvotes > 0 ? "+" : ""}
+          {skill.upvotes - skill.downvotes}
+        </p>
 
-      <SignInDialog
-        description="You need to be signed in to vote on skills. Sign in or create an account to share your opinion."
-        onOpenChange={setShowSignInDialog}
-        open={showSignInDialog}
-        title="Sign in to vote"
+        <SignInDialog
+          description="You need to be signed in to vote on skills. Sign in or create an account to share your opinion."
+          onOpenChange={setShowSignInDialog}
+          open={showSignInDialog}
+          title="Sign in to vote"
+        />
+      </motion.article>
+
+      <SkillPreviewDialog
+        onOpenChange={setShowPreviewDialog}
+        open={showPreviewDialog}
+        skillId={skill._id as Id<"skills">}
       />
-    </motion.article>
+    </>
   );
 }

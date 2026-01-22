@@ -156,15 +156,13 @@ export function BasicInfoSection({ form }: BasicInfoSectionProps) {
                   type="text"
                   value={tagInput}
                 />
-                <motion.button
-                  className="rounded-2xl bg-muted px-4 py-3 transition-colors hover:bg-muted/80"
+                <button
+                  className="rounded-2xl bg-muted px-4 py-3 transition-colors hover:scale-102 hover:bg-muted/80 active:scale-98"
                   onClick={() => addTag(field.state.value)}
                   type="button"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
                 >
                   <Plus className="h-4 w-4" />
-                </motion.button>
+                </button>
               </div>
               <FieldError error={field.state.meta.errors} />
             </div>
@@ -373,15 +371,13 @@ export function AdvancedFieldsSection({ form }: AdvancedFieldsSectionProps) {
                                   {meta.value}
                                 </span>
                               </div>
-                              <motion.button
-                                className="rounded-xl p-2.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                              <button
+                                className="rounded-xl p-2.5 text-muted-foreground transition-colors hover:scale-105 hover:bg-destructive/10 hover:text-destructive active:scale-95"
                                 onClick={() => field.removeValue(index)}
                                 type="button"
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
                               >
                                 <Trash2 className="h-4 w-4" />
-                              </motion.button>
+                              </button>
                             </motion.div>
                           )
                         )}
@@ -415,15 +411,13 @@ export function AdvancedFieldsSection({ form }: AdvancedFieldsSectionProps) {
                           type="text"
                           value={newMetaValue}
                         />
-                        <motion.button
-                          className="rounded-2xl bg-muted px-4 py-3 transition-colors hover:bg-muted/80"
+                        <button
+                          className="rounded-2xl bg-muted px-4 py-3 transition-colors hover:scale-102 hover:bg-muted/80 active:scale-98"
                           onClick={() => addCustomField(field.state.value)}
                           type="button"
-                          whileHover={{ scale: 1.02 }}
-                          whileTap={{ scale: 0.98 }}
                         >
                           <Plus className="h-4 w-4" />
-                        </motion.button>
+                        </button>
                       </div>
                     </div>
                   )}

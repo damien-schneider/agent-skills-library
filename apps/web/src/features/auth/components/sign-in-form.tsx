@@ -123,12 +123,10 @@ export function SignInForm({ onSwitchToSignUp }: SignInFormProps) {
 
           <form.Subscribe>
             {(state) => (
-              <motion.button
-                className="mt-2 w-full rounded-2xl bg-foreground py-4 font-medium text-background text-lg shadow-foreground/10 shadow-lg disabled:opacity-50"
+              <button
+                className="mt-2 w-full rounded-2xl bg-foreground py-4 font-medium text-background text-lg shadow-foreground/10 shadow-lg hover:-translate-y-0.5 hover:scale-101 active:scale-99 disabled:opacity-50"
                 disabled={!state.canSubmit || state.isSubmitting}
                 type="submit"
-                whileHover={{ scale: 1.01, y: -1 }}
-                whileTap={{ scale: 0.99 }}
               >
                 <span className="flex items-center justify-center gap-2">
                   {state.isSubmitting ? (
@@ -143,7 +141,7 @@ export function SignInForm({ onSwitchToSignUp }: SignInFormProps) {
                     </>
                   )}
                 </span>
-              </motion.button>
+              </button>
             )}
           </form.Subscribe>
         </form>

@@ -152,7 +152,7 @@
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border outline-ring/50 shadow-black/4;
   }
   body {
     @apply font-sans bg-background text-foreground;

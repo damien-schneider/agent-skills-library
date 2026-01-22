@@ -15,6 +15,7 @@ export {
 export { SkillGitHubImport } from "./components/skill-github-import";
 export { SkillImportForm } from "./components/skill-import-form-new";
 export { SkillPasteDropView } from "./components/skill-paste-drop-view";
+export { SkillPreviewDialog } from "./components/skill-preview-dialog";
 export { MarkdownPreview } from "./components/skill-preview-sections";
 
 // Lib

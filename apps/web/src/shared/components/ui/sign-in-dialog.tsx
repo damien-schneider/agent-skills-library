@@ -43,7 +43,7 @@ export function SignInDialog({
             Sign In
           </Link>
           <Link
-            className="flex w-full items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white py-3 font-medium text-foreground transition-all hover:bg-gray-50"
+            className="flex w-full items-center justify-center gap-2 rounded-xl border py-3 font-medium text-foreground transition-all"
             href="/dashboard"
             onClick={() => onOpenChange(false)}
           >

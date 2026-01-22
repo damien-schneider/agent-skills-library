@@ -489,13 +489,11 @@ Instructions and content go here...`}
                 )}
 
                 {/* Publish button */}
-                <motion.button
-                  className="mt-6 w-full rounded-2xl bg-foreground py-4 font-medium text-background text-lg shadow-foreground/10 shadow-lg disabled:opacity-50"
+                <button
+                  className="mt-6 w-full rounded-2xl bg-foreground py-4 font-medium text-background text-lg shadow-foreground/10 shadow-lg hover:-translate-y-0.5 hover:scale-101 active:scale-99 disabled:opacity-50"
                   disabled={isSubmitting || !validation?.valid}
                   onClick={handlePublish}
                   type="button"
-                  whileHover={{ scale: 1.01, y: -1 }}
-                  whileTap={{ scale: 0.99 }}
                 >
                   <span className="flex items-center justify-center gap-2">
                     {isSubmitting ? (
@@ -510,7 +508,7 @@ Instructions and content go here...`}
                       </>
                     )}
                   </span>
-                </motion.button>
+                </button>
               </div>
             </motion.div>
 

@@ -1,7 +1,6 @@
 "use client";
 
 import { Check, Copy } from "lucide-react";
-import { motion } from "motion/react";
 import { useState } from "react";
 
 interface MarkdownPreviewProps {
@@ -36,12 +35,10 @@ export function MarkdownPreview({
             SKILL.md
           </span>
         </div>
-        <motion.button
-          className="flex items-center gap-1.5 rounded-lg bg-muted px-3 py-1.5 font-medium text-xs transition-colors hover:bg-muted/80"
+        <button
+          className="flex items-center gap-1.5 rounded-lg bg-muted px-3 py-1.5 font-medium text-xs transition-colors hover:scale-102 hover:bg-muted/80 active:scale-98"
           onClick={handleCopy}
           type="button"
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
         >
           {copied ? (
             <>
@@ -54,7 +51,7 @@ export function MarkdownPreview({
               Copy
             </>
           )}
-        </motion.button>
+        </button>
       </div>
 
       <div className="max-h-[500px] overflow-y-auto p-5">

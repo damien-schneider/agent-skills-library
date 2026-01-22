@@ -84,15 +84,14 @@ function LibraryView() {
                 Welcome back, {user?.name || session?.user?.name || "there"}
               </p>
             </div>
-            <motion.button
-              className="flex items-center gap-2 rounded-full border border-border bg-card/80 px-4 py-2.5 font-medium text-foreground/70 text-sm shadow-sm backdrop-blur-md transition-all duration-200 hover:bg-card hover:text-foreground"
+            <button
+              className="flex items-center gap-2 rounded-full border border-border bg-card/80 px-4 py-2.5 font-medium text-foreground/70 text-sm shadow-sm backdrop-blur-md transition-all duration-200 hover:scale-102 hover:bg-card hover:text-foreground active:scale-98"
               onClick={handleSignOut}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+              type="button"
             >
               <LogOut className="h-4 w-4" />
               Sign Out
-            </motion.button>
+            </button>
           </div>
 
           {/* Tab Navigation */}
@@ -185,13 +184,12 @@ function LibraryView() {
                     Start exploring and save skills to your library
                   </p>
                   <Link href="/">
-                    <motion.button
-                      className="rounded-full bg-foreground px-6 py-3 font-medium text-background text-sm"
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
+                    <button
+                      className="rounded-full bg-foreground px-6 py-3 font-medium text-background text-sm hover:scale-102 active:scale-98"
+                      type="button"
                     >
                       Explore Skills
-                    </motion.button>
+                    </button>
                   </Link>
                 </motion.div>
               )}
