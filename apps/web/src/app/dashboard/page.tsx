@@ -48,6 +48,8 @@ function LibraryView() {
     )
     .map((skill) => ({
       ...skill,
+      upvotes: skill.upvotes ?? 0,
+      downvotes: skill.downvotes ?? 0,
       userVote: null,
     }));
 

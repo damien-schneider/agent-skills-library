@@ -30,6 +30,8 @@ export const list = query({
         return {
           ...skill,
           votes: voteCount,
+          upvotes: skill.upvotes ?? 0,
+          downvotes: skill.downvotes ?? 0,
           savedAt: saved._creationTime,
         };
       })

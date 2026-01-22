@@ -3,7 +3,9 @@ import type {
   Id,
 } from "@skills-agent-library/backend/convex/_generated/dataModel";
 
-export type Skill = Doc<"skills"> & {
+// Skill type that extends the base document with computed vote fields
+// upvotes/downvotes default to 0 when not present in the document
+export type Skill = Omit<Doc<"skills">, "upvotes" | "downvotes"> & {
   votes: number;
   upvotes: number;
   downvotes: number;
