@@ -31,8 +31,17 @@ export default defineSchema({
     // Source provenance
     sourceUrl: v.optional(v.string()),
     sourcePath: v.optional(v.string()),
+    // Moderation fields
+    moderationStatus: v.optional(
+      v.union(v.literal("visible"), v.literal("hidden"), v.literal("pending"))
+    ),
+    reportCount: v.optional(v.number()),
+    // Analytics
+    copyCount: v.optional(v.number()),
   })
     .index("by_category", ["category"])
+    .index("by_authorId", ["authorId"])
+    .index("by_moderation_status", ["moderationStatus"])
     .index("by_archived", ["isArchived"])
     .index("by_score", ["score"])
     .index("by_aiScore", ["aiScore.overall"])
@@ -68,4 +77,27 @@ export default defineSchema({
   })
     .index("by_user", ["userId"])
     .index("by_skill_and_user", ["skillId", "userId"]),
+
+  skillReports: defineTable({
+    skillId: v.id("skills"),
+    reporterId: v.string(),
+    reason: v.string(),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("reviewed"),
+      v.literal("dismissed")
+    ),
+  })
+    .index("by_skill", ["skillId"])
+    .index("by_status", ["status"])
+    .index("by_skill_and_reporter", ["skillId", "reporterId"]),
+
+  skillCopies: defineTable({
+    skillId: v.id("skills"),
+    userId: v.optional(v.string()), // For authenticated users
+    hashedIdentifier: v.optional(v.string()), // For unauthenticated users (hashed IP)
+  })
+    .index("by_skill", ["skillId"])
+    .index("by_skill_and_user", ["skillId", "userId"])
+    .index("by_skill_and_identifier", ["skillId", "hashedIdentifier"]),
 });

@@ -7,12 +7,11 @@ import {
   Unauthenticated,
   useQuery,
 } from "convex/react";
-import { BookMarked, LogOut, Settings, Sparkles } from "lucide-react";
+import { BookMarked, Download, LogOut, Settings, Sparkles } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-
 import { SignInForm, SignUpForm } from "@/features/auth";
 import {
   AdminPanel,
@@ -20,6 +19,7 @@ import {
 } from "@/features/skills/components/admin-panel";
 import { SkillCard } from "@/features/skills/components/skill-card";
 import { SkillImportForm } from "@/features/skills/components/skill-import-form-new";
+import { InstallAllDialog } from "@/features/skills/install/install-all-dialog";
 import type { Skill } from "@/features/skills/lib/types";
 import { authClient, useAuthClient } from "@/shared/lib/auth-client";
 
@@ -40,6 +40,7 @@ function LibraryView() {
   const isAdmin = isAdminUser(userEmail);
 
   const [activeTab, setActiveTab] = useState<DashboardTab>("library");
+  const [showInstallAllDialog, setShowInstallAllDialog] = useState(false);
 
   const savedSkills: Skill[] = rawSavedSkills
     .filter(
@@ -147,12 +148,24 @@ function LibraryView() {
               initial={{ opacity: 0, y: 10 }}
               key="library"
             >
-              <div className="mb-8 flex items-center gap-2 text-muted-foreground">
-                <BookMarked className="h-5 w-5" />
-                <span className="font-medium">
-                  {savedSkills.length} saved skill
-                  {savedSkills.length === 1 ? "" : "s"}
-                </span>
+              <div className="mb-8 flex items-center gap-4 text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <BookMarked className="h-5 w-5" />
+                  <span className="font-medium">
+                    {savedSkills.length} saved skill
+                    {savedSkills.length === 1 ? "" : "s"}
+                  </span>
+                </div>
+                {savedSkills.length > 0 && (
+                  <button
+                    className="flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-2 font-medium text-primary text-sm transition-colors hover:bg-primary/10"
+                    onClick={() => setShowInstallAllDialog(true)}
+                    type="button"
+                  >
+                    <Download className="h-4 w-4" />
+                    Install All
+                  </button>
+                )}
               </div>
 
               {savedSkills.length > 0 ? (
@@ -224,6 +237,15 @@ function LibraryView() {
           )}
         </AnimatePresence>
       </main>
+
+      <InstallAllDialog
+        onOpenChange={setShowInstallAllDialog}
+        open={showInstallAllDialog}
+        skills={savedSkills.map((skill) => ({
+          name: skill.name,
+          markdown: skill.markdown,
+        }))}
+      />
     </div>
   );
 }

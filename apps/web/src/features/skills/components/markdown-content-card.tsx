@@ -1,19 +1,24 @@
 "use client";
 
-import { Check, Copy } from "lucide-react";
+import { Check, Copy, Download } from "lucide-react";
 import { motion } from "motion/react";
 import ReactMarkdown from "react-markdown";
 
+import { Button } from "@/shared/components/ui/button";
+import { ButtonGroup } from "@/shared/components/ui/button-group";
+
 interface MarkdownContentCardProps {
-  skill: { markdown: string; color: string };
+  skill: { markdown: string; color: string; name: string; sourceUrl?: string };
   copied: boolean;
   onCopy: () => void;
+  onInstallClick: () => void;
 }
 
 export function MarkdownContentCard({
   skill,
   copied,
   onCopy,
+  onInstallClick,
 }: MarkdownContentCardProps) {
   return (
     <motion.div
@@ -33,21 +38,30 @@ export function MarkdownContentCard({
             SKILL.md
           </span>
         </div>
-        <button
-          className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 font-medium text-primary-foreground text-sm transition-colors hover:scale-102 hover:opacity-90 active:scale-98"
-          onClick={onCopy}
-          type="button"
-        >
-          {copied ? (
-            <>
-              <Check className="h-4 w-4" /> Copied!
-            </>
-          ) : (
-            <>
-              <Copy className="h-4 w-4" /> Copy Markdown
-            </>
-          )}
-        </button>
+        <ButtonGroup>
+          <Button
+            data-slot="button"
+            onClick={onInstallClick}
+            size="sm"
+            variant="outline"
+          >
+            <Download className="h-4 w-4" />
+            Install to Computer
+          </Button>
+          <Button
+            data-slot="button"
+            onClick={onCopy}
+            size="icon-sm"
+            title={copied ? "Copied!" : "Copy Markdown"}
+            variant="outline"
+          >
+            {copied ? (
+              <Check className="h-4 w-4" />
+            ) : (
+              <Copy className="h-4 w-4" />
+            )}
+          </Button>
+        </ButtonGroup>
       </div>
 
       <div

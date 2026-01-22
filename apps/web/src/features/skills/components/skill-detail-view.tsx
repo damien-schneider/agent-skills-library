@@ -6,7 +6,10 @@ import { useMutation, useQuery } from "convex/react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { isAdminUser } from "@/features/skills";
+import { InstallSkillDialog } from "@/features/skills/install/install-skill-dialog";
 import { useAuthClient } from "@/shared/lib/auth-client";
+import { getHashedIdentifier } from "@/shared/lib/utils";
 
 import { MarkdownContentCard } from "./markdown-content-card";
 import {
@@ -32,9 +35,14 @@ export function SkillDetailView({ skillId }: SkillDetailViewProps) {
   );
   const voteMutation = useMutation(api.votes.vote);
   const toggleSaveMutation = useMutation(api.savedSkills.toggle);
+  const incrementCopyCountMutation = useMutation(api.skills.incrementCopyCount);
 
   const [copied, setCopied] = useState(false);
   const [copiedFrontmatter, setCopiedFrontmatter] = useState(false);
+  const [showInstallDialog, setShowInstallDialog] = useState(false);
+
+  const userEmail = session?.user?.email;
+  const isAdmin = isAdminUser(userEmail);
 
   if (!skill) {
     return (
@@ -50,6 +58,17 @@ export function SkillDetailView({ skillId }: SkillDetailViewProps) {
     await navigator.clipboard.writeText(skill.markdown);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+    try {
+      const userId = session?.user?.id;
+      const hashedIdentifier = userId ? undefined : await getHashedIdentifier();
+      await incrementCopyCountMutation({
+        id: skill._id,
+        userId,
+        hashedIdentifier: hashedIdentifier ?? undefined,
+      });
+    } catch {
+      // Silently fail if copy count increment fails
+    }
   };
 
   const handleCopyFrontmatter = async () => {
@@ -63,6 +82,17 @@ tags: [${skill.tags.join(", ")}]
     await navigator.clipboard.writeText(frontmatter);
     setCopiedFrontmatter(true);
     setTimeout(() => setCopiedFrontmatter(false), 2000);
+    try {
+      const userId = session?.user?.id;
+      const hashedIdentifier = userId ? undefined : await getHashedIdentifier();
+      await incrementCopyCountMutation({
+        id: skill._id,
+        userId,
+        hashedIdentifier: hashedIdentifier ?? undefined,
+      });
+    } catch {
+      // Silently fail if copy count increment fails
+    }
   };
 
   const handleVote = async (direction: "up" | "down") => {
@@ -102,7 +132,12 @@ tags: [${skill.tags.join(", ")}]
   return (
     <div className="min-h-screen bg-background">
       <main className="mx-auto max-w-4xl px-6 pt-28 pb-20">
-        <SkillHeader category={category} skill={skill} />
+        <SkillHeader
+          category={category}
+          copyCount={skill.copyCount}
+          isAdmin={isAdmin}
+          skill={skill}
+        />
 
         <div className="grid grid-cols-12 gap-4">
           <FrontmatterCard
@@ -124,9 +159,19 @@ tags: [${skill.tags.join(", ")}]
           <MarkdownContentCard
             copied={copied}
             onCopy={handleCopyMarkdown}
+            onInstallClick={() => setShowInstallDialog(true)}
             skill={skill}
           />
         </div>
+
+        <InstallSkillDialog
+          hasBundle={false}
+          onOpenChange={setShowInstallDialog}
+          open={showInstallDialog}
+          skillContent={skill.markdown}
+          skillName={skill.name}
+          sourceUrl={skill.sourceUrl}
+        />
       </main>
     </div>
   );

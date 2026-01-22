@@ -18,9 +18,16 @@ import { formatSkillName } from "@/shared/lib/utils";
 interface SkillHeaderProps {
   skill: { name: string; description: string };
   category?: { name: string; color: string; skillCount: number };
+  copyCount?: number;
+  isAdmin?: boolean;
 }
 
-export function SkillHeader({ skill, category }: SkillHeaderProps) {
+export function SkillHeader({
+  skill,
+  category,
+  copyCount,
+  isAdmin,
+}: SkillHeaderProps) {
   return (
     <motion.div
       animate={{ opacity: 1, y: 0 }}
@@ -42,6 +49,11 @@ export function SkillHeader({ skill, category }: SkillHeaderProps) {
         <span className="text-xs opacity-70">
           ({category?.skillCount ?? 1} skills)
         </span>
+        {isAdmin && copyCount !== undefined && (
+          <span className="text-xs opacity-70">
+            • {copyCount} {copyCount === 1 ? "copy" : "copies"}
+          </span>
+        )}
       </motion.div>
 
       <h1
@@ -148,7 +160,14 @@ export function FrontmatterCard({
 }
 
 interface SidebarCardsProps {
-  skill: { authorName: string; votes: number; userVote?: "up" | "down" | null };
+  skill: {
+    name: string;
+    markdown: string;
+    authorName: string;
+    votes: number;
+    userVote?: "up" | "down" | null;
+    sourceUrl?: string;
+  };
   session: { user?: { id: string } } | null;
   handleVote: (direction: "up" | "down") => Promise<void>;
   isSaved?: boolean;

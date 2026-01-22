@@ -18,6 +18,15 @@ export const list = query({
           return null;
         }
 
+        // Filter out reported and hidden skills
+        if (
+          skill.isArchived ||
+          skill.moderationStatus === "hidden" ||
+          skill.moderationStatus === "pending"
+        ) {
+          return null;
+        }
+
         const votes = await ctx.db
           .query("votes")
           .withIndex("by_skill", (q) => q.eq("skillId", skill._id))

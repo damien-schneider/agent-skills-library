@@ -99,6 +99,18 @@ function validateSkillInput(args: {
   };
 }
 
+/**
+ * Check if a skill should be visible to public users.
+ * Reported skills (moderationStatus === "pending") and hidden skills should not be visible.
+ */
+function isSkillVisible(skill: Doc<"skills">): boolean {
+  return (
+    !skill.isArchived &&
+    skill.moderationStatus !== "hidden" &&
+    skill.moderationStatus !== "pending"
+  );
+}
+
 export const list = query({
   args: {
     category: v.optional(v.string()),
@@ -129,8 +141,10 @@ export const list = query({
       skills = await ctx.db.query("skills").collect();
     }
 
+    const visibleSkills = skills.filter(isSkillVisible);
+
     const skillsWithVotes = await Promise.all(
-      skills.map(async (skill) => {
+      visibleSkills.map(async (skill) => {
         const votes = await ctx.db
           .query("votes")
           .withIndex("by_skill", (q) => q.eq("skillId", skill._id))
@@ -157,7 +171,7 @@ export const get = query({
   },
   handler: async (ctx, args) => {
     const skill = await ctx.db.get(args.id);
-    if (!skill) {
+    if (!(skill && isSkillVisible(skill))) {
       return null;
     }
 
@@ -184,7 +198,7 @@ export const getWithUserVote = query({
   },
   handler: async (ctx, args) => {
     const skill = await ctx.db.get(args.id);
-    if (!skill) {
+    if (!(skill && isSkillVisible(skill))) {
       return null;
     }
 
@@ -367,7 +381,7 @@ export const listPaginated = query({
       return {
         ...results,
         page: await Promise.all(
-          results.page.map(async (skill) => {
+          results.page.filter(isSkillVisible).map(async (skill) => {
             let userVote: "up" | "down" | null = null;
             if (userId) {
               const vote = await ctx.db
@@ -438,7 +452,7 @@ export const listPaginated = query({
     })();
 
     const enrichedPage = await Promise.all(
-      results.page.map(async (skill) => {
+      results.page.filter(isSkillVisible).map(async (skill) => {
         let userVote: "up" | "down" | null = null;
         if (userId) {
           const vote = await ctx.db
@@ -499,12 +513,51 @@ export const listArchived = query({
       .withIndex("by_archived", (q) => q.eq("isArchived", true))
       .collect();
 
-    // Enforce basic net vote count calculation if denormalized fields are missing
     return archivedSkills.map((skill) => ({
       ...skill,
       upvotes: skill.upvotes ?? 0,
       downvotes: skill.downvotes ?? 0,
     }));
+  },
+});
+
+export const listByAuthor = query({
+  args: {
+    authorId: v.string(),
+    userId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const skills = await ctx.db
+      .query("skills")
+      .withIndex("by_authorId", (q) => q.eq("authorId", args.authorId))
+      .collect();
+
+    const visibleSkills = skills.filter(isSkillVisible);
+
+    const enrichedSkills = await Promise.all(
+      visibleSkills.map(async (skill) => {
+        let userVote: "up" | "down" | null = null;
+        if (args.userId) {
+          const vote = await ctx.db
+            .query("votes")
+            .withIndex("by_skill_and_user", (q) =>
+              q.eq("skillId", skill._id).eq("userId", args.userId as string)
+            )
+            .first();
+          userVote = vote?.direction ?? null;
+        }
+
+        return {
+          ...skill,
+          votes: skill.score ?? 0,
+          upvotes: skill.upvotes ?? 0,
+          downvotes: skill.downvotes ?? 0,
+          userVote,
+        };
+      })
+    );
+
+    return enrichedSkills;
   },
 });
 
@@ -537,6 +590,63 @@ export const archiveLowScoreSkills = internalMutation({
     for (const skill of lowScoreSkills) {
       await ctx.db.patch(skill._id, { isArchived: true });
     }
+  },
+});
+
+export const incrementCopyCount = mutation({
+  args: {
+    id: v.id("skills"),
+    userId: v.optional(v.string()),
+    hashedIdentifier: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const skill = await ctx.db.get(args.id);
+    if (!skill) {
+      throw new Error("Skill not found");
+    }
+
+    // Check if user/identifier has already copied this skill
+    const existingCopyByUser = args.userId
+      ? await ctx.db
+          .query("skillCopies")
+          .withIndex("by_skill_and_user", (q) =>
+            q.eq("skillId", args.id).eq("userId", args.userId)
+          )
+          .first()
+      : null;
+
+    const existingCopyByIdentifier = args.hashedIdentifier
+      ? await ctx.db
+          .query("skillCopies")
+          .withIndex("by_skill_and_identifier", (q) =>
+            q
+              .eq("skillId", args.id)
+              .eq("hashedIdentifier", args.hashedIdentifier)
+          )
+          .first()
+      : null;
+
+    const existingCopy = existingCopyByUser ?? existingCopyByIdentifier;
+
+    // If already copied, don't increment
+    if (existingCopy) {
+      return { success: true, alreadyCopied: true };
+    }
+
+    // Create copy record
+    await ctx.db.insert("skillCopies", {
+      skillId: args.id,
+      userId: args.userId,
+      hashedIdentifier: args.hashedIdentifier,
+    });
+
+    // Increment copy count
+    const currentCount = skill.copyCount ?? 0;
+    await ctx.db.patch(args.id, {
+      copyCount: currentCount + 1,
+    });
+
+    return { success: true, alreadyCopied: false };
   },
 });
 

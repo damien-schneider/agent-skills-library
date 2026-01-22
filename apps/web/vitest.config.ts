@@ -8,6 +8,11 @@ export default defineConfig({
     environment: "happy-dom",
     setupFiles: ["./vitest.setup.ts"],
     globals: true,
+    env: {
+      NEXT_PUBLIC_CONVEX_URL: "https://test.convex.cloud",
+      NEXT_PUBLIC_CONVEX_SITE_URL: "https://test.convex.site",
+      NEXT_PUBLIC_SITE_URL: "http://localhost:3020",
+    },
   },
   resolve: {
     alias: {

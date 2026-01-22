@@ -31,6 +31,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "convex": "catalog:",
+    "jszip": "^3.10.1",
     "lucide-react": "^0.562.0",
     "motion": "^12.28.1",
     "next": "^16.1.1",

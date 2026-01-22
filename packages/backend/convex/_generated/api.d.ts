@@ -13,6 +13,7 @@ import type * as categories from "../categories.js";
 import type * as crons from "../crons.js";
 import type * as healthCheck from "../healthCheck.js";
 import type * as http from "../http.js";
+import type * as moderation from "../moderation.js";
 import type * as privateData from "../privateData.js";
 import type * as savedSkills from "../savedSkills.js";
 import type * as seed from "../seed.js";
@@ -31,6 +32,7 @@ declare const fullApi: ApiFromModules<{
   crons: typeof crons;
   healthCheck: typeof healthCheck;
   http: typeof http;
+  moderation: typeof moderation;
   privateData: typeof privateData;
   savedSkills: typeof savedSkills;
   seed: typeof seed;
