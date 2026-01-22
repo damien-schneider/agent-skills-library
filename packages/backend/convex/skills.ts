@@ -231,6 +231,14 @@ export const create = mutation({
         completeness: v.number(),
       })
     ),
+    // Extended metadata fields per Agent Skills spec
+    version: v.optional(v.string()),
+    license: v.optional(v.string()),
+    compatibility: v.optional(v.string()),
+    allowedTools: v.optional(v.array(v.string())),
+    // Source provenance
+    sourceUrl: v.optional(v.string()),
+    sourcePath: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // Use "uncategorized" as default category for AI categorization later
@@ -274,6 +282,13 @@ export const create = mutation({
       score: 0,
       upvotes: 0,
       downvotes: 0,
+      // Extended metadata
+      version: args.version,
+      license: args.license,
+      compatibility: args.compatibility,
+      allowedTools: args.allowedTools,
+      sourceUrl: args.sourceUrl,
+      sourcePath: args.sourcePath,
     });
 
     // Only update category count if it exists

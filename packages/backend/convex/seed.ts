@@ -103,7 +103,7 @@ function Card({ children, header, footer }) {
 }
 \`\`\``,
         tags: ["react", "architecture", "patterns"],
-        color: skillColors[0],
+        color: skillColors[0] as string,
         aiScore: { overall: 92, clarity: 95, usefulness: 90, completeness: 88 },
       },
       {
@@ -144,7 +144,7 @@ function FormField({ error, label, id }) {
 }
 \`\`\``,
         tags: ["accessibility", "forms", "a11y"],
-        color: skillColors[1],
+        color: skillColors[1] as string,
         aiScore: { overall: 88, clarity: 90, usefulness: 92, completeness: 82 },
       },
       {
@@ -177,7 +177,7 @@ describe('useCounter', () => {
 })
 \`\`\``,
         tags: ["testing", "hooks", "react"],
-        color: skillColors[2],
+        color: skillColors[2] as string,
         aiScore: { overall: 85, clarity: 88, usefulness: 85, completeness: 80 },
       },
       {
@@ -200,7 +200,7 @@ describe('useCounter', () => {
 - [ ] Implement virtualization for long lists
 - [ ] Code split vendor bundles`,
         tags: ["performance", "optimization", "react"],
-        color: skillColors[3],
+        color: skillColors[3] as string,
         aiScore: { overall: 94, clarity: 96, usefulness: 95, completeness: 90 },
       },
       {
@@ -226,7 +226,7 @@ const Button = styled.button\`
 \`
 \`\`\``,
         tags: ["css", "styling", "best-practices"],
-        color: skillColors[4],
+        color: skillColors[4] as string,
         aiScore: { overall: 82, clarity: 85, usefulness: 80, completeness: 78 },
       },
       {
@@ -257,7 +257,7 @@ const securityHeaders = [
 ]
 \`\`\``,
         tags: ["security", "headers", "configuration"],
-        color: skillColors[5],
+        color: skillColors[5] as string,
         aiScore: { overall: 91, clarity: 92, usefulness: 94, completeness: 86 },
       },
     ];

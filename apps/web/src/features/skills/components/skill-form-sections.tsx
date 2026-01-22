@@ -9,6 +9,27 @@ import { MarkdownEditor } from "@/shared/components/ui/markdown-editor";
 
 import type { CustomMetadataField } from "../lib/types";
 
+// Field state type for TanStack Form fields
+interface FieldState<T> {
+  value: T;
+  meta: {
+    errors: string[];
+    isTouched: boolean;
+  };
+}
+
+interface BaseField<T> {
+  name: string;
+  state: FieldState<T>;
+  handleChange: (value: T) => void;
+  handleBlur: () => void;
+}
+
+interface ArrayField<T> extends BaseField<T[]> {
+  pushValue: (value: T) => void;
+  removeValue: (index: number) => void;
+}
+
 interface BasicInfoSectionProps {
   // biome-ignore lint/suspicious/noExplicitAny: Complex FormApi generic type
   form: any;
@@ -36,7 +57,7 @@ export function BasicInfoSection({ form }: BasicInfoSectionProps) {
 
       <div className="space-y-5">
         <form.Field name="name">
-          {(field) => (
+          {(field: BaseField<string>) => (
             <div>
               <label
                 className="mb-2 block font-medium text-muted-foreground text-sm"
@@ -63,7 +84,7 @@ export function BasicInfoSection({ form }: BasicInfoSectionProps) {
         </form.Field>
 
         <form.Field name="description">
-          {(field) => (
+          {(field: BaseField<string>) => (
             <div>
               <label
                 className="mb-2 block font-medium text-muted-foreground text-sm"
@@ -90,7 +111,7 @@ export function BasicInfoSection({ form }: BasicInfoSectionProps) {
         </form.Field>
 
         <form.Field name="tags">
-          {(field) => (
+          {(field: ArrayField<string>) => (
             <div>
               <label
                 className="mb-2 block font-medium text-muted-foreground text-sm"
@@ -100,7 +121,7 @@ export function BasicInfoSection({ form }: BasicInfoSectionProps) {
               </label>
               <div className="mb-3 flex flex-wrap gap-2">
                 <AnimatePresence>
-                  {field.state.value.map((tag, index) => (
+                  {field.state.value.map((tag: string, index: number) => (
                     <motion.span
                       animate={{ opacity: 1, scale: 1 }}
                       className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3.5 py-1.5 text-muted-foreground text-sm"
@@ -162,7 +183,7 @@ interface ContentSectionProps {
 export function ContentSection({ form }: ContentSectionProps) {
   return (
     <form.Field name="content">
-      {(field) => (
+      {(field: BaseField<string>) => (
         <div>
           <MarkdownEditor
             hasError={field.state.meta.errors.length > 0}
@@ -238,7 +259,7 @@ export function AdvancedFieldsSection({ form }: AdvancedFieldsSectionProps) {
             <div className="space-y-5 border-border border-t px-8 pt-6 pb-8">
               {/* License Field */}
               <form.Field name="license">
-                {(field) => (
+                {(field: BaseField<string>) => (
                   <div>
                     <label
                       className="mb-2 block font-medium text-muted-foreground text-sm"
@@ -265,7 +286,7 @@ export function AdvancedFieldsSection({ form }: AdvancedFieldsSectionProps) {
 
               {/* Compatibility Field */}
               <form.Field name="compatibility">
-                {(field) => (
+                {(field: BaseField<string>) => (
                   <div>
                     <label
                       className="mb-2 block font-medium text-muted-foreground text-sm"
@@ -292,7 +313,7 @@ export function AdvancedFieldsSection({ form }: AdvancedFieldsSectionProps) {
 
               {/* Allowed Tools Field */}
               <form.Field name="allowedTools">
-                {(field) => (
+                {(field: BaseField<string>) => (
                   <div>
                     <label
                       className="mb-2 block font-medium text-muted-foreground text-sm"
@@ -331,7 +352,7 @@ export function AdvancedFieldsSection({ form }: AdvancedFieldsSectionProps) {
                 </div>
 
                 <form.Field name="customMetadata">
-                  {(field) => (
+                  {(field: ArrayField<CustomMetadataField>) => (
                     <div className="space-y-3">
                       {/* Existing custom fields */}
                       <AnimatePresence>
