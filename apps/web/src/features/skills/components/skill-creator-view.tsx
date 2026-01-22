@@ -187,7 +187,7 @@ export function SkillCreatorView({ showHeader = true }: SkillCreatorViewProps) {
                 </form.Subscribe>
 
                 <button
-                  className="w-full rounded-2xl bg-foreground py-4 font-medium text-background text-lg shadow-foreground/10 shadow-lg hover:-translate-y-0.5 hover:scale-101 active:scale-99 disabled:opacity-50"
+                  className="w-full transform-gpu rounded-2xl bg-foreground py-4 font-medium text-background text-lg shadow-foreground/10 shadow-lg hover:-translate-y-0.5 hover:scale-101 active:scale-99 disabled:opacity-50"
                   disabled={isSubmitting}
                   type="submit"
                 >

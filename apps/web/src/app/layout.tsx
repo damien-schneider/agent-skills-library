@@ -4,10 +4,12 @@ import { Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
 
 import "../index.css";
+import Image from "next/image";
 import Footer from "@/shared/components/layout/footer";
 import Header from "@/shared/components/layout/header";
 import Providers from "@/shared/components/layout/providers";
 import { getToken } from "@/shared/lib/auth-server";
+import { GITHUB_AUTHOR_URL } from "@/shared/lib/constants";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -47,9 +49,7 @@ export const metadata: Metadata = {
     "markdown skills",
     "AI development",
   ],
-  authors: [
-    { name: "Damien Schneider", url: "https://github.com/damien-schneider" },
-  ],
+  authors: [{ name: "Damien Schneider", url: GITHUB_AUTHOR_URL }],
   creator: "Damien Schneider",
   publisher: SITE_NAME,
   applicationName: SITE_NAME,
@@ -163,7 +163,23 @@ export default async function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <Providers initialToken={token}>
-          <div className="flex min-h-screen flex-col">
+          <div className="pointer-events-none inset-0" id="app-background">
+            <div className="absolute inset-0 bg-linear-to-b from-background to-background dark:from-neutral-700" />
+            <Image
+              alt="Background"
+              className="mask-image-linear-gradient-to-bottom-black-transparent-100 object-cover opacity-10 dark:opacity-30"
+              fill
+              priority
+              src={"/shadow.png"}
+              style={{
+                maskImage:
+                  "linear-gradient(to bottom, black 0%, transparent 100%)",
+                WebkitMaskImage:
+                  "linear-gradient(to bottom, black 0%, transparent 100%)",
+              }}
+            />
+          </div>
+          <div className="relative z-10 flex min-h-screen flex-col">
             <Header />
             <div className="flex-1">{children}</div>
             <Footer />

@@ -65,7 +65,7 @@ export function AdminPanel({ userEmail }: AdminPanelProps) {
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-4">
-        <div className="rounded-2xl border border-border bg-card/50 p-4 backdrop-blur-sm">
+        <div className="rounded-2xl border border-border bg-card p-4">
           <div className="flex items-center gap-2 text-muted-foreground text-sm">
             <Users className="h-4 w-4" />
             Total Skills
@@ -74,7 +74,7 @@ export function AdminPanel({ userEmail }: AdminPanelProps) {
             {allSkills.length}
           </p>
         </div>
-        <div className="rounded-2xl border border-border bg-card/50 p-4 backdrop-blur-sm">
+        <div className="rounded-2xl border border-border bg-card p-4">
           <div className="flex items-center gap-2 text-muted-foreground text-sm">
             <Shield className="h-4 w-4" />
             Admin Access
@@ -84,7 +84,7 @@ export function AdminPanel({ userEmail }: AdminPanelProps) {
       </div>
 
       {/* Skills Management */}
-      <div className="rounded-3xl border border-border bg-card/80 p-6 shadow-sm backdrop-blur-sm">
+      <div className="rounded-3xl border border-border bg-card p-6 shadow-sm">
         <h3 className="mb-4 font-semibold text-foreground">Manage Skills</h3>
         <div className="max-h-96 space-y-2 overflow-y-auto">
           {allSkills.map((skill) => (

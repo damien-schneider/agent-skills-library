@@ -261,7 +261,7 @@ tags: [${(parsedSkill.metadata?.tags ?? []).map((t) => `"${t}"`).join(", ")}]
       {isDragOver && (
         <motion.div
           animate={{ opacity: 1 }}
-          className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-foreground/10 backdrop-blur-sm"
+          className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-foreground/10"
           initial={{ opacity: 0 }}
         >
           <motion.div
@@ -290,7 +290,7 @@ tags: [${(parsedSkill.metadata?.tags ?? []).map((t) => `"${t}"`).join(", ")}]
             {/* Drop zone / Text area */}
             <div className="relative">
               <textarea
-                className="h-64 w-full resize-none rounded-xl border border-border bg-card px-4 py-3 font-mono text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+                className="h-[50vh] min-h-72 w-full resize-none rounded-xl border border-border/40 bg-card/40 px-4 py-3 font-mono text-sm transition placeholder:text-muted-foreground focus:border-border focus:outline-none"
                 onChange={handleTextareaChange}
                 placeholder={`---
 name: "my-skill"
@@ -341,7 +341,7 @@ Instructions and content go here...`}
               className="space-y-6 lg:col-span-3"
               initial={{ opacity: 0, y: 20 }}
             >
-              <div className="rounded-3xl border border-border bg-card/80 p-6 shadow-sm backdrop-blur-sm">
+              <div className="rounded-3xl border border-border bg-card p-6 shadow-sm">
                 {/* Header with back button */}
                 <div className="mb-6 flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -490,7 +490,7 @@ Instructions and content go here...`}
 
                 {/* Publish button */}
                 <button
-                  className="mt-6 w-full rounded-2xl bg-foreground py-4 font-medium text-background text-lg shadow-foreground/10 shadow-lg hover:-translate-y-0.5 hover:scale-101 active:scale-99 disabled:opacity-50"
+                  className="mt-6 w-full transform-gpu rounded-2xl bg-foreground py-4 font-medium text-background text-lg shadow-foreground/10 shadow-lg hover:-translate-y-0.5 hover:scale-101 active:scale-99 disabled:opacity-50"
                   disabled={isSubmitting || !validation?.valid}
                   onClick={handlePublish}
                   type="button"

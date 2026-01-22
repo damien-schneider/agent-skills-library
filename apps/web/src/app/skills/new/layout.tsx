@@ -13,5 +13,5 @@ export const metadata: Metadata = {
 };
 
 export default function NewSkillLayout({ children }: { children: ReactNode }) {
-  return children;
+  return <>{children}</>;
 }

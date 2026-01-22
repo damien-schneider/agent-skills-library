@@ -44,7 +44,7 @@ export function ImportPreviewStep({
   );
 
   return (
-    <div className="space-y-6 rounded-3xl border border-border bg-card/80 p-6 shadow-sm backdrop-blur-md">
+    <div className="space-y-6 rounded-3xl border border-border bg-card p-6 shadow-sm">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button

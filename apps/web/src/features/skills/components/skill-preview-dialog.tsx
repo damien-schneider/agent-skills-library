@@ -97,7 +97,7 @@ export function SkillPreviewDialog({
             initial={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
           >
-            <div className="flex shrink-0 items-center justify-between border-border border-b bg-background/95 px-6 py-4 backdrop-blur-sm">
+            <div className="flex shrink-0 items-center justify-between border-border border-b bg-background/98 px-6 py-4">
               <div className="flex items-center gap-3">
                 {category && (
                   <span
@@ -145,7 +145,7 @@ export function SkillPreviewDialog({
                   <div className="flex items-center gap-1">
                     <button
                       className={cn(
-                        "flex h-8 w-8 items-center justify-center rounded-lg transition-all",
+                        "flex h-8 w-8 items-center justify-center rounded-lg transition-[background-color,border-color,color]",
                         skill.userVote === "up"
                           ? "bg-emerald-500 text-white"
                           : "border border-border bg-card text-muted-foreground hover:border-emerald-200 hover:bg-emerald-500/10 hover:text-emerald-500"
@@ -161,7 +161,7 @@ export function SkillPreviewDialog({
                     </span>
                     <button
                       className={cn(
-                        "flex h-8 w-8 items-center justify-center rounded-lg transition-all",
+                        "flex h-8 w-8 items-center justify-center rounded-lg transition-[background-color,border-color,color]",
                         skill.userVote === "down"
                           ? "bg-rose-500 text-white"
                           : "border border-border bg-card text-muted-foreground hover:border-rose-200 hover:bg-rose-500/10 hover:text-rose-500"

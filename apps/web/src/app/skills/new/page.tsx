@@ -8,6 +8,7 @@ import {
   SkillGitHubImport,
   SkillPasteDropView,
 } from "@/features/skills";
+import { cn } from "@/shared/lib/utils";
 
 type CreationMode = "paste" | "github" | "create";
 
@@ -36,7 +37,7 @@ export default function NewSkillPage() {
   const [mode, setMode] = useState<CreationMode>("paste");
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50/80 to-white">
+    <div className="min-h-screen">
       <div className="px-6 pt-32 pb-8">
         <motion.div
           animate={{ opacity: 1, y: 0 }}
@@ -58,11 +59,12 @@ export default function NewSkillPage() {
           <div className="mx-auto flex max-w-2xl gap-2">
             {MODE_OPTIONS.map((option) => (
               <button
-                className={`flex flex-1 flex-col items-center justify-center gap-1 rounded-xl px-4 py-3 transition-all ${
+                className={cn(
+                  "flex flex-1 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl px-4 py-3 transition-all",
                   mode === option.id
                     ? "bg-foreground text-background"
-                    : "bg-gray-100 text-muted-foreground hover:bg-gray-200"
-                }`}
+                    : "bg-transparent text-muted-foreground hover:bg-foreground/5"
+                )}
                 key={option.id}
                 onClick={() => setMode(option.id)}
                 type="button"

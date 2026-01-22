@@ -1,12 +1,22 @@
 "use client";
 
-import { Archive, BookMarked, Github, LogIn, Plus } from "lucide-react";
+import {
+  Archive,
+  ArrowLeftIcon,
+  BookMarked,
+  Github,
+  LogIn,
+  Plus,
+} from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 import { ModeToggle } from "@/features/auth/components/mode-toggle";
 import { isAdminUser } from "@/features/skills";
+import { SignInDialog } from "@/shared/components/ui/sign-in-dialog";
 import { useAuthClient } from "@/shared/lib/auth-client";
+import { GITHUB_REPOSITORY_URL } from "@/shared/lib/constants";
 
 export default function Header() {
   const pathname = usePathname();
@@ -15,6 +25,7 @@ export default function Header() {
   const isAdmin = isAdminUser(session?.user?.email);
   const isHomePage = pathname === "/";
   const showBackButton = !isHomePage;
+  const [isSignInDialogOpen, setIsSignInDialogOpen] = useState(false);
 
   return (
     <motion.header
@@ -37,10 +48,10 @@ export default function Header() {
               >
                 <Link href="/" prefetch>
                   <button
-                    className="flex items-center gap-2 rounded-full border border-border bg-card/80 px-4 py-2.5 font-medium text-foreground text-sm shadow-lg backdrop-blur-md transition-all duration-200 hover:-translate-x-0.5 hover:scale-102 hover:bg-card active:scale-98"
+                    className="flex items-center gap-2 rounded-full border border-border bg-card/95 px-4 py-2.5 font-medium text-foreground text-sm shadow-lg transition-transform duration-200 hover:-translate-x-0.5 hover:scale-102 active:scale-98"
                     type="button"
                   >
-                    <Archive className="h-4 w-4" />
+                    <ArrowLeftIcon className="h-4 w-4" />
                     Back
                   </button>
                 </Link>
@@ -60,7 +71,7 @@ export default function Header() {
                   <Link href="/archived" prefetch>
                     <button
                       aria-label="View archived skills"
-                      className="rounded-full border border-amber-500/30 bg-amber-500/10 p-3 shadow-sm backdrop-blur-md transition-all duration-200 hover:scale-105 hover:bg-amber-500/20 active:scale-95"
+                      className="rounded-full border border-amber-500/30 bg-amber-500/15 p-3 shadow-sm transition-transform duration-200 hover:scale-105 active:scale-95"
                       type="button"
                     >
                       <Archive className="h-5 w-5 text-amber-500" />
@@ -80,7 +91,7 @@ export default function Header() {
                   <Link href="/skills/new" prefetch>
                     <button
                       aria-label="Create new skill"
-                      className="rounded-full border border-border bg-card/80 p-3 shadow-sm backdrop-blur-md transition-all duration-200 hover:scale-105 hover:bg-card active:scale-95"
+                      className="rounded-full border border-border bg-card/95 p-3 shadow-sm transition-transform duration-200 hover:scale-105 active:scale-95"
                       type="button"
                     >
                       <Plus className="h-5 w-5 text-foreground" />
@@ -101,7 +112,7 @@ export default function Header() {
                   >
                     <Link href="/dashboard" prefetch>
                       <button
-                        className="flex items-center gap-2 rounded-full border border-border bg-card/80 px-5 py-2.5 font-medium text-foreground text-sm shadow-sm backdrop-blur-md transition-all duration-200 hover:scale-102 hover:bg-card active:scale-98"
+                        className="flex items-center gap-2 rounded-full border border-border bg-card/95 px-5 py-2.5 font-medium text-foreground text-sm shadow-sm transition-transform duration-200 hover:scale-102 active:scale-98"
                         type="button"
                       >
                         <BookMarked className="h-4 w-4" />
@@ -116,15 +127,14 @@ export default function Header() {
                     initial={{ opacity: 0, scale: 0.95 }}
                     key="connect"
                   >
-                    <Link href="/dashboard" prefetch>
-                      <button
-                        className="flex items-center gap-2 rounded-full border border-border bg-card/80 px-5 py-2.5 font-medium text-foreground text-sm shadow-sm backdrop-blur-md transition-all duration-200 hover:scale-102 hover:bg-card active:scale-98"
-                        type="button"
-                      >
-                        <LogIn className="h-4 w-4" />
-                        Connect
-                      </button>
-                    </Link>
+                    <button
+                      className="flex items-center gap-2 rounded-full border border-border bg-card/95 px-5 py-2.5 font-medium text-foreground text-sm shadow-sm transition-transform duration-200 hover:scale-102 active:scale-98"
+                      onClick={() => setIsSignInDialogOpen(true)}
+                      type="button"
+                    >
+                      <LogIn className="h-4 w-4" />
+                      Connect
+                    </button>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -132,8 +142,8 @@ export default function Header() {
 
             <a
               aria-label="GitHub repository"
-              className="rounded-full border border-border bg-card/80 p-3 shadow-sm backdrop-blur-md transition-all duration-200 hover:scale-105 hover:bg-card active:scale-95"
-              href="https://github.com/anomalyco/skills-agent-library"
+              className="rounded-full border border-border bg-card/95 p-3 shadow-sm transition-transform duration-200 hover:scale-105 active:scale-95"
+              href={GITHUB_REPOSITORY_URL}
               rel="noopener noreferrer"
               target="_blank"
             >
@@ -144,6 +154,10 @@ export default function Header() {
           </div>
         </div>
       </div>
+      <SignInDialog
+        onOpenChange={setIsSignInDialogOpen}
+        open={isSignInDialogOpen}
+      />
     </motion.header>
   );
 }

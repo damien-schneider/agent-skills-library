@@ -5,6 +5,7 @@ export { AdminPanel, isAdminUser } from "./components/admin-panel";
 export { defaultFolders, GlassFolder } from "./components/glass-folder";
 export { HomeView } from "./components/home-view";
 export { OrbitalHero } from "./components/orbital-hero";
+export { BigSearchBar, MinimalSearchBar } from "./components/shared-search-bar";
 export { SkillCard } from "./components/skill-card";
 export { SkillCreatorView } from "./components/skill-creator-view";
 export { SkillDetailView } from "./components/skill-detail-view";

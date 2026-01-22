@@ -5,16 +5,23 @@ import { ArrowRight, Search, Shuffle } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 
-import { cn, formatSkillName } from "@/shared/lib/utils";
+import { formatSkillName } from "@/shared/lib/utils";
 import type { Skill } from "../lib/types";
 
-interface SearchBarProps {
+interface BaseSearchBarProps {
   searchQuery: string;
   onSearchChange: (query: string) => void;
   onSearch: () => void;
+}
+
+interface BigSearchBarProps extends BaseSearchBarProps {
   skills?: Skill[];
-  isMinimal?: boolean;
   onRandomSkill?: () => void;
+  hideSuggestions?: boolean;
+}
+
+interface MinimalSearchBarProps extends BaseSearchBarProps {
+  isVisible: boolean;
 }
 
 const placeholders = [
@@ -34,13 +41,6 @@ const BOX_SHADOWS = {
   fullBlurred:
     "0 0 0 1px var(--color-border), 0 4px 24px -8px rgba(0,0,0,0.05), 0 16px 40px -16px rgba(0,0,0,0.05)",
 } as const;
-
-function getBoxShadow(isMinimal: boolean, isFocused: boolean): string {
-  if (isMinimal) {
-    return isFocused ? BOX_SHADOWS.minimalFocused : BOX_SHADOWS.minimalBlurred;
-  }
-  return isFocused ? BOX_SHADOWS.fullFocused : BOX_SHADOWS.fullBlurred;
-}
 
 function SearchSuggestionsSkeleton() {
   return (
@@ -109,25 +109,28 @@ function SearchSuggestions({
           {skill.description}
         </p>
       </div>
-      <div className="text-muted-foreground/40 transition-transform hover:translate-x-0.5">
+      <div className="transform-gpu text-muted-foreground/40 transition-transform hover:translate-x-0.5">
         <ArrowRight className="h-4 w-4" />
       </div>
     </motion.a>
   ));
 }
 
-export function SharedSearchBar({
+/**
+ * Big search bar - stays in the hero, full featured with suggestions
+ */
+export function BigSearchBar({
   searchQuery,
   onSearchChange,
   onSearch,
   skills = [],
-  isMinimal = false,
   onRandomSkill,
-}: SearchBarProps) {
+  hideSuggestions = false,
+}: BigSearchBarProps) {
   const [isFocused, setIsFocused] = useState(false);
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
+  const [previousSuggestions, setPreviousSuggestions] = useState<Skill[]>([]);
 
-  // Debounce the search query for suggestions
   const [debouncedQuery] = useDebouncedValue(searchQuery, {
     wait: 200,
     enabled: searchQuery.length > 0,
@@ -135,7 +138,6 @@ export function SharedSearchBar({
 
   const isPending = searchQuery !== debouncedQuery && searchQuery.length > 0;
 
-  // Filter skills based on debounced query
   const suggestions = useMemo(() => {
     if (!debouncedQuery) {
       return [];
@@ -145,7 +147,7 @@ export function SharedSearchBar({
     return skills
       .filter(
         (s) =>
-          s.name.toLowerCase().replace(/-/g, " ").includes(query) ||
+          s.name.toLowerCase().replaceAll("-", " ").includes(query) ||
           s.name.toLowerCase().includes(query) ||
           s.description.toLowerCase().includes(query) ||
           s.tags.some((t) => t.toLowerCase().includes(query))
@@ -153,9 +155,23 @@ export function SharedSearchBar({
       .slice(0, 5);
   }, [debouncedQuery, skills]);
 
-  const showSuggestions = isFocused && searchQuery.length > 0 && !isMinimal;
+  // Update previous suggestions when new ones are ready
+  useEffect(() => {
+    if (!isPending && suggestions.length > 0) {
+      setPreviousSuggestions(suggestions);
+    }
+  }, [isPending, suggestions]);
 
-  // Rotate placeholder
+  // Reset previous suggestions when search is cleared
+  useEffect(() => {
+    if (searchQuery.length === 0) {
+      setPreviousSuggestions([]);
+    }
+  }, [searchQuery]);
+
+  const showSuggestions =
+    isFocused && searchQuery.length > 0 && !hideSuggestions;
+
   useEffect(() => {
     const interval = setInterval(() => {
       setPlaceholderIndex((prev) => (prev + 1) % placeholders.length);
@@ -163,76 +179,47 @@ export function SharedSearchBar({
     return () => clearInterval(interval);
   }, []);
 
-  const boxShadow = getBoxShadow(isMinimal, isFocused);
-
-  // Fixed heights for smooth transitions
-  // Minimal: 36px button + 4px padding top + 4px padding bottom = 44px
-  // Full: 48px button + 12px padding top + 12px padding bottom = 72px
-  const mainInputHeight = isMinimal ? 44 : 72;
-  const bottomSectionHeight = isMinimal ? 0 : 44;
-  const totalHeight = mainInputHeight + bottomSectionHeight;
+  const boxShadow = isFocused
+    ? BOX_SHADOWS.fullFocused
+    : BOX_SHADOWS.fullBlurred;
 
   return (
     <div
-      className="relative transition-all duration-500 ease-out"
+      className="relative"
       style={{
         boxShadow,
-        borderRadius: isMinimal ? 9999 : 24,
-        height: totalHeight,
+        borderRadius: 24,
       }}
     >
       <div
-        className="relative h-full overflow-hidden rounded-3xl bg-card/95 backdrop-blur-2xl transition-all duration-500 ease-out"
+        className="relative overflow-hidden rounded-3xl bg-card/98"
         style={{
           border: "1px solid var(--border)",
         }}
       >
         {/* Main input section */}
-        <div
-          className={cn(
-            "flex items-center transition-all duration-500 ease-out",
-            isMinimal ? "gap-3 px-1.5" : "px-6"
-          )}
-          style={{ height: mainInputHeight }}
-        >
+        <div className="flex h-18 items-center px-6">
           <div
-            className={cn(
-              "transition-all duration-300 ease-out",
-              isMinimal && "ml-2.5"
-            )}
             style={{
               transform: isFocused ? "scale(1.1)" : "scale(1)",
+              transition: "transform 0.3s ease-out",
             }}
           >
-            <Search
-              className={cn(
-                "text-muted-foreground/50 transition-all duration-500 ease-out",
-                isMinimal ? "h-4 w-4" : "h-5 w-5"
-              )}
-            />
+            <Search className="h-5 w-5 text-muted-foreground/50" />
           </div>
 
-          <div
-            className={cn(
-              "relative flex-1 transition-all duration-500 ease-out",
-              !isMinimal && "ml-4"
-            )}
-          >
+          <div className="relative ml-4 flex-1">
             <input
-              className={cn(
-                "w-full border-none bg-transparent text-foreground outline-none transition-all duration-300",
-                isMinimal ? "text-sm" : "text-base"
-              )}
+              className="w-full border-none bg-transparent text-base text-foreground outline-none"
               onBlur={() => setIsFocused(false)}
               onChange={(e) => onSearchChange(e.target.value)}
               onFocus={() => setIsFocused(true)}
               onKeyDown={(e) => e.key === "Enter" && onSearch()}
-              placeholder={isMinimal ? "Search skills..." : ""}
               type="text"
               value={searchQuery}
             />
             <AnimatePresence mode="wait">
-              {!(searchQuery || isMinimal) && (
+              {!searchQuery && (
                 <motion.span
                   animate={{ opacity: 1, y: 0 }}
                   className="pointer-events-none absolute inset-0 text-muted-foreground/40"
@@ -248,49 +235,31 @@ export function SharedSearchBar({
           </div>
 
           <button
-            className={cn(
-              "flex shrink-0 items-center justify-center rounded-full bg-foreground text-background transition-all duration-500 ease-out hover:scale-105 active:scale-95",
-              isMinimal ? "h-9 w-9" : "ml-2 h-12 w-12"
-            )}
+            className="ml-2 flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-foreground text-background transition-transform hover:scale-105 active:scale-95"
             onClick={onSearch}
             type="button"
           >
-            <ArrowRight
-              className={cn(
-                "transition-all duration-500 ease-out",
-                isMinimal ? "h-4 w-4" : "h-5 w-5"
-              )}
-            />
+            <ArrowRight className="h-5 w-5" />
           </button>
         </div>
 
-        {/* Bottom section with smooth height animation */}
-        <div
-          className="overflow-hidden transition-all duration-500 ease-out"
-          style={{
-            height: bottomSectionHeight,
-            opacity: isMinimal ? 0 : 1,
-          }}
-        >
-          <div className="flex h-11 items-center justify-between border-border/20 border-t bg-muted/10 px-6">
-            <button
-              className="flex items-center gap-2 text-muted-foreground/60 text-xs transition-all hover:scale-[1.02] hover:text-foreground/80 active:scale-[0.98]"
-              onClick={onRandomSkill}
-              type="button"
-            >
-              <Shuffle className="h-3.5 w-3.5" />
-              <span>Random Skill</span>
-            </button>
+        {/* Bottom section */}
+        <div className="flex h-11 items-center justify-between border-border/20 border-t bg-muted/10 px-6">
+          <button
+            className="flex items-center gap-2 text-muted-foreground/60 text-xs transition-[transform,color] hover:scale-[1.02] hover:text-foreground/80 active:scale-[0.98]"
+            onClick={onRandomSkill}
+            type="button"
+          >
+            <Shuffle className="h-3.5 w-3.5" />
+            <span>Random Skill</span>
+          </button>
 
-            <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/40">
-              <kbd className="rounded bg-muted/50 px-1.5 py-0.5 font-mono">
-                Ctrl
-              </kbd>
-              <span>+</span>
-              <kbd className="rounded bg-muted/50 px-1.5 py-0.5 font-mono">
-                K
-              </kbd>
-            </div>
+          <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/40">
+            <kbd className="rounded bg-muted/50 px-1.5 py-0.5 font-mono">
+              Ctrl
+            </kbd>
+            <span>+</span>
+            <kbd className="rounded bg-muted/50 px-1.5 py-0.5 font-mono">K</kbd>
           </div>
         </div>
       </div>
@@ -300,17 +269,18 @@ export function SharedSearchBar({
         {showSuggestions && (
           <motion.div
             animate={{ opacity: 1, y: 0 }}
-            className="absolute top-full right-0 left-0 z-50 mt-2 overflow-hidden rounded-2xl border border-border/50 bg-card/95 shadow-xl backdrop-blur-xl"
+            className="absolute top-full right-0 left-0 z-50 mt-2 overflow-hidden rounded-2xl border border-border/50 bg-card/98 shadow-xl"
             exit={{ opacity: 0, y: -8 }}
             initial={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
           >
             <div className="p-2">
-              {isPending && <SearchSuggestionsSkeleton />}
-              {!isPending && (
+              {isPending && previousSuggestions.length === 0 ? (
+                <SearchSuggestionsSkeleton />
+              ) : (
                 <SearchSuggestions
-                  searchQuery={searchQuery}
-                  suggestions={suggestions}
+                  searchQuery={isPending ? debouncedQuery : searchQuery}
+                  suggestions={isPending ? previousSuggestions : suggestions}
                 />
               )}
             </div>
@@ -327,5 +297,69 @@ export function SharedSearchBar({
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+/**
+ * Minimal search bar - fixed at top, appears on scroll with translateY animation
+ */
+export function MinimalSearchBar({
+  searchQuery,
+  onSearchChange,
+  onSearch,
+  isVisible,
+}: MinimalSearchBarProps) {
+  const [isFocused, setIsFocused] = useState(false);
+
+  const boxShadow = isFocused
+    ? BOX_SHADOWS.minimalFocused
+    : BOX_SHADOWS.minimalBlurred;
+
+  return (
+    <motion.div
+      animate={{
+        y: isVisible ? 0 : -100,
+        opacity: isVisible ? 1 : 0,
+      }}
+      className="pointer-events-auto"
+      initial={{ y: -100, opacity: 0 }}
+      style={{
+        boxShadow,
+        borderRadius: 9999,
+      }}
+      transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+    >
+      <div
+        className="relative overflow-hidden rounded-full bg-card/98"
+        style={{
+          border: "1px solid var(--border)",
+        }}
+      >
+        <div className="flex h-11 items-center gap-3 px-1.5">
+          <div className="ml-2.5">
+            <Search className="h-4 w-4 text-muted-foreground/50" />
+          </div>
+
+          <input
+            className="w-full flex-1 border-none bg-transparent text-foreground text-sm outline-none"
+            onBlur={() => setIsFocused(false)}
+            onChange={(e) => onSearchChange(e.target.value)}
+            onFocus={() => setIsFocused(true)}
+            onKeyDown={(e) => e.key === "Enter" && onSearch()}
+            placeholder="Search skills..."
+            type="text"
+            value={searchQuery}
+          />
+
+          <button
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-foreground text-background transition-transform hover:scale-105 active:scale-95"
+            onClick={onSearch}
+            type="button"
+          >
+            <ArrowRight className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    </motion.div>
   );
 }

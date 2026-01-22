@@ -44,7 +44,7 @@ function LibraryView() {
   const savedSkills: Skill[] = rawSavedSkills
     .filter(
       (skill): skill is NonNullable<typeof skill> & { _id: string } =>
-        skill !== null && skill._id !== undefined
+        skill?._id !== undefined
     )
     .map((skill) => ({
       ...skill,
@@ -64,7 +64,7 @@ function LibraryView() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
+    <div className="min-h-screen">
       <div className="px-6 pt-32 pb-12">
         <motion.div
           animate={{ opacity: 1, y: 0 }}
@@ -85,7 +85,7 @@ function LibraryView() {
               </p>
             </div>
             <button
-              className="flex items-center gap-2 rounded-full border border-border bg-card/80 px-4 py-2.5 font-medium text-foreground/70 text-sm shadow-sm backdrop-blur-md transition-all duration-200 hover:scale-102 hover:bg-card hover:text-foreground active:scale-98"
+              className="flex items-center gap-2 rounded-full border border-border bg-card/95 px-4 py-2.5 font-medium text-foreground/70 text-sm shadow-sm transition-transform duration-200 hover:scale-102 hover:text-foreground active:scale-98"
               onClick={handleSignOut}
               type="button"
             >
@@ -97,7 +97,7 @@ function LibraryView() {
           {/* Tab Navigation */}
           <div className="mb-8 flex gap-2">
             <button
-              className={`flex items-center gap-2 rounded-full px-5 py-2.5 font-medium text-sm transition-all ${
+              className={`flex items-center gap-2 rounded-full px-5 py-2.5 font-medium text-sm transition-colors ${
                 activeTab === "library"
                   ? "bg-foreground text-background"
                   : "bg-muted text-muted-foreground hover:bg-muted/80"
@@ -109,7 +109,7 @@ function LibraryView() {
               My Library
             </button>
             <button
-              className={`flex items-center gap-2 rounded-full px-5 py-2.5 font-medium text-sm transition-all ${
+              className={`flex items-center gap-2 rounded-full px-5 py-2.5 font-medium text-sm transition-colors ${
                 activeTab === "import"
                   ? "bg-foreground text-background"
                   : "bg-muted text-muted-foreground hover:bg-muted/80"
@@ -122,9 +122,9 @@ function LibraryView() {
             </button>
             {isAdmin && (
               <button
-                className={`flex items-center gap-2 rounded-full px-5 py-2.5 font-medium text-sm transition-all ${
+                className={`flex items-center gap-2 rounded-full px-5 py-2.5 font-medium text-sm transition-colors ${
                   activeTab === "admin"
-                    ? "bg-gradient-to-r from-amber-500 to-orange-600 text-zinc-50"
+                    ? "bg-linear-to-r from-amber-500 to-orange-600 text-zinc-50"
                     : "bg-amber-500/10 text-amber-600 hover:bg-amber-500/20"
                 }`}
                 onClick={() => setActiveTab("admin")}
@@ -151,12 +151,15 @@ function LibraryView() {
                 <BookMarked className="h-5 w-5" />
                 <span className="font-medium">
                   {savedSkills.length} saved skill
-                  {savedSkills.length !== 1 ? "s" : ""}
+                  {savedSkills.length === 1 ? "" : "s"}
                 </span>
               </div>
 
               {savedSkills.length > 0 ? (
-                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:gap-8 lg:grid-cols-3 xl:grid-cols-4">
+                <div
+                  className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:gap-8 lg:grid-cols-3 xl:grid-cols-4"
+                  style={{ contain: "layout style" }}
+                >
                   <AnimatePresence mode="popLayout">
                     {savedSkills.map((skill, index) => (
                       <SkillCard
@@ -174,7 +177,7 @@ function LibraryView() {
                   className="py-24 text-center"
                   initial={{ opacity: 0, y: 20 }}
                 >
-                  <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-muted/50 backdrop-blur-sm">
+                  <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-muted/50">
                     <Sparkles className="h-10 w-10 text-muted-foreground/50" />
                   </div>
                   <h3 className="mb-2 font-medium text-foreground text-xl">
@@ -229,7 +232,7 @@ function AuthView() {
   const [showSignIn, setShowSignIn] = useState(false);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
+    <div className="min-h-screen">
       <div className="flex min-h-screen flex-col items-center justify-center px-6 py-12">
         <motion.div
           animate={{ opacity: 1, y: 0 }}

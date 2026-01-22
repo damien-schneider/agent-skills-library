@@ -199,7 +199,7 @@ export function SidebarCards({
         </div>
         {onToggleSave && (
           <button
-            className={`flex h-10 w-10 items-center justify-center rounded-xl transition-all duration-200 ${
+            className={`flex h-10 w-10 items-center justify-center rounded-xl transition-transform duration-200 ${
               isSaved
                 ? "bg-amber-500 text-white shadow-amber-500/20 shadow-lg"
                 : "border border-border bg-card text-muted-foreground hover:border-amber-200 hover:bg-amber-500/10 hover:text-amber-500"
@@ -220,7 +220,7 @@ export function SidebarCards({
       <div className="rounded-3xl border border-border bg-card p-5 shadow-2xl shadow-black/5">
         <div className="mb-4 flex items-center justify-center gap-8">
           <button
-            className={`flex h-12 w-12 items-center justify-center rounded-xl transition-all duration-200 ${
+            className={`flex h-12 w-12 items-center justify-center rounded-xl transition-[transform,background-color,border-color,color,box-shadow] duration-200 ${
               skill.userVote === "up"
                 ? "bg-emerald-500 text-white shadow-emerald-500/20 shadow-lg"
                 : "border border-border bg-card text-muted-foreground hover:border-emerald-200 hover:bg-emerald-500/10 hover:text-emerald-500"
@@ -242,7 +242,7 @@ export function SidebarCards({
           </div>
 
           <button
-            className={`flex h-12 w-12 items-center justify-center rounded-xl transition-all duration-200 ${
+            className={`flex h-12 w-12 items-center justify-center rounded-xl transition-[transform,background-color,border-color,color,box-shadow] duration-200 ${
               skill.userVote === "down"
                 ? "bg-rose-500 text-white shadow-lg shadow-rose-500/20"
                 : "border border-border bg-card text-muted-foreground hover:border-rose-200 hover:bg-rose-500/10 hover:text-rose-500"

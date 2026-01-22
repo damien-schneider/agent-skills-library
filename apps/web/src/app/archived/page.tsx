@@ -98,7 +98,7 @@ export default function ArchivedPage() {
       <main className="mx-auto max-w-4xl px-6 pb-24">
         <motion.div
           animate={{ opacity: 1, y: 0 }}
-          className="rounded-3xl border border-border bg-card/80 p-6 shadow-sm backdrop-blur-sm"
+          className="rounded-3xl border border-border bg-card p-6 shadow-sm"
           initial={{ opacity: 0, y: 20 }}
           transition={{ delay: 0.1 }}
         >

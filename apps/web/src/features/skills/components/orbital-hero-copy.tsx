@@ -6,7 +6,7 @@ import {
   useMotionValueEvent,
   useScroll,
 } from "motion/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { Skill } from "../lib/types";
 import { defaultFolders, GlassFolder } from "./glass-folder";
@@ -40,30 +40,18 @@ export function OrbitalHero({
       : 0
   );
 
-  // Cache container rect to avoid layout thrashing on every mousemove
-  const containerRectRef = useRef<DOMRect | null>(null);
-
   const mouseX = useMotionValue(0.5);
   const mouseY = useMotionValue(0.5);
-
-  const updateContainerRect = useCallback(() => {
-    if (containerRef.current) {
-      containerRectRef.current = containerRef.current.getBoundingClientRect();
-    }
-  }, []);
 
   useEffect(() => {
     const handleResize = () => {
       scrollThresholdRef.current =
         window.innerHeight * (SCROLL_THRESHOLD_PERCENT / 100);
-      updateContainerRect();
     };
-
-    updateContainerRect();
 
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
-  }, [updateContainerRect]);
+  }, []);
 
   // Use motion's scroll tracking
   const { scrollY } = useScroll();
@@ -75,8 +63,8 @@ export function OrbitalHero({
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      const rect = containerRectRef.current;
-      if (rect) {
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
         mouseX.set((e.clientX - rect.left) / rect.width);
         mouseY.set((e.clientY - rect.top) / rect.height);
       }
@@ -89,7 +77,7 @@ export function OrbitalHero({
   return (
     <section className="relative flex h-[80vh] flex-col items-center justify-center">
       {/* Fixed minimal search bar at top */}
-      <div className="pointer-events-none fixed top-20 left-1/2 z-50 w-full max-w-md -translate-x-1/2 px-6 will-change-[opacity,transform] lg:top-6">
+      <div className="pointer-events-none fixed top-20 left-1/2 z-50 w-full max-w-md -translate-x-1/2 px-6 lg:top-6">
         <MinimalSearchBar
           isVisible={showMinimalBar}
           onSearch={onSearch}

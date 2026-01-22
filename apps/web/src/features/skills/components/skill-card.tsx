@@ -66,7 +66,7 @@ export function SkillCard({ skill, index, categories }: SkillCardProps) {
         animate={{ opacity: 1, y: 0 }}
         className="group relative w-full cursor-pointer"
         initial={{ opacity: 0, y: 20 }}
-        layout
+        layout="position"
         layoutId={`skill-card-${skill._id}`}
         onClick={handleCardClick}
         onMouseEnter={() => setIsHovered(true)}
@@ -83,7 +83,7 @@ export function SkillCard({ skill, index, categories }: SkillCardProps) {
       >
         <div
           className={cn(
-            "absolute inset-0 transition-transform duration-300 ease-out",
+            "absolute inset-0 transition-transform duration-300 ease-out will-change-transform",
             isHovered && "scale-[1.02]"
           )}
         >
@@ -97,28 +97,22 @@ export function SkillCard({ skill, index, categories }: SkillCardProps) {
           >
             <defs>
               <filter
-                height="140%"
+                height="130%"
                 id={`shadow-${skill._id}`}
-                width="140%"
-                x="-20%"
-                y="-20%"
+                width="130%"
+                x="-15%"
+                y="-10%"
               >
                 <feDropShadow
                   dx="0"
-                  dy="2"
-                  floodOpacity="0.03"
-                  stdDeviation="8"
-                />
-                <feDropShadow
-                  dx="0"
-                  dy="8"
-                  floodOpacity="0.05"
-                  stdDeviation="20"
+                  dy="4"
+                  floodOpacity="0.06"
+                  stdDeviation="12"
                 />
               </filter>
             </defs>
             <path
-              className={`transition-all duration-300 ${isHovered ? "fill-card" : "fill-card/80"}`}
+              className={`transition-colors duration-300 ${isHovered ? "fill-card" : "fill-card/80"}`}
               d="M24 2
                  H256
                  Q278 2 278 24
@@ -136,7 +130,7 @@ export function SkillCard({ skill, index, categories }: SkillCardProps) {
               filter={`url(#shadow-${skill._id})`}
             />
             <path
-              className={`transition-all duration-300 ${isHovered ? "stroke-border/40" : "stroke-border/20"}`}
+              className={`transition-colors duration-300 ${isHovered ? "stroke-border/40" : "stroke-border/20"}`}
               d="M24 2
                  H256
                  Q278 2 278 24
@@ -174,7 +168,7 @@ export function SkillCard({ skill, index, categories }: SkillCardProps) {
 
               <p
                 className={cn(
-                  "line-clamp-3 text-[13px] text-muted-foreground/90 leading-relaxed transition delay-50 duration-300 ease-out",
+                  "line-clamp-3 transform-gpu text-[13px] text-muted-foreground/90 leading-relaxed transition delay-50 duration-300 ease-out",
                   "translate-y-0 opacity-100",
                   "md:translate-y-4 md:opacity-0",
                   isHovered && "md:translate-y-0 md:opacity-100"
@@ -184,7 +178,7 @@ export function SkillCard({ skill, index, categories }: SkillCardProps) {
               </p>
             </div>
 
-            <span className="mt-auto translate-y-4 text-muted-foreground/60 text-xs opacity-0 transition delay-100 duration-300 ease-out group-hover:translate-y-0 group-hover:opacity-100">
+            <span className="mt-auto translate-y-4 transform-gpu text-muted-foreground/60 text-xs opacity-0 transition delay-100 duration-300 ease-out group-hover:translate-y-0 group-hover:opacity-100">
               by {skill.authorName}
             </span>
           </div>
@@ -193,7 +187,7 @@ export function SkillCard({ skill, index, categories }: SkillCardProps) {
         <button
           aria-label="Upvote"
           className={cn(
-            "absolute right-[21%] bottom-[1%] flex h-[28.5%] w-[18.5%] min-w-11 flex-col items-center justify-center gap-0.5 rounded-[18px] transition-all duration-200",
+            "absolute right-[21%] bottom-[1%] flex h-[28.5%] w-[18.5%] min-w-11 flex-col items-center justify-center gap-0.5 rounded-[18px] transition-transform duration-200",
             "z-99 cursor-pointer rounded-t-lg shadow-black/3 shadow-xl active:scale-[0.96]",
             skill.userVote === "up"
               ? "bg-emerald-500 text-white shadow-emerald-500/20 shadow-lg"
@@ -209,7 +203,7 @@ export function SkillCard({ skill, index, categories }: SkillCardProps) {
         <button
           aria-label="Downvote"
           className={cn(
-            "absolute right-[1%] bottom-[1%] flex h-[28.5%] w-[18.5%] min-w-11 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-[18px] rounded-t-lg shadow-black/3 shadow-xl transition-all duration-200",
+            "absolute right-[1%] bottom-[1%] flex h-[28.5%] w-[18.5%] min-w-11 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-[18px] rounded-t-lg shadow-black/3 shadow-xl transition-transform duration-200",
             "rounded-tr-lg active:scale-[0.96]",
             skill.userVote === "down"
               ? "bg-rose-500 text-white shadow-lg shadow-rose-500/20"
