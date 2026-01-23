@@ -27,7 +27,7 @@ export function GitHubInputStep({
       {/* URL Input */}
       <div className="mb-12 space-y-3">
         <input
-          className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 font-mono text-sm placeholder:text-muted-foreground focus:border-foreground focus:outline-none"
+          className="w-full rounded-xl border border-border bg-muted/50 px-4 py-3 font-mono text-sm placeholder:text-muted-foreground focus:border-foreground focus:outline-none"
           disabled={isLoading}
           onChange={(e) => onUrlInputChange(e.target.value)}
           placeholder="https://github.com/owner/repo or direct SKILL.md URL"
@@ -45,7 +45,7 @@ export function GitHubInputStep({
       {progressMessage && (
         <motion.div
           animate={{ opacity: 1, y: 0 }}
-          className="flex items-center gap-2 rounded-xl bg-blue-50 px-4 py-3 text-blue-700 text-sm"
+          className="flex items-center gap-2 rounded-xl bg-blue-500/10 px-4 py-3 text-blue-500 text-sm"
           initial={{ opacity: 0, y: -10 }}
         >
           <Loader2 className="h-4 w-4 animate-spin" />
@@ -57,7 +57,7 @@ export function GitHubInputStep({
       {error && (
         <motion.div
           animate={{ opacity: 1, y: 0 }}
-          className="flex items-center gap-2 rounded-xl bg-red-50 px-4 py-3 text-red-700 text-sm"
+          className="flex items-center gap-2 rounded-xl bg-destructive/10 px-4 py-3 text-destructive text-sm"
           initial={{ opacity: 0, y: -10 }}
         >
           <AlertCircle className="h-4 w-4" />

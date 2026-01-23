@@ -71,7 +71,7 @@ export default function ArchivedPage() {
   };
 
   return (
-    <div className="min-h-screen bg-linear-to-b from-background to-muted/20">
+    <div className="min-h-screen">
       <div className="px-6 pt-32 pb-12">
         <motion.div
           animate={{ opacity: 1, y: 0 }}
