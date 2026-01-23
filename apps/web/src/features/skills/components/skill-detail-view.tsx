@@ -3,11 +3,13 @@
 import { api } from "@skills-agent-library/backend/convex/_generated/api";
 import type { Id } from "@skills-agent-library/backend/convex/_generated/dataModel";
 import { useMutation, useQuery } from "convex/react";
+import { Bookmark, BookmarkCheck } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { isAdminUser } from "@/features/skills";
 import { InstallSkillDialog } from "@/features/skills/install/install-skill-dialog";
+import { SignInDialog } from "@/shared/components/ui/sign-in-dialog";
 import { useAuthClient } from "@/shared/lib/auth-client";
 import { getHashedIdentifier } from "@/shared/lib/utils";
 
@@ -46,6 +48,7 @@ export function SkillDetailView({ skillId }: SkillDetailViewProps) {
   const [copied, setCopied] = useState(false);
   const [copiedFrontmatter, setCopiedFrontmatter] = useState(false);
   const [showInstallDialog, setShowInstallDialog] = useState(false);
+  const [showSignInDialog, setShowSignInDialog] = useState(false);
 
   const userEmail = session?.user?.email;
   const isAdmin = isAdminUser(userEmail);
@@ -114,6 +117,7 @@ tags: [${skill.tags.join(", ")}]
 
   const handleToggleSave = async () => {
     if (!session?.user?.id) {
+      setShowSignInDialog(true);
       return;
     }
     const result = await toggleSaveMutation({
@@ -136,7 +140,24 @@ tags: [${skill.tags.join(", ")}]
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="relative min-h-screen">
+      <button
+        className={`fixed top-28 right-6 z-50 flex h-10 w-10 items-center justify-center rounded-xl transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:scale-105 active:scale-95 ${
+          isSaved
+            ? "bg-amber-500 text-white shadow-amber-500/20 shadow-lg"
+            : "border border-border bg-card text-muted-foreground hover:border-amber-200 hover:bg-amber-500/10 hover:text-amber-500"
+        }`}
+        onClick={handleToggleSave}
+        title={isSaved ? "Remove from library" : "Save to library"}
+        type="button"
+      >
+        {isSaved ? (
+          <BookmarkCheck className="h-5 w-5" />
+        ) : (
+          <Bookmark className="h-5 w-5" />
+        )}
+      </button>
+
       <main className="mx-auto max-w-4xl px-6 pt-28 pb-20">
         <SkillHeader
           category={category}
@@ -156,8 +177,6 @@ tags: [${skill.tags.join(", ")}]
 
           <SidebarCards
             handleVote={handleVote}
-            isSaved={isSaved ?? false}
-            onToggleSave={handleToggleSave}
             session={session}
             skill={skill}
           />
@@ -195,6 +214,13 @@ tags: [${skill.tags.join(", ")}]
           skillContent={skill.markdown}
           skillName={skill.name}
           sourceUrl={skill.sourceUrl}
+        />
+
+        <SignInDialog
+          description="You need to be signed in to save skills. Sign in or create an account to get started."
+          onOpenChange={setShowSignInDialog}
+          open={showSignInDialog}
+          title="Sign in to continue"
         />
       </main>
     </div>

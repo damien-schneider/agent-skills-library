@@ -37,9 +37,10 @@ interface FetchedSkill extends ParsedSkill {
 
 interface ImportResult {
   name: string;
-  status: "imported" | "skipped" | "error";
+  status: "imported" | "skipped" | "error" | "updated";
   reason?: string;
   skillId?: string;
+  sourcePath?: string;
 }
 
 const FRONTMATTER_REGEX = /^---\s*\n([\s\S]*?)\n---/;
@@ -50,6 +51,35 @@ const ARRAY_VALUE_REGEX = /^\[.*\]$/;
 const GITHUB_URL_REGEX =
   /github\.com\/([^/]+)\/([^/]+)(?:\/(?:tree|blob)\/[^/]+\/(.+))?/;
 const WHITESPACE_REGEX = /\s+/;
+
+const RATE_LIMIT_DELAY_MS = 100;
+const MAX_CONCURRENT_REQUESTS = 5;
+const MAX_SKILL_FILES_PER_REPO = 100;
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function processBatch<T, R>(
+  items: T[],
+  processor: (item: T) => Promise<R>,
+  batchSize: number,
+  delayMs: number
+): Promise<R[]> {
+  const results: R[] = [];
+
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    const batchResults = await Promise.all(batch.map(processor));
+    results.push(...batchResults);
+
+    if (i + batchSize < items.length) {
+      await delay(delayMs);
+    }
+  }
+
+  return results;
+}
 
 interface FrontmatterData {
   name?: string;
@@ -136,6 +166,7 @@ function parseFrontmatter(content: string): FrontmatterData {
 function extractDescriptionFromMarkdown(markdown: string): string {
   const lines = markdown.split("\n");
   let foundTitle = false;
+  const descriptionParts: string[] = [];
 
   for (const line of lines) {
     const trimmed = line.trim();
@@ -144,8 +175,19 @@ function extractDescriptionFromMarkdown(markdown: string): string {
       continue;
     }
     if (foundTitle && trimmed && !trimmed.startsWith("#")) {
-      return trimmed.length > 500 ? `${trimmed.slice(0, 497)}...` : trimmed;
+      descriptionParts.push(trimmed);
+      const combined = descriptionParts.join(" ");
+      if (combined.length >= 10) {
+        return combined.length > 500
+          ? `${combined.slice(0, 497)}...`
+          : combined;
+      }
     }
+  }
+
+  if (descriptionParts.length > 0) {
+    const combined = descriptionParts.join(" ");
+    return combined.length > 500 ? `${combined.slice(0, 497)}...` : combined;
   }
 
   return "No description provided";
@@ -247,6 +289,19 @@ async function fetchDirectoryContents(
     },
   });
 
+  if (response.status === 403) {
+    const rateLimitRemaining = response.headers.get("X-RateLimit-Remaining");
+    if (rateLimitRemaining === "0") {
+      const resetTime = response.headers.get("X-RateLimit-Reset");
+      const resetDate = resetTime
+        ? new Date(Number.parseInt(resetTime, 10) * 1000)
+        : null;
+      throw new Error(
+        `GitHub rate limit exceeded. Resets at ${resetDate?.toISOString() ?? "unknown"}`
+      );
+    }
+  }
+
   if (!response.ok) {
     throw new Error(`Failed to fetch directory: ${response.statusText}`);
   }
@@ -265,13 +320,19 @@ async function findSkillFiles(
   maxDepth = 4
 ): Promise<{ path: string }[]> {
   const skillFiles: { path: string }[] = [];
+  let apiCallCount = 0;
 
   async function searchDirectory(path: string, depth: number): Promise<void> {
-    if (depth > maxDepth) {
+    if (depth > maxDepth || skillFiles.length >= MAX_SKILL_FILES_PER_REPO) {
       return;
     }
 
     try {
+      if (apiCallCount > 0) {
+        await delay(RATE_LIMIT_DELAY_MS);
+      }
+      apiCallCount++;
+
       const contents = await fetchDirectoryContents(owner, repo, path);
 
       const skillFile = contents.find(
@@ -281,14 +342,18 @@ async function findSkillFiles(
         skillFiles.push({ path: skillFile.path });
       }
 
-      for (const item of contents) {
-        if (
+      const directories = contents.filter(
+        (item) =>
           item.type === "dir" &&
           !item.name.startsWith(".") &&
           item.name !== "node_modules"
-        ) {
-          await searchDirectory(item.path, depth + 1);
+      );
+
+      for (const item of directories) {
+        if (skillFiles.length >= MAX_SKILL_FILES_PER_REPO) {
+          break;
         }
+        await searchDirectory(item.path, depth + 1);
       }
     } catch (error) {
       console.warn(`Could not access ${path}:`, error);
@@ -309,28 +374,36 @@ async function fetchAllSkillsFromRepo(
     return [];
   }
 
-  const skills: FetchedSkill[] = [];
-
-  for (const { path: filePath } of skillFiles) {
+  const fetchSkillContent = async (file: {
+    path: string;
+  }): Promise<FetchedSkill | null> => {
     try {
-      const content = await fetchGitHubFile(owner, repo, filePath);
+      const content = await fetchGitHubFile(owner, repo, file.path);
       const parsed = parseSkillMarkdown(content);
-      const skillSlug = deriveSkillSlug(filePath, parsed.name);
+      const skillSlug = deriveSkillSlug(file.path, parsed.name);
 
-      skills.push({
+      return {
         ...parsed,
-        sourceUrl: `https://github.com/${owner}/${repo}/blob/main/${filePath}`,
-        sourcePath: filePath,
+        sourceUrl: `https://github.com/${owner}/${repo}/blob/main/${file.path}`,
+        sourcePath: file.path,
         githubOwner: owner,
         githubRepo: repo,
         skillSlug,
-      });
+      };
     } catch (error) {
-      console.warn(`Failed to fetch ${filePath}:`, error);
+      console.warn(`Failed to fetch ${file.path}:`, error);
+      return null;
     }
-  }
+  };
 
-  return skills;
+  const results = await processBatch(
+    skillFiles,
+    fetchSkillContent,
+    MAX_CONCURRENT_REQUESTS,
+    RATE_LIMIT_DELAY_MS
+  );
+
+  return results.filter((skill): skill is FetchedSkill => skill !== null);
 }
 
 export const checkSkillExists = query({
@@ -382,8 +455,42 @@ export const createImportedSkill = internalMutation({
       )
       .first();
 
+    const normalizedName = normalizeSkillName(args.name);
+    const normalizedDescription = normalizeDescription(
+      args.description,
+      args.markdown,
+      normalizedName
+    );
+    const normalizedMarkdown = normalizeMarkdown(args.markdown, normalizedName);
+
+    if (normalizedMarkdown.length < 50) {
+      return {
+        status: "skipped" as const,
+        reason: "Markdown content too short (min 50 chars)",
+      };
+    }
+
+    const normalizedTags = args.tags
+      .slice(0, 10)
+      .map((t) => t.trim().toLowerCase().slice(0, 30))
+      .filter(Boolean);
+
     if (existing) {
-      return { status: "skipped" as const, reason: "Skill already exists" };
+      await ctx.db.patch(existing._id, {
+        name: normalizedName,
+        description: normalizedDescription,
+        markdown: normalizedMarkdown,
+        authorName: args.authorName.trim() || args.githubOwner,
+        tags: normalizedTags,
+        sourceUrl: args.sourceUrl,
+        sourcePath: args.sourcePath,
+        isOfficialSource: args.isOfficialSource,
+        officialRepoId: args.officialRepoId,
+        version: args.version,
+        license: args.license,
+        compatibility: args.compatibility,
+      });
+      return { status: "updated" as const, skillId: existing._id.toString() };
     }
 
     const colors = [
@@ -395,18 +502,19 @@ export const createImportedSkill = internalMutation({
       "oklch(0.90 0.08 180)",
     ];
     const colorIndex =
-      args.name.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0) %
-      colors.length;
+      normalizedName
+        .split("")
+        .reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length;
     const color = colors[colorIndex] as string;
 
     const skillId = await ctx.db.insert("skills", {
-      name: args.name,
-      description: args.description,
-      markdown: args.markdown,
+      name: normalizedName,
+      description: normalizedDescription,
+      markdown: normalizedMarkdown,
       category: "uncategorized",
       authorId: "import",
-      authorName: args.authorName,
-      tags: args.tags,
+      authorName: args.authorName.trim() || args.githubOwner,
+      tags: normalizedTags,
       color,
       score: 0,
       upvotes: 0,
@@ -428,6 +536,46 @@ export const createImportedSkill = internalMutation({
     return { status: "imported" as const, skillId: skillId.toString() };
   },
 });
+
+function normalizeSkillName(name: string): string {
+  const trimmed = name.trim();
+  if (trimmed.length < 3) {
+    return `${trimmed} Skill`.slice(0, 100);
+  }
+  return trimmed.slice(0, 100);
+}
+
+function normalizeDescription(
+  description: string,
+  markdown: string,
+  skillName: string
+): string {
+  let desc = description.trim();
+
+  if (desc.length < 10) {
+    const lines = markdown.split("\n").filter((l) => {
+      const t = l.trim();
+      return t && !t.startsWith("#") && !t.startsWith("```");
+    });
+    desc = lines.slice(0, 3).join(" ").trim();
+  }
+
+  if (desc.length < 10) {
+    desc = `A skill for ${skillName}. Import from GitHub.`;
+  }
+
+  return desc.length > 500 ? `${desc.slice(0, 497)}...` : desc;
+}
+
+function normalizeMarkdown(markdown: string, skillName: string): string {
+  const trimmed = markdown.trim();
+  if (trimmed.length >= 50) {
+    return trimmed;
+  }
+
+  const padding = `\n\n<!-- Imported skill: ${skillName} -->\n\nThis skill was automatically imported from GitHub.`;
+  return trimmed + padding;
+}
 
 export const updateOfficialRepoStats = mutation({
   args: { id: v.id("officialRepos") },
@@ -540,6 +688,7 @@ export const importFromGitHubRepo = action({
       imported: results.filter((r) => r.status === "imported").length,
       skipped: results.filter((r) => r.status === "skipped").length,
       errors: results.filter((r) => r.status === "error").length,
+      updated: results.filter((r) => r.status === "updated").length,
     };
 
     return { results, summary };
@@ -594,6 +743,43 @@ export const importAllOfficialRepos = action({
     };
 
     return { repoResults, totalSummary };
+  },
+});
+
+export const syncOfficialRepo = action({
+  args: {
+    repoId: v.id("officialRepos"),
+  },
+  handler: async (
+    ctx,
+    args
+  ): Promise<{
+    results: ImportResult[];
+    summary: { imported: number; skipped: number; errors: number };
+  }> => {
+    const repo = await ctx.runQuery(api.officialRepos.getById, {
+      id: args.repoId,
+    });
+
+    if (!repo) {
+      return {
+        results: [
+          {
+            name: "Repository",
+            status: "error",
+            reason: "Repository not found",
+          },
+        ],
+        summary: { imported: 0, skipped: 0, errors: 1 },
+      };
+    }
+
+    return ctx.runAction(api.autoImport.importFromGitHubRepo, {
+      githubOwner: repo.githubOwner,
+      githubRepo: repo.githubRepo,
+      isOfficialSource: true,
+      officialRepoId: repo._id,
+    });
   },
 });
 
@@ -678,7 +864,7 @@ async function fetchSkillsShPage(
     if (!response.ok) {
       return { data: null, error: `HTTP ${response.status}` };
     }
-    const data: SkillsShApiResponse = await response.json();
+    const data = (await response.json()) as SkillsShApiResponse;
     return { data };
   } catch (error) {
     return {
@@ -890,3 +1076,85 @@ async function updateInstallCounts(
 
   return updated;
 }
+
+async function fetchSkillsShDataForRepo(
+  owner: string,
+  repo: string
+): Promise<Map<string, number>> {
+  const installCounts = new Map<string, number>();
+  const repoKey = `${owner}/${repo}`;
+
+  let page = 1;
+  let hasMore = true;
+  const maxPages = 20;
+
+  while (hasMore && page <= maxPages) {
+    const { data, error } = await fetchSkillsShPage(page);
+
+    if (error || !data) {
+      break;
+    }
+
+    for (const skill of data.skills) {
+      if (skill.topSource === repoKey) {
+        installCounts.set(skill.id, skill.installs);
+      }
+    }
+
+    hasMore = data.hasMore;
+    page++;
+  }
+
+  return installCounts;
+}
+
+export const fetchRepoInstallCounts = action({
+  args: {
+    githubOwner: v.string(),
+    githubRepo: v.string(),
+  },
+  handler: async (
+    ctx,
+    args
+  ): Promise<{
+    totalInstalls: number;
+    skillCounts: Array<{ skillId: string; installs: number }>;
+    updated: number;
+  }> => {
+    const installCounts = await fetchSkillsShDataForRepo(
+      args.githubOwner,
+      args.githubRepo
+    );
+
+    const skillCounts = Array.from(installCounts.entries()).map(
+      ([skillId, installs]) => ({
+        skillId,
+        installs,
+      })
+    );
+
+    const totalInstalls = skillCounts.reduce(
+      (sum, skill) => sum + skill.installs,
+      0
+    );
+
+    let updated = 0;
+    for (const [skillId, installs] of installCounts) {
+      const updateResult = await ctx.runMutation(
+        internal.autoImport.updateSkillInstallCount,
+        {
+          githubOwner: args.githubOwner,
+          githubRepo: args.githubRepo,
+          skillSlug: skillId,
+          installCount: installs,
+        }
+      );
+
+      if (updateResult.status === "updated") {
+        updated++;
+      }
+    }
+
+    return { totalInstalls, skillCounts, updated };
+  },
+});

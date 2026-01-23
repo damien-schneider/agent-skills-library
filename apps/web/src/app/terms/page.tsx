@@ -16,7 +16,7 @@ export default function TermsPage() {
   });
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen">
       <div className="pointer-events-none fixed inset-0">
         <div className="absolute inset-0 bg-linear-to-b from-background via-background to-muted/20" />
         <div

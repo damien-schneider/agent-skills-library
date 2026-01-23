@@ -138,7 +138,7 @@ export function SkillCreatorView({ showHeader = true }: SkillCreatorViewProps) {
   };
 
   return (
-    <div className={showHeader ? "min-h-screen bg-background" : ""}>
+    <div className={showHeader ? "min-h-screen" : ""}>
       {showHeader && (
         <div className="px-6 pt-32 pb-12">
           <motion.div

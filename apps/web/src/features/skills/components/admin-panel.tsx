@@ -1,6 +1,7 @@
 "use client";
 
 import { api } from "@skills-agent-library/backend/convex/_generated/api";
+import type { Id } from "@skills-agent-library/backend/convex/_generated/dataModel";
 import { useAction, useMutation, useQuery } from "convex/react";
 import type { FunctionReference } from "convex/server";
 import {
@@ -8,12 +9,15 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronUp,
+  Database,
   Download,
   ExternalLink,
   EyeOff,
   Github,
   Link2,
   Loader2,
+  Plus,
+  RefreshCw,
   Shield,
   Trash2,
   Users,
@@ -28,7 +32,7 @@ import type { Skill } from "../lib/types";
 
 interface ImportResult {
   name: string;
-  status: "imported" | "skipped" | "error";
+  status: "imported" | "skipped" | "error" | "updated";
   reason?: string;
 }
 
@@ -36,10 +40,13 @@ interface ImportSummary {
   imported: number;
   skipped: number;
   errors: number;
+  updated?: number;
   installCountsUpdated?: number;
 }
 
 const ADMIN_EMAIL = "admin@mail.com";
+const GITHUB_URL_REGEX = /github\.com\/([^/]+)\/([^/]+)/;
+const GIT_SUFFIX_REGEX = /\.git$/;
 
 interface AdminPanelProps {
   userEmail?: string;
@@ -102,17 +109,27 @@ export function AdminPanel({ userEmail }: AdminPanelProps) {
     reposDiscovered?: string[];
   } | null>(null);
 
+  const [newRepoUrl, setNewRepoUrl] = useState("");
+  const [isAddingRepo, setIsAddingRepo] = useState(false);
+  const [syncingRepoIds, setSyncingRepoIds] = useState<Set<string>>(new Set());
+  const [deletingRepoIds, setDeletingRepoIds] = useState<Set<string>>(
+    new Set()
+  );
+
   const autoImportApi = api as typeof api & {
     autoImport: {
       importAllOfficialRepos: FunctionReference<"action", "public">;
       importFromUrl: FunctionReference<"action", "public">;
       importFromSkillsSh: FunctionReference<"action", "public">;
+      syncOfficialRepo: FunctionReference<"action", "public">;
+      fetchRepoInstallCounts: FunctionReference<"action", "public">;
     };
     officialRepos: {
       seedOfficialRepos: FunctionReference<"mutation", "public">;
     };
   };
 
+  const officialRepos = useQuery(api.officialRepos.list, {}) ?? [];
   const importAllOfficialRepos = useAction(
     autoImportApi.autoImport.importAllOfficialRepos
   );
@@ -120,9 +137,15 @@ export function AdminPanel({ userEmail }: AdminPanelProps) {
   const importFromSkillsSh = useAction(
     autoImportApi.autoImport.importFromSkillsSh
   );
+  const syncOfficialRepo = useAction(autoImportApi.autoImport.syncOfficialRepo);
+  const fetchRepoInstallCounts = useAction(
+    autoImportApi.autoImport.fetchRepoInstallCounts
+  );
   const seedOfficialRepos = useMutation(
     autoImportApi.officialRepos.seedOfficialRepos
   );
+  const createOfficialRepo = useMutation(api.officialRepos.create);
+  const removeOfficialRepo = useMutation(api.officialRepos.remove);
 
   if (!isAdmin) {
     return null;
@@ -289,6 +312,105 @@ export function AdminPanel({ userEmail }: AdminPanelProps) {
     });
   };
 
+  const parseGitHubUrl = (
+    url: string
+  ): { owner: string; repo: string } | null => {
+    const match = url.match(GITHUB_URL_REGEX);
+    if (!(match?.[1] && match?.[2])) {
+      return null;
+    }
+    return { owner: match[1], repo: match[2].replace(GIT_SUFFIX_REGEX, "") };
+  };
+
+  const handleAddRepo = async () => {
+    const parsed = parseGitHubUrl(newRepoUrl.trim());
+    if (!parsed) {
+      toast.error("Invalid GitHub URL");
+      return;
+    }
+
+    setIsAddingRepo(true);
+    try {
+      await createOfficialRepo({
+        githubOwner: parsed.owner,
+        githubRepo: parsed.repo,
+        displayName: `${parsed.owner}/${parsed.repo}`,
+      });
+      toast.success(`Added ${parsed.owner}/${parsed.repo}`);
+      setNewRepoUrl("");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to add repository"
+      );
+    } finally {
+      setIsAddingRepo(false);
+    }
+  };
+
+  const handleSyncRepo = async (repoId: string) => {
+    setSyncingRepoIds((prev) => new Set(prev).add(repoId));
+    try {
+      const repo = officialRepos.find((r) => r._id === repoId);
+      if (!repo) {
+        toast.error("Repository not found");
+        return;
+      }
+
+      const result = await syncOfficialRepo({
+        repoId: repoId as Id<"officialRepos">,
+      });
+
+      const installResult = await fetchRepoInstallCounts({
+        githubOwner: repo.githubOwner,
+        githubRepo: repo.githubRepo,
+      });
+
+      const messages: string[] = [];
+      if (result.summary.imported > 0) {
+        messages.push(`Imported ${result.summary.imported} skills`);
+      }
+      if (installResult.updated > 0) {
+        messages.push(`Updated ${installResult.updated} install counts`);
+      }
+
+      if (messages.length > 0) {
+        toast.success(messages.join(". "));
+      } else if (result.summary.skipped > 0) {
+        toast.info(`All ${result.summary.skipped} skills already exist`);
+      } else if (result.summary.errors > 0) {
+        toast.error(result.results[0]?.reason ?? "Import failed");
+      }
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to sync repository"
+      );
+    } finally {
+      setSyncingRepoIds((prev) => {
+        const next = new Set(prev);
+        next.delete(repoId);
+        return next;
+      });
+    }
+  };
+
+  const handleRemoveRepo = async (repoId: string) => {
+    setDeletingRepoIds((prev) => new Set(prev).add(repoId));
+    try {
+      await removeOfficialRepo({ id: repoId as Id<"officialRepos"> });
+      toast.success("Repository removed");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to remove repository"
+      );
+    } finally {
+      setDeletingRepoIds((prev) => {
+        const next = new Set(prev);
+        next.delete(repoId);
+        return next;
+      });
+    }
+  };
+
   return (
     <motion.div
       animate={{ opacity: 1, y: 0 }}
@@ -340,6 +462,120 @@ export function AdminPanel({ userEmail }: AdminPanelProps) {
         onImportFromUrl={handleImportFromUrl}
         setImportUrl={setImportUrl}
       />
+
+      <div className="rounded-3xl border border-border bg-card p-6 shadow-sm">
+        <div className="mb-4 flex items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-500/10">
+            <Database className="h-4 w-4 text-purple-500" />
+          </div>
+          <h3 className="font-semibold text-foreground">
+            Reference Repositories
+          </h3>
+          <span className="rounded-full bg-purple-500/10 px-2 py-0.5 font-medium text-purple-600 text-xs">
+            {officialRepos.length}
+          </span>
+        </div>
+
+        <div className="mb-4 rounded-xl border border-border bg-muted/30 p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <Plus className="h-4 w-4 text-muted-foreground" />
+            <span className="font-medium text-foreground text-sm">
+              Add Repository
+            </span>
+          </div>
+          <div className="flex gap-2">
+            <input
+              className="flex-1 rounded-xl border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+              disabled={isAddingRepo}
+              onChange={(e) => setNewRepoUrl(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !isAddingRepo) {
+                  handleAddRepo();
+                }
+              }}
+              placeholder="https://github.com/owner/repo"
+              type="url"
+              value={newRepoUrl}
+            />
+            <button
+              className="flex items-center gap-2 rounded-xl bg-purple-600 px-4 py-2 font-medium text-sm text-white transition-colors hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={isAddingRepo || !newRepoUrl.trim()}
+              onClick={handleAddRepo}
+              type="button"
+            >
+              {isAddingRepo ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Plus className="h-4 w-4" />
+              )}
+            </button>
+          </div>
+        </div>
+
+        <div className="max-h-72 space-y-2 overflow-y-auto">
+          {officialRepos.map((repo) => (
+            <div
+              className="flex items-center justify-between rounded-xl bg-muted/50 px-4 py-3"
+              key={repo._id}
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <Github className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <a
+                    className="truncate font-medium text-foreground text-sm hover:underline"
+                    href={`https://github.com/${repo.githubOwner}/${repo.githubRepo}`}
+                    rel="noopener noreferrer"
+                    target="_blank"
+                  >
+                    {repo.githubOwner}/{repo.githubRepo}
+                  </a>
+                  {repo.isVerified && (
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                  )}
+                </div>
+                <p className="ml-6 text-muted-foreground text-xs">
+                  {repo.skillCount ?? 0} skills • {repo.totalInstalls ?? 0}{" "}
+                  installs
+                </p>
+              </div>
+              <div className="flex shrink-0 gap-1">
+                <button
+                  className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+                  disabled={syncingRepoIds.has(repo._id)}
+                  onClick={() => handleSyncRepo(repo._id)}
+                  title="Sync skills"
+                  type="button"
+                >
+                  {syncingRepoIds.has(repo._id) ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
+                  )}
+                </button>
+                <button
+                  className="rounded-lg p-2 text-red-500 transition-colors hover:bg-red-500/10 disabled:opacity-50"
+                  disabled={deletingRepoIds.has(repo._id)}
+                  onClick={() => handleRemoveRepo(repo._id)}
+                  title="Remove repository"
+                  type="button"
+                >
+                  {deletingRepoIds.has(repo._id) ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+            </div>
+          ))}
+          {officialRepos.length === 0 && (
+            <p className="py-8 text-center text-muted-foreground text-sm">
+              No reference repositories. Add one above or import from official
+              repos.
+            </p>
+          )}
+        </div>
+      </div>
 
       <div className="rounded-3xl border border-border bg-card p-6 shadow-sm">
         <h3 className="mb-4 font-semibold text-foreground">Manage Skills</h3>
@@ -650,6 +886,9 @@ function getStatusColor(status: ImportResult["status"]): string {
   if (status === "imported") {
     return "text-emerald-600";
   }
+  if (status === "updated") {
+    return "text-blue-600";
+  }
   if (status === "skipped") {
     return "text-amber-600";
   }
@@ -672,6 +911,12 @@ function ImportResultsDisplay({ results, summary }: ImportResultsDisplayProps) {
               {summary.imported} imported
             </span>
           )}
+          {summary.updated !== undefined && summary.updated > 0 && (
+            <span className="flex items-center gap-1 text-blue-600">
+              <RefreshCw className="h-3 w-3" />
+              {summary.updated} updated
+            </span>
+          )}
           {summary.skipped > 0 && (
             <span className="flex items-center gap-1 text-amber-600">
               <XCircle className="h-3 w-3" />
@@ -688,7 +933,7 @@ function ImportResultsDisplay({ results, summary }: ImportResultsDisplayProps) {
             summary.installCountsUpdated > 0 && (
               <span className="flex items-center gap-1 text-blue-600">
                 <Download className="h-3 w-3" />
-                {summary.installCountsUpdated} updated
+                {summary.installCountsUpdated} installs updated
               </span>
             )}
         </div>

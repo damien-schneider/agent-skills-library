@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { motion } from "motion/react";
+import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { Streamdown } from "streamdown";
@@ -28,6 +29,7 @@ import { ScrollArea } from "@/shared/components/ui/scroll-area";
 import { SignInDialog } from "@/shared/components/ui/sign-in-dialog";
 import { useAuthClient } from "@/shared/lib/auth-client";
 import { cn, formatSkillName } from "@/shared/lib/utils";
+import { getSkillUrl } from "../lib/types";
 
 interface SkillPreviewDialogProps {
   skillId: Id<"skills">;
@@ -80,9 +82,12 @@ export function SkillPreviewDialog({
   };
 
   const handleViewDetails = useCallback(() => {
+    if (!skill) {
+      return;
+    }
     onOpenChange(false);
-    router.push(`/skills/${skillId}`);
-  }, [onOpenChange, router, skillId]);
+    router.push(getSkillUrl(skill) as Route);
+  }, [onOpenChange, router, skill]);
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>

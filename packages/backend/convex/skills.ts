@@ -725,6 +725,91 @@ export const getByNamespace = query({
   },
 });
 
+export const getByOwnerSlug = query({
+  args: {
+    githubOwner: v.string(),
+    skillSlug: v.string(),
+    userId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const skill = await ctx.db
+      .query("skills")
+      .withIndex("by_owner_slug", (q) =>
+        q.eq("githubOwner", args.githubOwner).eq("skillSlug", args.skillSlug)
+      )
+      .first();
+
+    if (!(skill && isSkillVisible(skill))) {
+      return null;
+    }
+
+    const votes = await ctx.db
+      .query("votes")
+      .withIndex("by_skill", (q) => q.eq("skillId", skill._id))
+      .collect();
+
+    const voteCount = votes.reduce((acc, vote) => {
+      return acc + (vote.direction === "up" ? 1 : -1);
+    }, 0);
+
+    let userVote: "up" | "down" | null = null;
+    if (args.userId) {
+      const existingVote = votes.find((v) => v.userId === args.userId);
+      if (existingVote) {
+        userVote = existingVote.direction;
+      }
+    }
+
+    return {
+      ...skill,
+      votes: voteCount,
+      userVote,
+    };
+  },
+});
+
+export const listByGithubOwner = query({
+  args: {
+    githubOwner: v.string(),
+    userId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const skills = await ctx.db
+      .query("skills")
+      .withIndex("by_github_owner", (q) =>
+        q.eq("githubOwner", args.githubOwner)
+      )
+      .collect();
+
+    const visibleSkills = skills.filter(isSkillVisible);
+
+    const enrichedSkills = await Promise.all(
+      visibleSkills.map(async (skill) => {
+        let userVote: "up" | "down" | null = null;
+        if (args.userId) {
+          const vote = await ctx.db
+            .query("votes")
+            .withIndex("by_skill_and_user", (q) =>
+              q.eq("skillId", skill._id).eq("userId", args.userId as string)
+            )
+            .first();
+          userVote = vote?.direction ?? null;
+        }
+
+        return {
+          ...skill,
+          votes: skill.score ?? 0,
+          upvotes: skill.upvotes ?? 0,
+          downvotes: skill.downvotes ?? 0,
+          userVote,
+        };
+      })
+    );
+
+    return enrichedSkills;
+  },
+});
+
 async function updateCategoryCount(
   ctx: GenericMutationCtx<DataModel>,
   categorySlug: string,

@@ -8,6 +8,13 @@ export const list = query({
   },
 });
 
+export const getById = query({
+  args: { id: v.id("officialRepos") },
+  handler: (ctx, args) => {
+    return ctx.db.get(args.id);
+  },
+});
+
 export const getByNamespace = query({
   args: {
     githubOwner: v.string(),

@@ -1,8 +1,6 @@
 "use client";
 
 import {
-  Bookmark,
-  BookmarkCheck,
   Check,
   ChevronDown,
   ChevronUp,
@@ -16,6 +14,8 @@ import {
   User,
 } from "lucide-react";
 import { motion } from "motion/react";
+import type { Route } from "next";
+import Link from "next/link";
 import { useState } from "react";
 import { SignInDialog } from "@/shared/components/ui/sign-in-dialog";
 import { formatSkillName } from "@/shared/lib/utils";
@@ -179,19 +179,17 @@ interface SidebarCardsProps {
     votes: number;
     userVote?: "up" | "down" | null;
     sourceUrl?: string;
+    githubOwner?: string;
+    githubRepo?: string;
   };
   session: { user?: { id: string } } | null;
   handleVote: (direction: "up" | "down") => Promise<void>;
-  isSaved?: boolean;
-  onToggleSave?: () => Promise<void>;
 }
 
 export function SidebarCards({
   skill,
   session,
   handleVote,
-  isSaved = false,
-  onToggleSave,
 }: SidebarCardsProps) {
   const [showSignInDialog, setShowSignInDialog] = useState(false);
 
@@ -203,15 +201,7 @@ export function SidebarCards({
     await handleVote(direction);
   };
 
-  const onSaveClick = async () => {
-    if (!session?.user) {
-      setShowSignInDialog(true);
-      return;
-    }
-    if (onToggleSave) {
-      await onToggleSave();
-    }
-  };
+  const hasGitHubSource = Boolean(skill.githubOwner);
 
   return (
     <motion.div
@@ -222,46 +212,50 @@ export function SidebarCards({
     >
       <div className="flex items-center gap-4 rounded-3xl border border-border bg-card p-5 shadow-2xl shadow-black/5">
         <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-muted">
-          <User className="h-5 w-5 text-muted-foreground" />
+          {hasGitHubSource ? (
+            <Github className="h-5 w-5 text-muted-foreground" />
+          ) : (
+            <User className="h-5 w-5 text-muted-foreground" />
+          )}
         </div>
         <div className="flex-1">
-          <p className="font-semibold text-foreground">{skill.authorName}</p>
-          <p className="text-muted-foreground text-sm">Contributor</p>
+          {hasGitHubSource ? (
+            <>
+              <Link
+                className="font-semibold text-foreground transition-colors hover:text-primary hover:underline"
+                href={`/contributor/${skill.githubOwner}` as Route}
+              >
+                {skill.githubOwner}
+              </Link>
+              <p className="text-muted-foreground text-sm">
+                GitHub Contributor
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="font-semibold text-foreground">
+                {skill.authorName}
+              </p>
+              <p className="text-muted-foreground text-sm">Contributor</p>
+            </>
+          )}
         </div>
-        {onToggleSave && (
-          <button
-            className={`flex h-10 w-10 items-center justify-center rounded-xl transition-transform duration-200 ${
-              isSaved
-                ? "bg-amber-500 text-white shadow-amber-500/20 shadow-lg"
-                : "border border-border bg-card text-muted-foreground hover:border-amber-200 hover:bg-amber-500/10 hover:text-amber-500"
-            } hover:scale-105 active:scale-95`}
-            onClick={onSaveClick}
-            title={isSaved ? "Remove from library" : "Save to library"}
-            type="button"
-          >
-            {isSaved ? (
-              <BookmarkCheck className="h-5 w-5" />
-            ) : (
-              <Bookmark className="h-5 w-5" />
-            )}
-          </button>
-        )}
       </div>
 
-      <div className="rounded-3xl border border-border bg-card p-5 shadow-2xl shadow-black/5">
-        <div className="mb-4 flex items-center justify-center gap-8">
-          <button
-            className={`flex h-12 w-12 items-center justify-center rounded-xl transition-[transform,background-color,border-color,color,box-shadow] duration-200 ${
-              skill.userVote === "up"
-                ? "bg-emerald-500 text-white shadow-emerald-500/20 shadow-lg"
-                : "border border-border bg-card text-muted-foreground hover:border-emerald-200 hover:bg-emerald-500/10 hover:text-emerald-500"
-            } hover:scale-105 active:scale-95`}
-            onClick={() => onVoteClick("up")}
-            type="button"
-          >
-            <ChevronUp className="h-6 w-6" strokeWidth={2.5} />
-          </button>
+      <div className="flex items-stretch justify-center gap-4">
+        <button
+          className={`flex w-12 items-center justify-center rounded-xl transition-[transform,background-color,border-color,color,box-shadow] duration-200 ${
+            skill.userVote === "up"
+              ? "bg-emerald-500 text-white shadow-emerald-500/20 shadow-lg"
+              : "border border-border bg-card text-muted-foreground hover:border-border/50 hover:bg-emerald-500/10 hover:text-emerald-500"
+          } hover:scale-105 active:scale-95`}
+          onClick={() => onVoteClick("up")}
+          type="button"
+        >
+          <ChevronUp className="h-6 w-6" strokeWidth={2.5} />
+        </button>
 
+        <div className="rounded-3xl border border-border bg-card p-5 shadow-2xl shadow-black/5">
           <div className="flex flex-col items-center">
             <span className="mb-1 font-bold text-5xl text-foreground">
               {skill.votes > 0 ? "+" : ""}
@@ -271,19 +265,19 @@ export function SidebarCards({
               votes
             </span>
           </div>
-
-          <button
-            className={`flex h-12 w-12 items-center justify-center rounded-xl transition-[transform,background-color,border-color,color,box-shadow] duration-200 ${
-              skill.userVote === "down"
-                ? "bg-rose-500 text-white shadow-lg shadow-rose-500/20"
-                : "border border-border bg-card text-muted-foreground hover:border-rose-200 hover:bg-rose-500/10 hover:text-rose-500"
-            } hover:scale-105 active:scale-95`}
-            onClick={() => onVoteClick("down")}
-            type="button"
-          >
-            <ChevronDown className="h-6 w-6" strokeWidth={2.5} />
-          </button>
         </div>
+
+        <button
+          className={`flex w-12 items-center justify-center rounded-xl transition-[transform,background-color,border-color,color,box-shadow] duration-200 ${
+            skill.userVote === "down"
+              ? "bg-rose-500 text-white shadow-lg shadow-rose-500/20"
+              : "border border-border bg-card text-muted-foreground hover:border-border/50 hover:bg-rose-500/10 hover:text-rose-500"
+          } hover:scale-105 active:scale-95`}
+          onClick={() => onVoteClick("down")}
+          type="button"
+        >
+          <ChevronDown className="h-6 w-6" strokeWidth={2.5} />
+        </button>
       </div>
 
       <SignInDialog

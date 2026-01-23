@@ -188,3 +188,19 @@ export function formatInstallCount(count: number): string {
   }
   return count.toString();
 }
+
+/**
+ * Generate the URL path for a skill.
+ * Uses slug-based URL (/skills/[owner]/[slug]) when GitHub namespace is available,
+ * otherwise falls back to ID-based URL (/skills/[id]).
+ */
+export function getSkillUrl(skill: {
+  _id: string;
+  githubOwner?: string;
+  skillSlug?: string;
+}): string {
+  if (skill.githubOwner && skill.skillSlug) {
+    return `/skills/${skill.githubOwner}/${skill.skillSlug}`;
+  }
+  return `/skills/${skill._id}`;
+}

@@ -134,7 +134,7 @@ export function AuthorView({ authorId }: AuthorViewProps) {
   const pluralSuffix = skillCount !== 1 ? "s" : "";
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen">
       <header className="relative overflow-hidden border-border/40 border-b bg-gradient-to-b from-muted/30 to-transparent">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/5 via-transparent to-transparent" />
         <div className="relative mx-auto max-w-7xl px-6 py-12 md:py-20">

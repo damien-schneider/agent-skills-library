@@ -35,3 +35,4 @@ export {
   validateParsedSkill,
 } from "./lib/skill-parser";
 export type { AIScore, Category, Skill, SkillFormData } from "./lib/types";
+export { getSkillUrl } from "./lib/types";

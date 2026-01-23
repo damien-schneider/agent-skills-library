@@ -3,18 +3,17 @@ import type { Id } from "@skills-agent-library/backend/convex/_generated/dataMod
 import { env } from "@skills-agent-library/env/web";
 import { ConvexHttpClient } from "convex/browser";
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 
 import { SkillClientPage } from "./skill-page";
 
 const SITE_URL = env.NEXT_PUBLIC_SITE_URL;
 const SITE_NAME = "Agents Library";
 
-// Top-level regex patterns for performance
 const FILE_EXTENSION_REGEX = /\.(md|mdx|txt)$/i;
 const SEPARATOR_REGEX = /[-_]/g;
 const WORD_BOUNDARY_REGEX = /\b\w/g;
 
-// Create a server-side Convex client for metadata generation
 function getConvexClient() {
   const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
   if (!convexUrl) {
@@ -28,7 +27,6 @@ function truncateDescription(text: string, maxLength = 155): string {
     return text;
   }
   const truncated = text.slice(0, maxLength - 3).trim();
-  // Try to cut at the last complete word
   const lastSpace = truncated.lastIndexOf(" ");
   if (lastSpace > maxLength * 0.7) {
     return `${truncated.slice(0, lastSpace)}...`;
@@ -37,7 +35,6 @@ function truncateDescription(text: string, maxLength = 155): string {
 }
 
 function formatSkillName(name: string): string {
-  // Remove file extensions and clean up the name
   return name
     .replace(FILE_EXTENSION_REGEX, "")
     .replace(SEPARATOR_REGEX, " ")
@@ -46,19 +43,49 @@ function formatSkillName(name: string): string {
 }
 
 interface SkillPageProps {
-  params: Promise<{ id: string }>;
+  params: Promise<{ slug: string[] }>;
+}
+
+async function getSkillById(id: string) {
+  const client = getConvexClient();
+  return client.query(api.skills.get, { id: id as Id<"skills"> });
+}
+
+async function getSkillByOwnerAndSlug(owner: string, skillSlug: string) {
+  const client = getConvexClient();
+  return client.query(api.skills.getByOwnerSlug, {
+    githubOwner: owner,
+    skillSlug,
+  });
+}
+
+async function getSkillBySlug(slug: string[]) {
+  if (slug.length === 1) {
+    return getSkillById(slug[0]);
+  }
+
+  if (slug.length === 2) {
+    return getSkillByOwnerAndSlug(slug[0], slug[1]);
+  }
+
+  return null;
 }
 
 export async function generateMetadata({
   params,
 }: SkillPageProps): Promise<Metadata> {
-  const { id } = await params;
+  const { slug } = await params;
+
+  if (slug.length === 0 || slug.length > 2) {
+    return {
+      title: "Skill Not Found",
+      description: "The requested skill could not be found.",
+      robots: { index: false, follow: true },
+    };
+  }
 
   try {
-    const client = getConvexClient();
-    const skill = await client.query(api.skills.get, {
-      id: id as Id<"skills">,
-    });
+    const skill = await getSkillBySlug(slug);
 
     if (!skill) {
       return {
@@ -70,9 +97,14 @@ export async function generateMetadata({
 
     const formattedName = formatSkillName(skill.name);
     const truncatedDescription = truncateDescription(skill.description);
-    const skillUrl = `${SITE_URL}/skills/${id}`;
+    const skillUrl =
+      slug.length === 2
+        ? `${SITE_URL}/skills/${slug[0]}/${slug[1]}`
+        : `${SITE_URL}/skills/${slug[0]}`;
 
-    // Extract first few tags for keywords
+    const authorName =
+      slug.length === 2 ? slug[0] : (skill.authorName ?? "Unknown");
+
     const keywords = [
       "AI agent skill",
       "agent capability",
@@ -84,7 +116,7 @@ export async function generateMetadata({
       title: formattedName,
       description: truncatedDescription,
       keywords,
-      authors: [{ name: skill.authorName }],
+      authors: [{ name: authorName }],
       openGraph: {
         type: "article",
         url: skillUrl,
@@ -100,7 +132,7 @@ export async function generateMetadata({
           },
         ],
         publishedTime: new Date(skill._creationTime).toISOString(),
-        authors: [skill.authorName],
+        authors: [authorName],
         tags: skill.tags,
       },
       twitter: {
@@ -113,7 +145,7 @@ export async function generateMetadata({
         canonical: skillUrl,
       },
       other: {
-        "article:author": skill.authorName,
+        "article:author": authorName,
         "article:section": skill.category,
         "article:tag": skill.tags.join(", "),
       },
@@ -127,6 +159,17 @@ export async function generateMetadata({
 }
 
 export default async function SkillPage({ params }: SkillPageProps) {
-  const { id } = await params;
-  return <SkillClientPage skillId={id} />;
+  const { slug } = await params;
+
+  if (slug.length === 0 || slug.length > 2) {
+    notFound();
+  }
+
+  const skill = await getSkillBySlug(slug);
+
+  if (!skill) {
+    notFound();
+  }
+
+  return <SkillClientPage skillId={skill._id} />;
 }

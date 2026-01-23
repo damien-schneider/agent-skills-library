@@ -82,6 +82,7 @@ export default defineSchema({
     // New indexes for namespace lookups and leaderboards
     .index("by_github_namespace", ["githubOwner", "githubRepo", "skillSlug"])
     .index("by_github_owner", ["githubOwner"])
+    .index("by_owner_slug", ["githubOwner", "skillSlug"])
     .index("by_official_repo", ["officialRepoId"])
     .index("by_install_count", ["installCount"])
     .index("by_weekly_installs", ["weeklyInstalls"])
