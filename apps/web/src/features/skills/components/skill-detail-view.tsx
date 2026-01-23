@@ -14,6 +14,9 @@ import { getHashedIdentifier } from "@/shared/lib/utils";
 import { MarkdownContentCard } from "./markdown-content-card";
 import {
   FrontmatterCard,
+  InstallCommandCard,
+  InstallStatsCard,
+  RepositoryCard,
   SidebarCards,
   SkillHeader,
 } from "./skill-detail-cards";
@@ -33,6 +36,9 @@ export function SkillDetailView({ skillId }: SkillDetailViewProps) {
     api.savedSkills.isSaved,
     session?.user?.id ? { skillId, userId: session.user.id } : "skip"
   );
+  const installStats = useQuery(api.installs.getInstallStatsForSkill, {
+    skillId,
+  });
   const voteMutation = useMutation(api.votes.vote);
   const toggleSaveMutation = useMutation(api.savedSkills.toggle);
   const incrementCopyCountMutation = useMutation(api.skills.incrementCopyCount);
@@ -155,6 +161,24 @@ tags: [${skill.tags.join(", ")}]
             session={session}
             skill={skill}
           />
+
+          <InstallCommandCard skill={skill} />
+
+          {installStats && (
+            <InstallStatsCard
+              byAgent={installStats.byAgent}
+              totalInstalls={installStats.totalInstalls}
+              weeklyInstalls={installStats.last7d}
+            />
+          )}
+
+          {skill.githubOwner && skill.githubRepo && (
+            <RepositoryCard
+              githubOwner={skill.githubOwner}
+              githubRepo={skill.githubRepo}
+              githubStarsCached={skill.githubStarsCached}
+            />
+          )}
 
           <MarkdownContentCard
             copied={copied}

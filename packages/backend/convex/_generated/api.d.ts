@@ -9,11 +9,14 @@
  */
 
 import type * as auth from "../auth.js";
+import type * as autoImport from "../autoImport.js";
 import type * as categories from "../categories.js";
 import type * as crons from "../crons.js";
 import type * as healthCheck from "../healthCheck.js";
 import type * as http from "../http.js";
+import type * as installs from "../installs.js";
 import type * as moderation from "../moderation.js";
+import type * as officialRepos from "../officialRepos.js";
 import type * as privateData from "../privateData.js";
 import type * as savedSkills from "../savedSkills.js";
 import type * as seed from "../seed.js";
@@ -28,11 +31,14 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
+  autoImport: typeof autoImport;
   categories: typeof categories;
   crons: typeof crons;
   healthCheck: typeof healthCheck;
   http: typeof http;
+  installs: typeof installs;
   moderation: typeof moderation;
+  officialRepos: typeof officialRepos;
   privateData: typeof privateData;
   savedSkills: typeof savedSkills;
   seed: typeof seed;

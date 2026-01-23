@@ -4,12 +4,15 @@ import { api } from "@skills-agent-library/backend/convex/_generated/api";
 import type { Id } from "@skills-agent-library/backend/convex/_generated/dataModel";
 import { useMutation, useQuery } from "convex/react";
 import {
+  BadgeCheck,
   Bookmark,
   BookmarkCheck,
   ChevronDown,
   ChevronUp,
+  Download,
   Flag,
   MoreHorizontal,
+  Star,
   User,
 } from "lucide-react";
 import { motion } from "motion/react";
@@ -27,16 +30,22 @@ import {
 import { SignInDialog } from "@/shared/components/ui/sign-in-dialog";
 import { useAuthClient } from "@/shared/lib/auth-client";
 import { cn, formatSkillName } from "@/shared/lib/utils";
-import type { Category, Skill } from "../lib/types";
+import { type Category, formatInstallCount, type Skill } from "../lib/types";
 import { SkillPreviewDialog } from "./skill-preview-dialog";
 
 interface SkillCardProps {
   skill: Skill;
   index: number;
   categories: Category[];
+  showRank?: boolean;
 }
 
-export function SkillCard({ skill, index, categories }: SkillCardProps) {
+export function SkillCard({
+  skill,
+  index,
+  categories,
+  showRank,
+}: SkillCardProps) {
   const { data: session } = useAuthClient.useSession();
   const router = useRouter();
   const vote = useMutation(api.votes.vote);
@@ -266,20 +275,50 @@ export function SkillCard({ skill, index, categories }: SkillCardProps) {
         </DropdownMenu>
 
         <div className="pointer-events-none absolute inset-0 z-0 flex w-full flex-col p-6 pb-8">
-          <h3 className="truncate pr-4 font-semibold text-[17px] text-foreground leading-snug">
-            {formatSkillName(skill.name)}
-          </h3>
+          <div className="flex items-start gap-2">
+            {showRank && (
+              <span className="flex h-6 min-w-6 items-center justify-center rounded-md bg-foreground/10 px-1.5 font-bold text-foreground text-xs">
+                #{index + 1}
+              </span>
+            )}
+            <h3 className="flex-1 truncate pr-4 font-semibold text-[17px] text-foreground leading-snug">
+              {formatSkillName(skill.name)}
+            </h3>
+          </div>
 
           <div className={cn("mt-3 flex flex-1 flex-col")}>
-            <span
-              className="mb-2 self-start rounded-full px-2 py-0.5 font-medium text-[10px]"
-              style={{
-                backgroundColor: `${category?.color || "#6366f1"}25`,
-                color: category?.color || "#6366f1",
-              }}
-            >
-              {category?.name || skill.category}
-            </span>
+            <div className="mb-2 flex items-center gap-2">
+              <span
+                className="self-start rounded-full px-2 py-0.5 font-medium text-[10px]"
+                style={{
+                  backgroundColor: `${category?.color || "#6366f1"}25`,
+                  color: category?.color || "#6366f1",
+                }}
+              >
+                {category?.name || skill.category}
+              </span>
+              {skill.installCount !== undefined && skill.installCount > 0 && (
+                <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                  <Download className="h-3 w-3" />
+                  {formatInstallCount(skill.installCount)}
+                </span>
+              )}
+              {skill.githubStarsCached !== undefined &&
+                skill.githubStarsCached > 0 && (
+                  <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                    <Star className="h-3 w-3" />
+                    {formatInstallCount(skill.githubStarsCached)}
+                  </span>
+                )}
+              {skill.isOfficialSource && (
+                <span
+                  className="flex items-center gap-0.5 text-[10px] text-blue-500"
+                  title="Official source"
+                >
+                  <BadgeCheck className="h-3.5 w-3.5" />
+                </span>
+              )}
+            </div>
 
             <p
               className={cn(

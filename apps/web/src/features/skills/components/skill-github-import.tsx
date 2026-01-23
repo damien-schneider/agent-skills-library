@@ -127,6 +127,9 @@ export function SkillGitHubImport() {
     // Extract source info if available (FetchedSkill)
     const sourceUrl = "sourceUrl" in skill ? skill.sourceUrl : undefined;
     const sourcePath = "sourcePath" in skill ? skill.sourcePath : undefined;
+    const githubOwner = "githubOwner" in skill ? skill.githubOwner : undefined;
+    const githubRepo = "githubRepo" in skill ? skill.githubRepo : undefined;
+    const skillSlug = "skillSlug" in skill ? skill.skillSlug : undefined;
 
     await createSkill({
       name: skill.name,
@@ -143,6 +146,9 @@ export function SkillGitHubImport() {
       allowedTools: skill.metadata?.allowedTools,
       sourceUrl,
       sourcePath,
+      githubOwner,
+      githubRepo,
+      skillSlug,
     });
   };
 

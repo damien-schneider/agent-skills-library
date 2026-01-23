@@ -253,6 +253,10 @@ export const create = mutation({
     // Source provenance
     sourceUrl: v.optional(v.string()),
     sourcePath: v.optional(v.string()),
+    // GitHub namespace fields
+    githubOwner: v.optional(v.string()),
+    githubRepo: v.optional(v.string()),
+    skillSlug: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // Use "uncategorized" as default category for AI categorization later
@@ -303,6 +307,9 @@ export const create = mutation({
       allowedTools: args.allowedTools,
       sourceUrl: args.sourceUrl,
       sourcePath: args.sourcePath,
+      githubOwner: args.githubOwner,
+      githubRepo: args.githubRepo,
+      skillSlug: args.skillSlug,
     });
 
     // Only update category count if it exists
@@ -426,6 +433,13 @@ export const listPaginated = query({
             .order("desc")
             .paginate(paginationOpts);
         }
+        if (sortBy === "installs") {
+          return ctx.db
+            .query("skills")
+            .withIndex("by_category", (idx) => idx.eq("category", category))
+            .order("desc")
+            .paginate(paginationOpts);
+        }
         // For date sorting, use the by_category index (Convex auto-appends _creationTime)
         return ctx.db
           .query("skills")
@@ -444,6 +458,20 @@ export const listPaginated = query({
         return ctx.db
           .query("skills")
           .withIndex("by_aiScore")
+          .order("desc")
+          .paginate(paginationOpts);
+      }
+      if (sortBy === "installs") {
+        return ctx.db
+          .query("skills")
+          .withIndex("by_install_count")
+          .order("desc")
+          .paginate(paginationOpts);
+      }
+      if (sortBy === "trending") {
+        return ctx.db
+          .query("skills")
+          .withIndex("by_weekly_installs")
           .order("desc")
           .paginate(paginationOpts);
       }
@@ -647,6 +675,53 @@ export const incrementCopyCount = mutation({
     });
 
     return { success: true, alreadyCopied: false };
+  },
+});
+
+export const getByNamespace = query({
+  args: {
+    githubOwner: v.string(),
+    githubRepo: v.string(),
+    skillSlug: v.string(),
+    userId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const skill = await ctx.db
+      .query("skills")
+      .withIndex("by_github_namespace", (q) =>
+        q
+          .eq("githubOwner", args.githubOwner)
+          .eq("githubRepo", args.githubRepo)
+          .eq("skillSlug", args.skillSlug)
+      )
+      .first();
+
+    if (!(skill && isSkillVisible(skill))) {
+      return null;
+    }
+
+    const votes = await ctx.db
+      .query("votes")
+      .withIndex("by_skill", (q) => q.eq("skillId", skill._id))
+      .collect();
+
+    const voteCount = votes.reduce((acc, vote) => {
+      return acc + (vote.direction === "up" ? 1 : -1);
+    }, 0);
+
+    let userVote: "up" | "down" | null = null;
+    if (args.userId) {
+      const existingVote = votes.find((v) => v.userId === args.userId);
+      if (existingVote) {
+        userVote = existingVote.direction;
+      }
+    }
+
+    return {
+      ...skill,
+      votes: voteCount,
+      userVote,
+    };
   },
 });
 

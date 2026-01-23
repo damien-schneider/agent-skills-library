@@ -50,6 +50,29 @@ export interface FetchedSkill extends ParsedSkill {
   sourcePath?: string;
   bundle?: SkillBundleInfo;
   validation?: ValidationResult;
+  githubOwner?: string;
+  githubRepo?: string;
+  skillSlug?: string;
+}
+
+function deriveSkillSlug(
+  sourcePath: string | undefined,
+  skillName: string
+): string {
+  if (sourcePath) {
+    const parts = sourcePath.split("/");
+    if (parts.length >= 2) {
+      const parentDir = parts.at(-2);
+      if (
+        parentDir &&
+        parentDir !== "." &&
+        parentDir.toLowerCase() !== "skills"
+      ) {
+        return parentDir.toLowerCase().replace(/\s+/g, "-");
+      }
+    }
+  }
+  return skillName.toLowerCase().replace(/\s+/g, "-");
 }
 
 export function parseGitHubUrl(url: string): ParsedGitHubUrl | null {
@@ -234,6 +257,9 @@ export async function fetchSkillFromUrl(url: string): Promise<FetchedSkill> {
       sourceUrl: url,
       sourcePath: parsed.path,
       validation,
+      githubOwner: parsed.owner,
+      githubRepo: parsed.repo,
+      skillSlug: deriveSkillSlug(parsed.path, skill.name),
     };
   }
 
@@ -273,6 +299,9 @@ export async function fetchSkillFromUrl(url: string): Promise<FetchedSkill> {
         sourcePath: skillPath,
         bundle,
         validation,
+        githubOwner: parsed.owner,
+        githubRepo: parsed.repo,
+        skillSlug: deriveSkillSlug(skillPath, skill.name),
       };
     } catch {
       // If direct SKILL.md fetch fails, search subdirectories
@@ -310,6 +339,9 @@ export async function fetchSkillFromUrl(url: string): Promise<FetchedSkill> {
         sourcePath: firstSkill.path,
         bundle,
         validation,
+        githubOwner: parsed.owner,
+        githubRepo: parsed.repo,
+        skillSlug: deriveSkillSlug(firstSkill.path, skill.name),
       };
     }
   }
@@ -373,6 +405,9 @@ export async function fetchAllSkillsFromRepo(
         sourcePath: filePath,
         bundle,
         validation,
+        githubOwner: parsed.owner,
+        githubRepo: parsed.repo,
+        skillSlug: deriveSkillSlug(filePath, skill.name),
       });
     } catch (error) {
       console.warn(`Failed to fetch ${filePath}:`, error);

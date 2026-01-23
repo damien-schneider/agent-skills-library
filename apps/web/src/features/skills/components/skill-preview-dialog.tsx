@@ -15,7 +15,7 @@ import {
 import { motion } from "motion/react";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
-import ReactMarkdown from "react-markdown";
+import { Streamdown } from "streamdown";
 
 import {
   Dialog,
@@ -234,9 +234,10 @@ export function SkillPreviewDialog({
                       background: `linear-gradient(135deg, ${skill.color}10 0%, transparent 50%)`,
                     }}
                   >
-                    <ReactMarkdown
+                    <Streamdown
                       components={{
-                        code: ({ children, className }) => {
+                        code: (props) => {
+                          const { children, className } = props;
                           const isInline = !className;
                           return isInline ? (
                             <code className="rounded bg-muted px-1 py-0.5 font-mono text-muted-foreground text-xs">
@@ -252,55 +253,81 @@ export function SkillPreviewDialog({
                             </ScrollArea>
                           );
                         },
-                        h1: ({ children }) => (
+                        h1: (props) => (
                           <h2 className="mt-6 mb-3 font-bold text-foreground text-lg first:mt-0">
-                            {children}
+                            {props.children}
                           </h2>
                         ),
-                        h2: ({ children }) => (
+                        h2: (props) => (
                           <h3 className="mt-5 mb-2 font-semibold text-base text-foreground">
-                            {children}
+                            {props.children}
                           </h3>
                         ),
-                        h3: ({ children }) => (
+                        h3: (props) => (
                           <h4 className="mt-4 mb-2 font-medium text-foreground text-sm">
-                            {children}
+                            {props.children}
                           </h4>
                         ),
-                        p: ({ children }) => (
+                        p: (props) => (
                           <p className="mb-3 text-muted-foreground/90 text-sm leading-relaxed">
-                            {children}
+                            {props.children}
                           </p>
                         ),
-                        ul: ({ children }) => (
+                        ul: (props) => (
                           <ul className="mb-3 ml-4 list-outside list-disc space-y-1.5 text-muted-foreground/90 text-sm">
-                            {children}
+                            {props.children}
                           </ul>
                         ),
-                        ol: ({ children }) => (
+                        ol: (props) => (
                           <ol className="mb-3 ml-4 list-outside list-decimal space-y-1.5 text-muted-foreground/90 text-sm">
-                            {children}
+                            {props.children}
                           </ol>
                         ),
-                        li: ({ children }) => (
+                        li: (props) => (
                           <li className="text-muted-foreground/90 text-sm leading-relaxed">
-                            {children}
+                            {props.children}
                           </li>
                         ),
-                        strong: ({ children }) => (
+                        strong: (props) => (
                           <strong className="font-semibold text-foreground">
-                            {children}
+                            {props.children}
                           </strong>
                         ),
-                        blockquote: ({ children }) => (
+                        blockquote: (props) => (
                           <blockquote className="my-3 border-border border-l-4 pl-3 text-muted-foreground/70 text-sm italic">
-                            {children}
+                            {props.children}
                           </blockquote>
+                        ),
+                        table: (props) => (
+                          <div className="my-3 overflow-x-auto">
+                            <table className="min-w-full border-collapse border border-border">
+                              {props.children}
+                            </table>
+                          </div>
+                        ),
+                        thead: (props) => (
+                          <thead className="bg-muted">{props.children}</thead>
+                        ),
+                        tbody: (props) => <tbody>{props.children}</tbody>,
+                        tr: (props) => (
+                          <tr className="border-border border-b even:bg-muted/30">
+                            {props.children}
+                          </tr>
+                        ),
+                        th: (props) => (
+                          <th className="border-border border-r border-b bg-muted px-3 py-1.5 text-left font-semibold text-foreground text-xs last:border-r-0">
+                            {props.children}
+                          </th>
+                        ),
+                        td: (props) => (
+                          <td className="border-border border-r px-3 py-1.5 text-muted-foreground/90 text-xs last:border-r-0">
+                            {props.children}
+                          </td>
                         ),
                       }}
                     >
                       {skill.markdown}
-                    </ReactMarkdown>
+                    </Streamdown>
                   </div>
                 </div>
 

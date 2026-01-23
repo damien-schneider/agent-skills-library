@@ -12,22 +12,27 @@ import type { Skill } from "../lib/types";
 import { OrbitalHero } from "./orbital-hero";
 import { SkillCard } from "./skill-card";
 
+type SortOption = "votes" | "date" | "score" | "installs" | "trending";
+
 export function HomeView() {
   const { data: session } = useAuthClient.useSession();
   const categories = useQuery(api.categories.list) ?? [];
 
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [sortBy, setSortBy] = useState<"votes" | "date" | "score">("votes");
+  const [sortBy, setSortBy] = useState<SortOption>("votes");
+  const [viewMode, setViewMode] = useState<"all" | "trending">("all");
 
   const heroRef = useRef<HTMLDivElement>(null);
+
+  const effectiveSortBy = viewMode === "trending" ? "trending" : sortBy;
 
   const { results, status, loadMore } = usePaginatedQuery(
     api.skills.listPaginated,
     {
       category: selectedCategory ?? undefined,
       search: searchQuery || undefined,
-      sortBy,
+      sortBy: effectiveSortBy,
       userId: session?.user?.id,
     },
     { initialNumItems: 24 }
@@ -130,18 +135,48 @@ export function HomeView() {
               </div>
 
               <div className="ml-auto flex items-center gap-3">
-                <span className="text-muted-foreground text-sm">Sort by</span>
-                <select
-                  className="cursor-pointer rounded-xl border border-border/50 bg-card/80 px-4 py-2.5 text-foreground text-sm outline-none transition-colors hover:bg-card focus:ring-2 focus:ring-primary/20"
-                  onChange={(e) =>
-                    setSortBy(e.target.value as "votes" | "date" | "score")
-                  }
-                  value={sortBy}
-                >
-                  <option value="votes">Most Voted</option>
-                  <option value="date">Newest</option>
-                  <option value="score">AI Score</option>
-                </select>
+                <div className="flex rounded-xl border border-border/50 bg-card/80 p-1">
+                  <button
+                    className={`rounded-lg px-3 py-1.5 font-medium text-sm transition-colors ${
+                      viewMode === "all"
+                        ? "bg-foreground text-background"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                    onClick={() => setViewMode("all")}
+                    type="button"
+                  >
+                    All Time
+                  </button>
+                  <button
+                    className={`rounded-lg px-3 py-1.5 font-medium text-sm transition-colors ${
+                      viewMode === "trending"
+                        ? "bg-foreground text-background"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                    onClick={() => setViewMode("trending")}
+                    type="button"
+                  >
+                    Trending
+                  </button>
+                </div>
+
+                {viewMode === "all" && (
+                  <>
+                    <span className="text-muted-foreground text-sm">
+                      Sort by
+                    </span>
+                    <select
+                      className="cursor-pointer rounded-xl border border-border/50 bg-card/80 px-4 py-2.5 text-foreground text-sm outline-none transition-colors hover:bg-card focus:ring-2 focus:ring-primary/20"
+                      onChange={(e) => setSortBy(e.target.value as SortOption)}
+                      value={sortBy}
+                    >
+                      <option value="votes">Most Voted</option>
+                      <option value="installs">Most Installed</option>
+                      <option value="date">Newest</option>
+                      <option value="score">AI Score</option>
+                    </select>
+                  </>
+                )}
               </div>
             </div>
 
@@ -161,6 +196,11 @@ export function HomeView() {
                   categories={categories}
                   index={index}
                   key={skill._id}
+                  showRank={
+                    viewMode === "trending" ||
+                    sortBy === "installs" ||
+                    sortBy === "votes"
+                  }
                   skill={skill}
                 />
               ))}
