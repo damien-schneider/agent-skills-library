@@ -149,7 +149,7 @@ export default async function RootLayout({
         <script
           data-website-id="7f17e230-7fa9-429f-a744-86813acf1ea9"
           defer
-          src="http://self-hosted-app-umami-8d8473-37-59-125-21.traefik.me/script.js"
+          src="https://umami.damien-schneider.pro/script.js"
         />
         {process.env.NODE_ENV === "development" && (
           <Script
