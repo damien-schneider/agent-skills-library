@@ -1,19 +1,11 @@
 "use client";
 
-import {
-  Archive,
-  ArrowLeftIcon,
-  BookMarked,
-  Github,
-  LogIn,
-  Plus,
-} from "lucide-react";
+import { ArrowLeftIcon, BookMarked, Github, LogIn, Plus } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { ModeToggle } from "@/features/auth/components/mode-toggle";
-import { isAdminUser } from "@/features/skills";
 import { SignInDialog } from "@/shared/components/ui/sign-in-dialog";
 import { useAuthClient } from "@/shared/lib/auth-client";
 import { GITHUB_REPOSITORY_URL } from "@/shared/lib/constants";
@@ -22,7 +14,6 @@ export default function Header() {
   const pathname = usePathname();
   const { data: session, isPending } = useAuthClient.useSession();
   const isAuthenticated = !!session?.user;
-  const isAdmin = isAdminUser(session?.user?.email);
   const isHomePage = pathname === "/";
   const showBackButton = !isHomePage;
   const [isSignInDialogOpen, setIsSignInDialogOpen] = useState(false);
@@ -60,27 +51,6 @@ export default function Header() {
           </AnimatePresence>
 
           <div className="flex items-center gap-3">
-            {/* Admin Archive Button */}
-            <AnimatePresence>
-              {isAdmin && pathname !== "/archived" && (
-                <motion.div
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.8 }}
-                  initial={{ opacity: 0, scale: 0.8 }}
-                >
-                  <Link href="/archived" prefetch>
-                    <button
-                      aria-label="View archived skills"
-                      className="rounded-full border border-amber-500/30 bg-amber-500/15 p-3 shadow-sm transition-transform duration-200 hover:scale-105 active:scale-95"
-                      type="button"
-                    >
-                      <Archive className="h-5 w-5 text-amber-500" />
-                    </button>
-                  </Link>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
             <AnimatePresence>
               {pathname !== "/skills/new" && (
                 <motion.div

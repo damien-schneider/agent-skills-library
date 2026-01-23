@@ -6,6 +6,7 @@ import { useAction, useMutation, useQuery } from "convex/react";
 import type { FunctionReference } from "convex/server";
 import {
   AlertTriangle,
+  Archive,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
@@ -18,6 +19,7 @@ import {
   Loader2,
   Plus,
   RefreshCw,
+  RotateCcw,
   Shield,
   Trash2,
   Users,
@@ -52,10 +54,6 @@ interface AdminPanelProps {
   userEmail?: string;
 }
 
-/**
- * Admin panel for managing skills - only accessible to admin users
- * Used in the /archived page for viewing and managing archived skills
- */
 interface ReportedSkill {
   _id: string;
   name: string;
@@ -72,6 +70,8 @@ interface ReportedSkill {
 export function AdminPanel({ userEmail }: AdminPanelProps) {
   const isAdmin = userEmail === ADMIN_EMAIL;
   const allSkills = useQuery(api.skills.list, {}) ?? [];
+  const archivedSkills = useQuery(api.skills.listArchived, {}) ?? [];
+  const unarchiveSkill = useMutation(api.skills.unarchive);
 
   const moderationApi = api as typeof api & {
     moderation: {
@@ -291,6 +291,22 @@ export function AdminPanel({ userEmail }: AdminPanelProps) {
       toast.success("Reports dismissed successfully");
     } catch {
       toast.error("Failed to dismiss reports");
+    } finally {
+      setProcessingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(skillId);
+        return next;
+      });
+    }
+  };
+
+  const handleUnarchive = async (skillId: string) => {
+    setProcessingIds((prev) => new Set(prev).add(skillId));
+    try {
+      await unarchiveSkill({ id: skillId as Skill["_id"] });
+      toast.success("Skill restored successfully");
+    } catch {
+      toast.error("Failed to restore skill");
     } finally {
       setProcessingIds((prev) => {
         const next = new Set(prev);
@@ -712,6 +728,85 @@ export function AdminPanel({ userEmail }: AdminPanelProps) {
                       )}
                     </button>
                   </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-3xl border border-border bg-card p-6 shadow-sm">
+        <div className="mb-4 flex items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-linear-to-br from-muted-foreground/20 to-muted-foreground/40">
+            <Archive className="h-4 w-4 text-foreground" />
+          </div>
+          <h3 className="font-semibold text-foreground">Archived Skills</h3>
+          {archivedSkills.length > 0 && (
+            <span className="rounded-full bg-muted px-2 py-0.5 font-medium text-muted-foreground text-xs">
+              {archivedSkills.length}
+            </span>
+          )}
+        </div>
+        <p className="mb-4 text-muted-foreground text-sm">
+          Skills with a total score below -10 are automatically archived
+        </p>
+
+        {archivedSkills.length === 0 ? (
+          <div className="py-8 text-center">
+            <Archive className="mx-auto mb-3 h-10 w-10 text-muted/30" />
+            <p className="text-muted-foreground text-sm">No archived skills</p>
+          </div>
+        ) : (
+          <div className="max-h-96 space-y-2 overflow-y-auto">
+            {archivedSkills.map((skill) => (
+              <div
+                className="flex items-center justify-between rounded-xl bg-muted/50 px-4 py-3"
+                key={skill._id}
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium text-foreground text-sm">
+                    {formatSkillName(skill.name)}
+                  </p>
+                  <p className="truncate text-muted-foreground text-xs">
+                    {skill.category} • {skill.authorName}
+                  </p>
+                  <p
+                    className={`mt-1 text-xs ${
+                      skill.upvotes - skill.downvotes < 0
+                        ? "text-destructive"
+                        : "text-muted-foreground"
+                    }`}
+                  >
+                    Score: {skill.upvotes - skill.downvotes}
+                  </p>
+                </div>
+                <div className="ml-2 flex gap-1">
+                  <button
+                    className="rounded-lg p-2 text-emerald-600 transition-colors hover:bg-emerald-500/10 disabled:opacity-50"
+                    disabled={processingIds.has(skill._id)}
+                    onClick={() => handleUnarchive(skill._id)}
+                    title="Restore skill"
+                    type="button"
+                  >
+                    {processingIds.has(skill._id) ? (
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-emerald-200 border-t-emerald-600" />
+                    ) : (
+                      <RotateCcw className="h-4 w-4" />
+                    )}
+                  </button>
+                  <button
+                    className="rounded-lg p-2 text-red-500 transition-colors hover:bg-red-500/10 disabled:opacity-50"
+                    disabled={deletingIds.has(skill._id)}
+                    onClick={() => handleDeleteSkill(skill._id)}
+                    title="Delete permanently"
+                    type="button"
+                  >
+                    {deletingIds.has(skill._id) ? (
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-red-200 border-t-red-500" />
+                    ) : (
+                      <Trash2 className="h-4 w-4" />
+                    )}
+                  </button>
                 </div>
               </div>
             ))}
