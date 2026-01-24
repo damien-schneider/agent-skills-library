@@ -696,6 +696,248 @@ describe("Rate Limiting and Error Handling", () => {
   });
 });
 
+// ============================================================================
+// Fetch All Repos from skills.sh Tests
+// ============================================================================
+
+interface RepoFromSkillsSh {
+  owner: string;
+  repo: string;
+  totalInstalls: number;
+  skillCount: number;
+}
+
+function extractReposFromSkills(
+  skills: SkillsShSkill[]
+): Map<string, RepoFromSkillsSh> {
+  const reposMap = new Map<string, RepoFromSkillsSh>();
+
+  for (const skill of skills) {
+    if (!skill.topSource) {
+      continue;
+    }
+
+    const parts = skill.topSource.split("/");
+    if (parts.length !== 2) {
+      continue;
+    }
+
+    const [owner, repo] = parts;
+    if (!(owner && repo)) {
+      continue;
+    }
+
+    const key = `${owner}/${repo}`;
+    const existing = reposMap.get(key);
+
+    if (existing) {
+      existing.totalInstalls += skill.installs;
+      existing.skillCount += 1;
+    } else {
+      reposMap.set(key, {
+        owner,
+        repo,
+        totalInstalls: skill.installs,
+        skillCount: 1,
+      });
+    }
+  }
+
+  return reposMap;
+}
+
+describe("Fetch All Repos from skills.sh", () => {
+  describe("extractReposFromSkills", () => {
+    it("extracts unique repos from skills", () => {
+      const repos = extractReposFromSkills(MOCK_SKILLS_SH_RESPONSE.skills);
+
+      expect(repos.size).toBe(2);
+      expect(repos.has("expo/skills")).toBe(true);
+      expect(repos.has("vercel-labs/agent-skills")).toBe(true);
+    });
+
+    it("aggregates install counts per repo", () => {
+      const repos = extractReposFromSkills(MOCK_SKILLS_SH_RESPONSE.skills);
+
+      const expoRepo = repos.get("expo/skills");
+      expect(expoRepo?.totalInstalls).toBe(1250 + 980 + 750 + 620);
+      expect(expoRepo?.skillCount).toBe(4);
+
+      const vercelRepo = repos.get("vercel-labs/agent-skills");
+      expect(vercelRepo?.totalInstalls).toBe(500 + 450);
+      expect(vercelRepo?.skillCount).toBe(2);
+    });
+
+    it("handles empty skills array", () => {
+      const repos = extractReposFromSkills([]);
+
+      expect(repos.size).toBe(0);
+    });
+
+    it("handles skills without topSource", () => {
+      const skillsWithMissing: SkillsShSkill[] = [
+        { id: "test1", name: "Test 1", installs: 100, topSource: "owner/repo" },
+        { id: "test2", name: "Test 2", installs: 200, topSource: "" },
+        { id: "test3", name: "Test 3", installs: 300, topSource: "owner/repo" },
+      ];
+
+      const repos = extractReposFromSkills(skillsWithMissing);
+
+      expect(repos.size).toBe(1);
+      expect(repos.get("owner/repo")?.totalInstalls).toBe(400);
+      expect(repos.get("owner/repo")?.skillCount).toBe(2);
+    });
+
+    it("handles malformed topSource values", () => {
+      const skillsWithMalformed: SkillsShSkill[] = [
+        { id: "test1", name: "Test 1", installs: 100, topSource: "owner/repo" },
+        {
+          id: "test2",
+          name: "Test 2",
+          installs: 200,
+          topSource: "invalid-no-slash",
+        },
+        {
+          id: "test3",
+          name: "Test 3",
+          installs: 300,
+          topSource: "too/many/slashes",
+        },
+        {
+          id: "test4",
+          name: "Test 4",
+          installs: 400,
+          topSource: "owner/another-repo",
+        },
+      ];
+
+      const repos = extractReposFromSkills(skillsWithMalformed);
+
+      expect(repos.size).toBe(2);
+      expect(repos.has("owner/repo")).toBe(true);
+      expect(repos.has("owner/another-repo")).toBe(true);
+      expect(repos.has("invalid-no-slash")).toBe(false);
+      expect(repos.has("too/many/slashes")).toBe(false);
+    });
+
+    it("correctly extracts owner and repo from topSource", () => {
+      const repos = extractReposFromSkills(MOCK_SKILLS_SH_RESPONSE.skills);
+
+      const expoRepo = repos.get("expo/skills");
+      expect(expoRepo?.owner).toBe("expo");
+      expect(expoRepo?.repo).toBe("skills");
+
+      const vercelRepo = repos.get("vercel-labs/agent-skills");
+      expect(vercelRepo?.owner).toBe("vercel-labs");
+      expect(vercelRepo?.repo).toBe("agent-skills");
+    });
+  });
+
+  describe("Pagination with offset", () => {
+    it("processes multiple batches correctly", () => {
+      const batch1: SkillsShSkill[] = [
+        {
+          id: "skill1",
+          name: "Skill 1",
+          installs: 1000,
+          topSource: "repo-a/skills",
+        },
+        {
+          id: "skill2",
+          name: "Skill 2",
+          installs: 900,
+          topSource: "repo-b/skills",
+        },
+      ];
+      const batch2: SkillsShSkill[] = [
+        {
+          id: "skill3",
+          name: "Skill 3",
+          installs: 800,
+          topSource: "repo-a/skills",
+        },
+        {
+          id: "skill4",
+          name: "Skill 4",
+          installs: 700,
+          topSource: "repo-c/skills",
+        },
+      ];
+
+      const allRepos = new Map<string, RepoFromSkillsSh>();
+
+      for (const batch of [batch1, batch2]) {
+        const batchRepos = extractReposFromSkills(batch);
+        for (const [key, repoData] of batchRepos) {
+          const existing = allRepos.get(key);
+          if (existing) {
+            existing.totalInstalls += repoData.totalInstalls;
+            existing.skillCount += repoData.skillCount;
+          } else {
+            allRepos.set(key, { ...repoData });
+          }
+        }
+      }
+
+      expect(allRepos.size).toBe(3);
+      expect(allRepos.get("repo-a/skills")?.totalInstalls).toBe(1800);
+      expect(allRepos.get("repo-a/skills")?.skillCount).toBe(2);
+      expect(allRepos.get("repo-b/skills")?.totalInstalls).toBe(900);
+      expect(allRepos.get("repo-c/skills")?.totalInstalls).toBe(700);
+    });
+
+    it("handles large number of unique repos", () => {
+      const skills: SkillsShSkill[] = [];
+      for (let i = 0; i < 100; i++) {
+        skills.push({
+          id: `skill-${i}`,
+          name: `Skill ${i}`,
+          installs: 100 + i,
+          topSource: `owner-${i}/repo-${i}`,
+        });
+      }
+
+      const repos = extractReposFromSkills(skills);
+
+      expect(repos.size).toBe(100);
+    });
+
+    it("handles skills from same repo across different batches", () => {
+      const skills: SkillsShSkill[] = [];
+      for (let i = 0; i < 50; i++) {
+        skills.push({
+          id: `skill-${i}`,
+          name: `Skill ${i}`,
+          installs: 10,
+          topSource: "single-owner/single-repo",
+        });
+      }
+
+      const repos = extractReposFromSkills(skills);
+
+      expect(repos.size).toBe(1);
+      expect(repos.get("single-owner/single-repo")?.totalInstalls).toBe(500);
+      expect(repos.get("single-owner/single-repo")?.skillCount).toBe(50);
+    });
+  });
+
+  describe("Result structure validation", () => {
+    it("returns correct structure for createOrUpdateOfficialRepo", () => {
+      const repos = extractReposFromSkills(MOCK_SKILLS_SH_RESPONSE.skills);
+
+      for (const [key, repoData] of repos) {
+        expect(typeof repoData.owner).toBe("string");
+        expect(typeof repoData.repo).toBe("string");
+        expect(typeof repoData.totalInstalls).toBe("number");
+        expect(typeof repoData.skillCount).toBe("number");
+        expect(repoData.owner.length).toBeGreaterThan(0);
+        expect(repoData.repo.length).toBeGreaterThan(0);
+        expect(key).toBe(`${repoData.owner}/${repoData.repo}`);
+      }
+    });
+  });
+});
+
 describe("Edge Cases", () => {
   describe("Empty and Null Handling", () => {
     it("handles empty skill list", () => {

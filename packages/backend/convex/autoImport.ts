@@ -1158,3 +1158,209 @@ export const fetchRepoInstallCounts = action({
     return { totalInstalls, skillCounts, updated };
   },
 });
+
+interface SkillsShApiResponseWithOffset {
+  skills: SkillsShSkill[];
+  hasMore: boolean;
+}
+
+interface RepoFromSkillsSh {
+  owner: string;
+  repo: string;
+  totalInstalls: number;
+  skillCount: number;
+}
+
+const SKILLS_SH_BATCH_SIZE = 100;
+const SKILLS_SH_RATE_LIMIT_MS = 50;
+
+async function fetchSkillsShWithOffset(
+  offset: number,
+  limit: number
+): Promise<{ data: SkillsShApiResponseWithOffset | null; error?: string }> {
+  try {
+    const response = await fetch(
+      `https://skills.sh/api/skills?offset=${offset}&limit=${limit}`
+    );
+    if (!response.ok) {
+      return { data: null, error: `HTTP ${response.status}` };
+    }
+    const data = (await response.json()) as SkillsShApiResponseWithOffset;
+    return { data };
+  } catch (error) {
+    return {
+      data: null,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+}
+
+function extractReposFromSkills(
+  skills: SkillsShSkill[]
+): Map<string, RepoFromSkillsSh> {
+  const reposMap = new Map<string, RepoFromSkillsSh>();
+
+  for (const skill of skills) {
+    if (!skill.topSource) {
+      continue;
+    }
+
+    const parts = skill.topSource.split("/");
+    if (parts.length !== 2) {
+      continue;
+    }
+
+    const [owner, repo] = parts;
+    if (!(owner && repo)) {
+      continue;
+    }
+
+    const key = `${owner}/${repo}`;
+    const existing = reposMap.get(key);
+
+    if (existing) {
+      existing.totalInstalls += skill.installs;
+      existing.skillCount += 1;
+    } else {
+      reposMap.set(key, {
+        owner,
+        repo,
+        totalInstalls: skill.installs,
+        skillCount: 1,
+      });
+    }
+  }
+
+  return reposMap;
+}
+
+interface FetchAllReposResult {
+  totalSkillsFetched: number;
+  uniqueReposFound: number;
+  reposCreated: number;
+  reposUpdated: number;
+  repos: Array<{ owner: string; repo: string; status: "created" | "updated" }>;
+  error?: string;
+}
+
+function mergeRepoData(
+  allRepos: Map<string, RepoFromSkillsSh>,
+  batchRepos: Map<string, RepoFromSkillsSh>
+): void {
+  for (const [key, repoData] of batchRepos) {
+    const existing = allRepos.get(key);
+    if (existing) {
+      existing.totalInstalls += repoData.totalInstalls;
+      existing.skillCount += repoData.skillCount;
+    } else {
+      allRepos.set(key, { ...repoData });
+    }
+  }
+}
+
+async function fetchAllSkillsData(maxSkills: number): Promise<{
+  allRepos: Map<string, RepoFromSkillsSh>;
+  totalSkillsFetched: number;
+  error?: string;
+}> {
+  const allRepos = new Map<string, RepoFromSkillsSh>();
+  let offset = 0;
+  let totalSkillsFetched = 0;
+  let hasMore = true;
+
+  while (hasMore && totalSkillsFetched < maxSkills) {
+    const { data, error } = await fetchSkillsShWithOffset(
+      offset,
+      SKILLS_SH_BATCH_SIZE
+    );
+
+    if (error || !data) {
+      if (totalSkillsFetched === 0) {
+        return {
+          allRepos,
+          totalSkillsFetched: 0,
+          error: error ?? "Failed to fetch skills.sh data",
+        };
+      }
+      break;
+    }
+
+    const batchRepos = extractReposFromSkills(data.skills);
+    mergeRepoData(allRepos, batchRepos);
+
+    totalSkillsFetched += data.skills.length;
+    hasMore = data.hasMore;
+    offset += SKILLS_SH_BATCH_SIZE;
+
+    if (hasMore && totalSkillsFetched < maxSkills) {
+      await delay(SKILLS_SH_RATE_LIMIT_MS);
+    }
+  }
+
+  return { allRepos, totalSkillsFetched };
+}
+
+export const fetchAllSkillsShRepos = action({
+  args: {
+    maxSkills: v.optional(v.number()),
+  },
+  handler: async (ctx, args): Promise<FetchAllReposResult> => {
+    const maxSkills = args.maxSkills ?? 15_000;
+
+    const { allRepos, totalSkillsFetched, error } =
+      await fetchAllSkillsData(maxSkills);
+
+    if (error) {
+      return {
+        totalSkillsFetched: 0,
+        uniqueReposFound: 0,
+        reposCreated: 0,
+        reposUpdated: 0,
+        repos: [],
+        error,
+      };
+    }
+
+    const repos: FetchAllReposResult["repos"] = [];
+    let reposCreated = 0;
+    let reposUpdated = 0;
+
+    for (const repoData of allRepos.values()) {
+      try {
+        const result = await ctx.runMutation(
+          internal.officialRepos.createOrUpdateOfficialRepo,
+          {
+            githubOwner: repoData.owner,
+            githubRepo: repoData.repo,
+            totalInstalls: repoData.totalInstalls,
+          }
+        );
+
+        repos.push({
+          owner: repoData.owner,
+          repo: repoData.repo,
+          status: result.status,
+        });
+
+        if (result.status === "created") {
+          reposCreated++;
+        } else {
+          reposUpdated++;
+        }
+      } catch (err) {
+        console.warn(
+          `Failed to create/update repo ${repoData.owner}/${repoData.repo}:`,
+          err
+        );
+      }
+    }
+
+    return {
+      totalSkillsFetched,
+      uniqueReposFound: allRepos.size,
+      reposCreated,
+      reposUpdated,
+      repos,
+    };
+  },
+});

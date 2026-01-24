@@ -103,10 +103,17 @@ export function AdminPanel({ userEmail }: AdminPanelProps) {
   const [isImportingAll, setIsImportingAll] = useState(false);
   const [isImportingUrl, setIsImportingUrl] = useState(false);
   const [isImportingSkillsSh, setIsImportingSkillsSh] = useState(false);
+  const [isFetchingAllRepos, setIsFetchingAllRepos] = useState(false);
   const [importResults, setImportResults] = useState<{
     results: ImportResult[];
     summary: ImportSummary;
     reposDiscovered?: string[];
+  } | null>(null);
+  const [fetchReposResult, setFetchReposResult] = useState<{
+    totalSkillsFetched: number;
+    uniqueReposFound: number;
+    reposCreated: number;
+    reposUpdated: number;
   } | null>(null);
 
   const [newRepoUrl, setNewRepoUrl] = useState("");
@@ -123,6 +130,7 @@ export function AdminPanel({ userEmail }: AdminPanelProps) {
       importFromSkillsSh: FunctionReference<"action", "public">;
       syncOfficialRepo: FunctionReference<"action", "public">;
       fetchRepoInstallCounts: FunctionReference<"action", "public">;
+      fetchAllSkillsShRepos: FunctionReference<"action", "public">;
     };
     officialRepos: {
       seedOfficialRepos: FunctionReference<"mutation", "public">;
@@ -140,6 +148,9 @@ export function AdminPanel({ userEmail }: AdminPanelProps) {
   const syncOfficialRepo = useAction(autoImportApi.autoImport.syncOfficialRepo);
   const fetchRepoInstallCounts = useAction(
     autoImportApi.autoImport.fetchRepoInstallCounts
+  );
+  const fetchAllSkillsShRepos = useAction(
+    autoImportApi.autoImport.fetchAllSkillsShRepos
   );
   const seedOfficialRepos = useMutation(
     autoImportApi.officialRepos.seedOfficialRepos
@@ -252,6 +263,42 @@ export function AdminPanel({ userEmail }: AdminPanelProps) {
       );
     } finally {
       setIsImportingSkillsSh(false);
+    }
+  };
+
+  const handleFetchAllRepos = async () => {
+    setIsFetchingAllRepos(true);
+    setFetchReposResult(null);
+
+    try {
+      const result = await fetchAllSkillsShRepos({});
+
+      setFetchReposResult({
+        totalSkillsFetched: result.totalSkillsFetched,
+        uniqueReposFound: result.uniqueReposFound,
+        reposCreated: result.reposCreated,
+        reposUpdated: result.reposUpdated,
+      });
+
+      if (result.error) {
+        toast.error(result.error);
+      } else if (result.reposCreated > 0 || result.reposUpdated > 0) {
+        toast.success(
+          `Added ${result.reposCreated} new repos, updated ${result.reposUpdated} existing (${result.uniqueReposFound} total from ${result.totalSkillsFetched} skills)`
+        );
+      } else {
+        toast.info(
+          `Found ${result.uniqueReposFound} repos from ${result.totalSkillsFetched} skills (all already exist)`
+        );
+      }
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to fetch repos from skills.sh"
+      );
+    } finally {
+      setIsFetchingAllRepos(false);
     }
   };
 
@@ -468,11 +515,14 @@ export function AdminPanel({ userEmail }: AdminPanelProps) {
       </div>
 
       <AutoPopulateSection
+        fetchReposResult={fetchReposResult}
         importResults={importResults}
         importUrl={importUrl}
+        isFetchingAllRepos={isFetchingAllRepos}
         isImportingAll={isImportingAll}
         isImportingSkillsSh={isImportingSkillsSh}
         isImportingUrl={isImportingUrl}
+        onFetchAllRepos={handleFetchAllRepos}
         onImportAllOfficial={handleImportAllOfficial}
         onImportFromSkillsSh={handleImportFromSkillsSh}
         onImportFromUrl={handleImportFromUrl}
@@ -827,14 +877,22 @@ interface AutoPopulateSectionProps {
   isImportingAll: boolean;
   isImportingUrl: boolean;
   isImportingSkillsSh: boolean;
+  isFetchingAllRepos: boolean;
   importResults: {
     results: ImportResult[];
     summary: ImportSummary;
     reposDiscovered?: string[];
   } | null;
+  fetchReposResult: {
+    totalSkillsFetched: number;
+    uniqueReposFound: number;
+    reposCreated: number;
+    reposUpdated: number;
+  } | null;
   onImportAllOfficial: () => void;
   onImportFromUrl: () => void;
   onImportFromSkillsSh: () => void;
+  onFetchAllRepos: () => void;
 }
 
 function AutoPopulateSection({
@@ -843,12 +901,19 @@ function AutoPopulateSection({
   isImportingAll,
   isImportingUrl,
   isImportingSkillsSh,
+  isFetchingAllRepos,
   importResults,
+  fetchReposResult,
   onImportAllOfficial,
   onImportFromUrl,
   onImportFromSkillsSh,
+  onFetchAllRepos,
 }: AutoPopulateSectionProps) {
-  const isImporting = isImportingAll || isImportingUrl || isImportingSkillsSh;
+  const isImporting =
+    isImportingAll ||
+    isImportingUrl ||
+    isImportingSkillsSh ||
+    isFetchingAllRepos;
 
   return (
     <div className="rounded-3xl border border-border bg-card p-6 shadow-sm">
@@ -959,6 +1024,67 @@ function AutoPopulateSection({
               </>
             )}
           </button>
+        </div>
+
+        <div className="rounded-xl border border-purple-500/20 bg-purple-500/5 p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <Database className="h-4 w-4 text-purple-500" />
+            <span className="font-medium text-foreground text-sm">
+              Fetch All Repos from skills.sh
+            </span>
+          </div>
+          <p className="mb-3 text-muted-foreground text-xs">
+            Scans all ~12,500 skills on skills.sh and adds their source
+            repositories as official repos. This may take a few minutes.
+          </p>
+          <button
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-purple-600 px-4 py-2.5 font-medium text-sm text-white transition-colors hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={isImporting}
+            onClick={onFetchAllRepos}
+            type="button"
+          >
+            {isFetchingAllRepos ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Fetching repos from skills.sh...
+              </>
+            ) : (
+              <>
+                <Database className="h-4 w-4" />
+                Fetch All Repos
+              </>
+            )}
+          </button>
+          {fetchReposResult && (
+            <div className="mt-3 rounded-lg bg-background/50 p-3 text-xs">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <span className="text-muted-foreground">Skills scanned:</span>{" "}
+                  <span className="font-medium text-foreground">
+                    {fetchReposResult.totalSkillsFetched.toLocaleString()}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Unique repos:</span>{" "}
+                  <span className="font-medium text-foreground">
+                    {fetchReposResult.uniqueReposFound.toLocaleString()}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Created:</span>{" "}
+                  <span className="font-medium text-emerald-600">
+                    {fetchReposResult.reposCreated}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Updated:</span>{" "}
+                  <span className="font-medium text-blue-600">
+                    {fetchReposResult.reposUpdated}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {importResults && (

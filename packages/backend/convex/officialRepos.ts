@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { internalMutation, mutation, query } from "./_generated/server";
 
 export const list = query({
   args: {},
@@ -231,5 +231,43 @@ export const seedOfficialRepos = mutation({
     }
 
     return results;
+  },
+});
+
+export const createOrUpdateOfficialRepo = internalMutation({
+  args: {
+    githubOwner: v.string(),
+    githubRepo: v.string(),
+    totalInstalls: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("officialRepos")
+      .withIndex("by_github_namespace", (q) =>
+        q.eq("githubOwner", args.githubOwner).eq("githubRepo", args.githubRepo)
+      )
+      .unique();
+
+    if (existing) {
+      const updates: Record<string, unknown> = {};
+      if (args.totalInstalls !== undefined) {
+        updates.totalInstalls = args.totalInstalls;
+      }
+      if (Object.keys(updates).length > 0) {
+        await ctx.db.patch(existing._id, updates);
+      }
+      return { status: "updated" as const, id: existing._id };
+    }
+
+    const id = await ctx.db.insert("officialRepos", {
+      githubOwner: args.githubOwner,
+      githubRepo: args.githubRepo,
+      displayName: `${args.githubOwner}/${args.githubRepo}`,
+      isVerified: false,
+      skillCount: 0,
+      totalInstalls: args.totalInstalls ?? 0,
+    });
+
+    return { status: "created" as const, id };
   },
 });

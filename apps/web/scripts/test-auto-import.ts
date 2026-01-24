@@ -294,6 +294,151 @@ async function testGitHubNonExistentRepo(): Promise<void> {
   assert(response.status === 404, `Expected 404, got ${response.status}`);
 }
 
+// ============================================================================
+// Fetch All Repos Tests (offset-based pagination)
+// ============================================================================
+
+async function testSkillsShOffsetPagination(): Promise<void> {
+  const response1 = await fetch(`${SKILLS_SH_API_URL}?offset=0&limit=50`);
+  assert(response1.ok, `Expected OK response, got ${response1.status}`);
+
+  const data1: SkillsShApiResponse = await response1.json();
+  assert(Array.isArray(data1.skills), "Expected skills array");
+  assert(data1.skills.length > 0, "Expected skills in first page");
+
+  const response2 = await fetch(`${SKILLS_SH_API_URL}?offset=50&limit=50`);
+  assert(response2.ok, `Expected OK response, got ${response2.status}`);
+
+  const data2: SkillsShApiResponse = await response2.json();
+  assert(Array.isArray(data2.skills), "Expected skills array in second page");
+
+  const firstPageIds = new Set(data1.skills.map((s) => s.id));
+  const secondPageIds = data2.skills.map((s) => s.id);
+  const hasOverlap = secondPageIds.some((id) => firstPageIds.has(id));
+
+  assert(!hasOverlap, "Expected no overlap between pages (offset pagination)");
+  console.log(
+    `   Page 1 (offset 0): ${data1.skills.length} skills, Page 2 (offset 50): ${data2.skills.length} skills`
+  );
+}
+
+async function testSkillsShLargerLimit(): Promise<void> {
+  const response = await fetch(`${SKILLS_SH_API_URL}?offset=0&limit=100`);
+  assert(response.ok, `Expected OK response, got ${response.status}`);
+
+  const data: SkillsShApiResponse = await response.json();
+  assert(Array.isArray(data.skills), "Expected skills array");
+
+  console.log(
+    `   Fetched ${data.skills.length} skills with limit=100, hasMore=${data.hasMore}`
+  );
+}
+
+async function testExtractUniqueRepos(): Promise<void> {
+  const response = await fetch(`${SKILLS_SH_API_URL}?offset=0&limit=200`);
+  const data: SkillsShApiResponse = await response.json();
+
+  const reposMap = new Map<string, { count: number; totalInstalls: number }>();
+
+  for (const skill of data.skills) {
+    if (!skill.topSource) {
+      continue;
+    }
+
+    const parts = skill.topSource.split("/");
+    if (parts.length !== 2) {
+      continue;
+    }
+
+    const key = skill.topSource;
+    const existing = reposMap.get(key);
+
+    if (existing) {
+      existing.count += 1;
+      existing.totalInstalls += skill.installs;
+    } else {
+      reposMap.set(key, { count: 1, totalInstalls: skill.installs });
+    }
+  }
+
+  console.log(
+    `   Extracted ${reposMap.size} unique repos from ${data.skills.length} skills`
+  );
+
+  const topRepos = Array.from(reposMap.entries())
+    .sort((a, b) => b[1].count - a[1].count)
+    .slice(0, 5);
+
+  console.log("   Top 5 repos by skill count:");
+  for (const [repo, stats] of topRepos) {
+    console.log(
+      `   - ${repo}: ${stats.count} skills, ${stats.totalInstalls.toLocaleString()} installs`
+    );
+  }
+
+  assert(reposMap.size > 0, "Expected to extract at least one repo");
+}
+
+async function testFetchAllReposSimulation(): Promise<void> {
+  const allRepos = new Map<string, { count: number; totalInstalls: number }>();
+  let offset = 0;
+  let totalSkillsFetched = 0;
+  const batchSize = 100;
+  const maxSkills = 500;
+
+  console.log(`   Simulating fetch of up to ${maxSkills} skills...`);
+
+  while (totalSkillsFetched < maxSkills) {
+    const response = await fetch(
+      `${SKILLS_SH_API_URL}?offset=${offset}&limit=${batchSize}`
+    );
+    if (!response.ok) {
+      break;
+    }
+
+    const data: SkillsShApiResponse = await response.json();
+    if (data.skills.length === 0) {
+      break;
+    }
+
+    for (const skill of data.skills) {
+      if (!skill.topSource) {
+        continue;
+      }
+      const parts = skill.topSource.split("/");
+      if (parts.length !== 2) {
+        continue;
+      }
+
+      const key = skill.topSource;
+      const existing = allRepos.get(key);
+
+      if (existing) {
+        existing.count += 1;
+        existing.totalInstalls += skill.installs;
+      } else {
+        allRepos.set(key, { count: 1, totalInstalls: skill.installs });
+      }
+    }
+
+    totalSkillsFetched += data.skills.length;
+    offset += batchSize;
+
+    if (!data.hasMore) {
+      break;
+    }
+  }
+
+  console.log(
+    `   Fetched ${totalSkillsFetched} skills, found ${allRepos.size} unique repos`
+  );
+  assert(allRepos.size > 10, "Expected to find more than 10 unique repos");
+  assert(
+    totalSkillsFetched >= 100,
+    "Expected to fetch at least 100 skills in simulation"
+  );
+}
+
 async function testEndToEndSkillDiscovery(): Promise<void> {
   console.log("   Step 1: Fetching skills.sh leaderboard...");
   const leaderboardResponse = await fetch(`${SKILLS_SH_API_URL}?page=1`);
@@ -365,6 +510,12 @@ async function main(): Promise<void> {
   await runTest("fetch skill markdown", testFetchSkillMarkdown);
   await runTest("multiple skill files", testMultipleSkillFiles);
   await runTest("non-existent repo handling", testGitHubNonExistentRepo);
+
+  console.log("\n📦 Fetch All Repos Tests\n");
+  await runTest("skills.sh offset pagination", testSkillsShOffsetPagination);
+  await runTest("skills.sh larger limit", testSkillsShLargerLimit);
+  await runTest("extract unique repos", testExtractUniqueRepos);
+  await runTest("fetch all repos simulation", testFetchAllReposSimulation);
 
   console.log("\n🔄 End-to-End Flow Tests\n");
   await runTest("end-to-end skill discovery", testEndToEndSkillDiscovery);
