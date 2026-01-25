@@ -77,6 +77,12 @@ export default function Footer() {
             <nav className="flex flex-wrap items-center gap-x-6 gap-y-2">
               <Link
                 className="text-muted-foreground/70 text-sm transition-colors hover:text-foreground"
+                href="/what-are-agent-skills"
+              >
+                What Are Agent Skills?
+              </Link>
+              <Link
+                className="text-muted-foreground/70 text-sm transition-colors hover:text-foreground"
                 href="/skills/new"
               >
                 Create Skill
