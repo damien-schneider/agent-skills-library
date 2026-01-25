@@ -31,6 +31,36 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "monthly",
       priority: 0.8,
     },
+    {
+      url: `${SITE_URL}/what-are-agent-skills`,
+      lastModified: currentDate,
+      changeFrequency: "weekly",
+      priority: 0.9,
+    },
+    {
+      url: `${SITE_URL}/what-are-agent-skills/claude-code`,
+      lastModified: currentDate,
+      changeFrequency: "weekly",
+      priority: 0.8,
+    },
+    {
+      url: `${SITE_URL}/what-are-agent-skills/openai-agents`,
+      lastModified: currentDate,
+      changeFrequency: "weekly",
+      priority: 0.8,
+    },
+    {
+      url: `${SITE_URL}/what-are-agent-skills/cursor-ai`,
+      lastModified: currentDate,
+      changeFrequency: "weekly",
+      priority: 0.8,
+    },
+    {
+      url: `${SITE_URL}/what-are-agent-skills/windsurf`,
+      lastModified: currentDate,
+      changeFrequency: "weekly",
+      priority: 0.8,
+    },
   ];
 
   // Try to fetch dynamic skill pages
