@@ -1,7 +1,6 @@
 "use client";
 
 import { api } from "@skills-agent-library/backend/convex/_generated/api";
-import type { Id } from "@skills-agent-library/backend/convex/_generated/dataModel";
 import { useMutation, useQuery } from "convex/react";
 import {
   BadgeCheck,
@@ -16,7 +15,6 @@ import {
   User,
 } from "lucide-react";
 import { motion } from "motion/react";
-import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -58,7 +56,7 @@ export function SkillCard({
   const userId = session?.user?.id;
   const isSaved = useQuery(
     api.savedSkills.isSaved,
-    userId ? { skillId: skill._id as Id<"skills">, userId } : "skip"
+    userId ? { skillId: skill._id, userId } : "skip"
   );
 
   const category = categories.find((c) => c.slug === skill.category);
@@ -87,7 +85,7 @@ export function SkillCard({
 
   const handleAuthorClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    router.push(`/authors/${skill.authorId}` as Route);
+    router.push(`/authors/${skill.authorId}`);
   };
 
   const handleReportClick = (e: React.MouseEvent) => {
@@ -112,7 +110,7 @@ export function SkillCard({
     }
     try {
       const result = await toggleSave({
-        skillId: skill._id as Id<"skills">,
+        skillId: skill._id,
         userId,
       });
       toast.success(result.saved ? "Saved to library" : "Removed from library");
@@ -135,7 +133,6 @@ export function SkillCard({
       }}
       transition={{
         duration: 0.5,
-        delay: index * 0.04,
         ease: [0.22, 1, 0.36, 1],
         layout: { type: "spring", stiffness: 300, damping: 30 },
       }}
@@ -380,7 +377,7 @@ export function SkillCard({
       <SkillPreviewDialog
         onOpenChange={setShowPreviewDialog}
         open={showPreviewDialog}
-        skillId={skill._id as Id<"skills">}
+        skillId={skill._id}
       />
     </motion.article>
   );

@@ -38,6 +38,12 @@ export function HomeView() {
     { initialNumItems: 24 }
   );
 
+  const totalSkillsCount =
+    useQuery(api.skills.count, {
+      category: selectedCategory ?? undefined,
+      search: searchQuery || undefined,
+    }) ?? 0;
+
   const skills = results as Skill[];
 
   const handleSearch = useCallback(() => {
@@ -48,14 +54,18 @@ export function HomeView() {
     }, 100);
   }, []);
 
-  const handleCategoryClick = useCallback((slug: string) => {
-    setSelectedCategory(slug);
-    setTimeout(() => {
-      document
-        .getElementById("skills-section")
-        ?.scrollIntoView({ behavior: "smooth" });
-    }, 100);
-  }, []);
+  const handleCategoryClick = useCallback(
+    (slug: string, categoryName: string) => {
+      setSelectedCategory(slug);
+      setSearchQuery(categoryName);
+      setTimeout(() => {
+        document
+          .getElementById("skills-section")
+          ?.scrollIntoView({ behavior: "smooth" });
+      }, 100);
+    },
+    []
+  );
 
   const handleRandomSkill = useCallback(() => {
     if (skills.length === 0) {
@@ -181,8 +191,8 @@ export function HomeView() {
             </div>
 
             <p className="mt-8 text-muted-foreground text-sm">
-              {skills.length} skill
-              {skills.length !== 1 ? "s" : ""} found
+              {totalSkillsCount} skill
+              {totalSkillsCount !== 1 ? "s" : ""} registered
             </p>
           </div>
 

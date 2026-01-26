@@ -111,12 +111,19 @@ function isSkillVisible(skill: Doc<"skills">): boolean {
   );
 }
 
+/**
+ * @deprecated Use listPaginated instead for better performance.
+ * This query is limited to 500 skills to prevent hitting Convex read limits.
+ * For full listings, use listPaginated with infinite scroll.
+ */
 export const list = query({
   args: {
     category: v.optional(v.string()),
     search: v.optional(v.string()),
+    limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    const maxResults = Math.min(args.limit ?? 500, 500); // Cap at 500 to prevent read limit issues
     let skills: Doc<"skills">[];
 
     if (args.search) {
@@ -129,39 +136,25 @@ export const list = query({
           }
           return searchQuery;
         })
-        .collect();
+        .take(maxResults);
     } else if (args.category) {
       skills = await ctx.db
         .query("skills")
         .withIndex("by_category", (q) =>
           q.eq("category", args.category as string)
         )
-        .collect();
+        .take(maxResults);
     } else {
-      skills = await ctx.db.query("skills").collect();
+      skills = await ctx.db.query("skills").take(maxResults);
     }
 
     const visibleSkills = skills.filter(isSkillVisible);
 
-    const skillsWithVotes = await Promise.all(
-      visibleSkills.map(async (skill) => {
-        const votes = await ctx.db
-          .query("votes")
-          .withIndex("by_skill", (q) => q.eq("skillId", skill._id))
-          .collect();
-
-        const voteCount = votes.reduce((acc, vote) => {
-          return acc + (vote.direction === "up" ? 1 : -1);
-        }, 0);
-
-        return {
-          ...skill,
-          votes: voteCount,
-        };
-      })
-    );
-
-    return skillsWithVotes;
+    // Use stored score instead of calculating votes for each skill
+    return visibleSkills.map((skill) => ({
+      ...skill,
+      votes: skill.score ?? 0,
+    }));
   },
 });
 
@@ -503,6 +496,149 @@ export const listPaginated = query({
     );
 
     return { ...results, page: enrichedPage };
+  },
+});
+
+// Maximum skills to count - prevents timeout on very large datasets
+const MAX_COUNT_LIMIT = 4000;
+
+export const count = query({
+  args: {
+    category: v.optional(v.string()),
+    search: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { category, search } = args;
+
+    // For search queries, search both name and description
+    if (search) {
+      // Search by name
+      const nameResults = await ctx.db
+        .query("skills")
+        .withSearchIndex("search_skills", (q) => {
+          let searchQuery = q.search("name", search);
+          if (category) {
+            searchQuery = searchQuery.eq("category", category);
+          }
+          return searchQuery;
+        })
+        .take(500);
+
+      // Search by description
+      const descResults = await ctx.db
+        .query("skills")
+        .withSearchIndex("search_skills_full", (q) => {
+          let searchQuery = q.search("description", search);
+          if (category) {
+            searchQuery = searchQuery.eq("category", category);
+          }
+          return searchQuery;
+        })
+        .take(500);
+
+      // Combine and dedupe results
+      const seenIds = new Set<string>();
+      let count = 0;
+      for (const skill of [...nameResults, ...descResults]) {
+        if (!seenIds.has(skill._id) && isSkillVisible(skill)) {
+          seenIds.add(skill._id);
+          count++;
+        }
+      }
+      return count;
+    }
+
+    // For category filter, use category index
+    if (category) {
+      const skills = await ctx.db
+        .query("skills")
+        .withIndex("by_category", (q) => q.eq("category", category))
+        .take(MAX_COUNT_LIMIT);
+      return skills.filter(isSkillVisible).length;
+    }
+
+    // For total count without filters, use take with limit
+    const skills = await ctx.db.query("skills").take(MAX_COUNT_LIMIT);
+    return skills.filter(isSkillVisible).length;
+  },
+});
+
+// Lightweight count query
+export const totalCount = query({
+  args: {},
+  handler: async (ctx) => {
+    const skills = await ctx.db.query("skills").take(MAX_COUNT_LIMIT);
+    return skills.filter(isSkillVisible).length;
+  },
+});
+
+// Optimized query for sitemap generation - returns minimal data with pagination
+export const listForSitemap = query({
+  args: {
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, args) => {
+    const results = await ctx.db
+      .query("skills")
+      .order("desc")
+      .paginate(args.paginationOpts);
+
+    return {
+      ...results,
+      page: results.page.filter(isSkillVisible).map((skill) => ({
+        _id: skill._id,
+        _creationTime: skill._creationTime,
+        githubOwner: skill.githubOwner,
+        skillSlug: skill.skillSlug,
+      })),
+    };
+  },
+});
+
+// Paginated list for admin panel - includes all skills for management
+export const listForAdmin = query({
+  args: {
+    paginationOpts: paginationOptsValidator,
+    search: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    if (args.search) {
+      const results = await ctx.db
+        .query("skills")
+        .withSearchIndex("search_skills", (q) =>
+          q.search("name", args.search as string)
+        )
+        .paginate(args.paginationOpts);
+
+      return {
+        ...results,
+        page: results.page
+          .filter((skill) => !skill.isArchived)
+          .map((skill) => ({
+            _id: skill._id,
+            name: skill.name,
+            category: skill.category,
+            authorName: skill.authorName,
+          })),
+      };
+    }
+
+    const results = await ctx.db
+      .query("skills")
+      .order("desc")
+      .paginate(args.paginationOpts);
+
+    return {
+      ...results,
+      page: results.page
+        .filter((skill) => !skill.isArchived)
+        .map((skill) => ({
+          _id: skill._id,
+          name: skill.name,
+          category: skill.category,
+          authorName: skill.authorName,
+        })),
+    };
   },
 });
 

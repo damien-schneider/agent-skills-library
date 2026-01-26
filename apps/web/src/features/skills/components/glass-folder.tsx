@@ -25,7 +25,7 @@ interface FolderData {
 
 interface GlassFolderProps {
   folder: FolderData;
-  onCategoryClick: (slug: string) => void;
+  onCategoryClick: (slug: string, categoryName: string) => void;
   mouseX: ReturnType<typeof useMotionValue<number>>;
   mouseY: ReturnType<typeof useMotionValue<number>>;
 }
@@ -61,7 +61,7 @@ export function GlassFolder({
         animate={{ opacity: 1, scale: 1 }}
         className="group pointer-events-auto absolute top-1/2 left-1/2 cursor-pointer"
         initial={{ opacity: 0, scale: 0.8 }}
-        onClick={() => onCategoryClick(folder.slug)}
+        onClick={() => onCategoryClick(folder.slug, folder.category)}
         style={{
           x: useTransform(
             springX,

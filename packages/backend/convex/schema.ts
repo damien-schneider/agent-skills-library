@@ -172,4 +172,28 @@ export default defineSchema({
   })
     .index("by_skill", ["skillId"])
     .index("by_skill_and_agent", ["skillId", "agent"]),
+
+  // Sync progress tracking for long-running import operations
+  syncProgress: defineTable({
+    syncType: v.string(), // "skillssh"
+    status: v.union(
+      v.literal("idle"),
+      v.literal("fetching"),
+      v.literal("processing"),
+      v.literal("completed"),
+      v.literal("error")
+    ),
+    currentPhase: v.string(), // "fetching_skills", "creating_repos", "creating_skills"
+    totalItems: v.number(),
+    processedItems: v.number(),
+    totalSkillsFetched: v.number(),
+    uniqueReposFound: v.number(),
+    reposCreated: v.number(),
+    reposUpdated: v.number(),
+    skillsCreated: v.number(),
+    installCountsUpdated: v.number(),
+    errorMessage: v.optional(v.string()),
+    startedAt: v.number(),
+    completedAt: v.optional(v.number()),
+  }).index("by_sync_type", ["syncType"]),
 });

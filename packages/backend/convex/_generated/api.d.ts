@@ -21,6 +21,7 @@ import type * as privateData from "../privateData.js";
 import type * as savedSkills from "../savedSkills.js";
 import type * as seed from "../seed.js";
 import type * as skills from "../skills.js";
+import type * as syncProgress from "../syncProgress.js";
 import type * as votes from "../votes.js";
 
 import type {
@@ -43,6 +44,7 @@ declare const fullApi: ApiFromModules<{
   savedSkills: typeof savedSkills;
   seed: typeof seed;
   skills: typeof skills;
+  syncProgress: typeof syncProgress;
   votes: typeof votes;
 }>;
 

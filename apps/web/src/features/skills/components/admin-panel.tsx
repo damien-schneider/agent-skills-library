@@ -2,7 +2,12 @@
 
 import { api } from "@skills-agent-library/backend/convex/_generated/api";
 import type { Id } from "@skills-agent-library/backend/convex/_generated/dataModel";
-import { useAction, useMutation, useQuery } from "convex/react";
+import {
+  useAction,
+  useMutation,
+  usePaginatedQuery,
+  useQuery,
+} from "convex/react";
 import type { FunctionReference } from "convex/server";
 import {
   AlertTriangle,
@@ -69,7 +74,12 @@ interface ReportedSkill {
 
 export function AdminPanel({ userEmail }: AdminPanelProps) {
   const isAdmin = userEmail === ADMIN_EMAIL;
-  const allSkills = useQuery(api.skills.list, {}) ?? [];
+  const totalSkillCount = useQuery(api.skills.totalCount, {}) ?? 0;
+  const {
+    results: adminSkills,
+    status: adminSkillsStatus,
+    loadMore: loadMoreAdminSkills,
+  } = usePaginatedQuery(api.skills.listForAdmin, {}, { initialNumItems: 50 });
   const archivedSkills = useQuery(api.skills.listArchived, {}) ?? [];
   const unarchiveSkill = useMutation(api.skills.unarchive);
 
@@ -100,21 +110,35 @@ export function AdminPanel({ userEmail }: AdminPanelProps) {
   );
 
   const [importUrl, setImportUrl] = useState("");
-  const [isImportingAll, setIsImportingAll] = useState(false);
   const [isImportingUrl, setIsImportingUrl] = useState(false);
-  const [isImportingSkillsSh, setIsImportingSkillsSh] = useState(false);
-  const [isFetchingAllRepos, setIsFetchingAllRepos] = useState(false);
+  const [isSyncingFromSkillsSh, setIsSyncingFromSkillsSh] = useState(false);
+  const [isSyncingRepos, setIsSyncingRepos] = useState(false);
+  const [isSyncingMetadata, setIsSyncingMetadata] = useState(false);
+  const [isSyncingContent, setIsSyncingContent] = useState(false);
+  const [isSyncingAllRepos, setIsSyncingAllRepos] = useState(false);
   const [importResults, setImportResults] = useState<{
     results: ImportResult[];
     summary: ImportSummary;
     reposDiscovered?: string[];
   } | null>(null);
-  const [fetchReposResult, setFetchReposResult] = useState<{
-    totalSkillsFetched: number;
-    uniqueReposFound: number;
-    reposCreated: number;
-    reposUpdated: number;
-  } | null>(null);
+
+  // Subscribe to sync progress for real-time updates
+  const syncProgressApi = api as Record<string, Record<string, unknown>>;
+  const syncProgress = useQuery(
+    syncProgressApi.syncProgress?.get as FunctionReference<"query", "public">,
+    { syncType: "skillssh" }
+  ) as SyncProgress | null | undefined;
+  const resetSyncProgressMutation = useMutation(
+    syncProgressApi.syncProgress?.reset as FunctionReference<
+      "mutation",
+      "public"
+    >
+  );
+  const resetSyncProgress = async (args: { syncType: string }) => {
+    if (syncProgressApi.syncProgress?.reset) {
+      await resetSyncProgressMutation(args);
+    }
+  };
 
   const [newRepoUrl, setNewRepoUrl] = useState("");
   const [isAddingRepo, setIsAddingRepo] = useState(false);
@@ -125,35 +149,35 @@ export function AdminPanel({ userEmail }: AdminPanelProps) {
 
   const autoImportApi = api as typeof api & {
     autoImport: {
-      importAllOfficialRepos: FunctionReference<"action", "public">;
       importFromUrl: FunctionReference<"action", "public">;
-      importFromSkillsSh: FunctionReference<"action", "public">;
       syncOfficialRepo: FunctionReference<"action", "public">;
       fetchRepoInstallCounts: FunctionReference<"action", "public">;
-      fetchAllSkillsShRepos: FunctionReference<"action", "public">;
-    };
-    officialRepos: {
-      seedOfficialRepos: FunctionReference<"mutation", "public">;
+      syncAllReferenceRepos: FunctionReference<"action", "public">;
+      syncFromSkillsSh: FunctionReference<"action", "public">;
+      syncReposFromSkillsSh: FunctionReference<"action", "public">;
+      syncSkillsMetadataFromSkillsSh: FunctionReference<"action", "public">;
+      syncSkillsContent: FunctionReference<"action", "public">;
     };
   };
 
   const officialRepos = useQuery(api.officialRepos.list, {}) ?? [];
-  const importAllOfficialRepos = useAction(
-    autoImportApi.autoImport.importAllOfficialRepos
-  );
   const importFromUrl = useAction(autoImportApi.autoImport.importFromUrl);
-  const importFromSkillsSh = useAction(
-    autoImportApi.autoImport.importFromSkillsSh
-  );
   const syncOfficialRepo = useAction(autoImportApi.autoImport.syncOfficialRepo);
   const fetchRepoInstallCounts = useAction(
     autoImportApi.autoImport.fetchRepoInstallCounts
   );
-  const fetchAllSkillsShRepos = useAction(
-    autoImportApi.autoImport.fetchAllSkillsShRepos
+  const syncAllReferenceRepos = useAction(
+    autoImportApi.autoImport.syncAllReferenceRepos
   );
-  const seedOfficialRepos = useMutation(
-    autoImportApi.officialRepos.seedOfficialRepos
+  const syncFromSkillsSh = useAction(autoImportApi.autoImport.syncFromSkillsSh);
+  const syncReposFromSkillsSh = useAction(
+    autoImportApi.autoImport.syncReposFromSkillsSh
+  );
+  const syncSkillsMetadataFromSkillsSh = useAction(
+    autoImportApi.autoImport.syncSkillsMetadataFromSkillsSh
+  );
+  const syncSkillsContent = useAction(
+    autoImportApi.autoImport.syncSkillsContent
   );
   const createOfficialRepo = useMutation(api.officialRepos.create);
   const removeOfficialRepo = useMutation(api.officialRepos.remove);
@@ -161,42 +185,6 @@ export function AdminPanel({ userEmail }: AdminPanelProps) {
   if (!isAdmin) {
     return null;
   }
-
-  const handleImportAllOfficial = async () => {
-    setIsImportingAll(true);
-    setImportResults(null);
-
-    try {
-      await seedOfficialRepos({});
-
-      const result = await importAllOfficialRepos({});
-
-      const allResults: ImportResult[] = result.repoResults.flatMap(
-        (r: { results: ImportResult[] }) => r.results
-      );
-
-      setImportResults({
-        results: allResults,
-        summary: result.totalSummary,
-      });
-
-      if (result.totalSummary.imported > 0) {
-        toast.success(
-          `Imported ${result.totalSummary.imported} skills from official repos`
-        );
-      } else if (result.totalSummary.skipped > 0) {
-        toast.info(`All ${result.totalSummary.skipped} skills already exist`);
-      } else {
-        toast.warning("No skills found in official repos");
-      }
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to import skills"
-      );
-    } finally {
-      setIsImportingAll(false);
-    }
-  };
 
   const handleImportFromUrl = async () => {
     if (!importUrl.trim()) {
@@ -229,76 +217,149 @@ export function AdminPanel({ userEmail }: AdminPanelProps) {
     }
   };
 
-  const handleImportFromSkillsSh = async () => {
-    setIsImportingSkillsSh(true);
-    setImportResults(null);
+  const handleSyncFromSkillsSh = async () => {
+    setIsSyncingFromSkillsSh(true);
 
     try {
-      const result = await importFromSkillsSh({ maxPages: 10 });
-
-      setImportResults({
-        results: result.results,
-        summary: result.summary,
-        reposDiscovered: result.reposDiscovered,
-      });
-
-      if (result.summary.imported > 0) {
-        toast.success(
-          `Imported ${result.summary.imported} skills from ${result.reposDiscovered.length} repos`
-        );
-      } else if (result.summary.skipped > 0) {
-        toast.info(`All ${result.summary.skipped} skills already exist`);
-      }
-
-      if (result.summary.installCountsUpdated > 0) {
-        toast.info(
-          `Updated install counts for ${result.summary.installCountsUpdated} skills`
-        );
-      }
-    } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "Failed to import from skills.sh"
-      );
-    } finally {
-      setIsImportingSkillsSh(false);
-    }
-  };
-
-  const handleFetchAllRepos = async () => {
-    setIsFetchingAllRepos(true);
-    setFetchReposResult(null);
-
-    try {
-      const result = await fetchAllSkillsShRepos({});
-
-      setFetchReposResult({
-        totalSkillsFetched: result.totalSkillsFetched,
-        uniqueReposFound: result.uniqueReposFound,
-        reposCreated: result.reposCreated,
-        reposUpdated: result.reposUpdated,
-      });
+      // The action will update progress via mutations that we subscribe to
+      const result = await syncFromSkillsSh({});
 
       if (result.error) {
         toast.error(result.error);
-      } else if (result.reposCreated > 0 || result.reposUpdated > 0) {
-        toast.success(
-          `Added ${result.reposCreated} new repos, updated ${result.reposUpdated} existing (${result.uniqueReposFound} total from ${result.totalSkillsFetched} skills)`
-        );
+        return;
+      }
+
+      const messages = [
+        result.reposCreated > 0 && `${result.reposCreated} new repos`,
+        result.skillsCreated > 0 && `${result.skillsCreated} skills created`,
+        result.installCountsUpdated > 0 &&
+          `${result.installCountsUpdated} install counts updated`,
+      ].filter(Boolean);
+
+      if (messages.length > 0) {
+        toast.success(`Synced from skills.sh: ${messages.join(", ")}`);
       } else {
         toast.info(
-          `Found ${result.uniqueReposFound} repos from ${result.totalSkillsFetched} skills (all already exist)`
+          `Found ${result.uniqueReposFound} repos, all skills already up to date`
         );
+      }
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to sync from skills.sh"
+      );
+    } finally {
+      setIsSyncingFromSkillsSh(false);
+    }
+  };
+
+  const handleResetSyncProgress = async () => {
+    await resetSyncProgress({ syncType: "skillssh" });
+  };
+
+  const handleSyncRepos = async () => {
+    setIsSyncingRepos(true);
+    try {
+      const result = await syncReposFromSkillsSh({});
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success(
+        `Repos synced: ${result.reposCreated} created, ${result.reposUpdated} updated`
+      );
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to sync repos"
+      );
+    } finally {
+      setIsSyncingRepos(false);
+    }
+  };
+
+  const handleSyncMetadata = async () => {
+    setIsSyncingMetadata(true);
+    try {
+      const result = await syncSkillsMetadataFromSkillsSh({});
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success(
+        `Skills synced: ${result.skillsCreated} created, ${result.installCountsUpdated} install counts updated`
+      );
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to sync skills metadata"
+      );
+    } finally {
+      setIsSyncingMetadata(false);
+    }
+  };
+
+  const handleSyncContent = async () => {
+    setIsSyncingContent(true);
+    try {
+      const result = await syncSkillsContent({});
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success(
+        `Content fetched: ${result.contentFetched} skills updated, ${result.contentFailed} failed`
+      );
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to sync content"
+      );
+    } finally {
+      setIsSyncingContent(false);
+    }
+  };
+
+  const handleSyncAllRepos = async () => {
+    setIsSyncingAllRepos(true);
+    setImportResults(null);
+
+    try {
+      const result = await syncAllReferenceRepos({});
+
+      const allResults: ImportResult[] = result.repoResults.flatMap(
+        (r: { results: ImportResult[] }) => r.results
+      );
+
+      setImportResults({
+        results: allResults,
+        summary: result.totalSummary,
+      });
+
+      const messages: string[] = [];
+      if (result.totalSummary.imported > 0) {
+        messages.push(`Imported ${result.totalSummary.imported} skills`);
+      }
+      if (result.totalSummary.updated > 0) {
+        messages.push(`Updated ${result.totalSummary.updated} skills`);
+      }
+      if (result.installCountsUpdated > 0) {
+        messages.push(`Updated ${result.installCountsUpdated} install counts`);
+      }
+
+      if (messages.length > 0) {
+        toast.success(messages.join(". "));
+      } else if (result.totalSummary.skipped > 0) {
+        toast.info(`All ${result.totalSummary.skipped} skills already exist`);
+      } else {
+        toast.warning("No skills found in reference repositories");
       }
     } catch (error) {
       toast.error(
         error instanceof Error
           ? error.message
-          : "Failed to fetch repos from skills.sh"
+          : "Failed to sync reference repositories"
       );
     } finally {
-      setIsFetchingAllRepos(false);
+      setIsSyncingAllRepos(false);
     }
   };
 
@@ -502,7 +563,7 @@ export function AdminPanel({ userEmail }: AdminPanelProps) {
             Total Skills
           </div>
           <p className="mt-1 font-semibold text-2xl text-foreground">
-            {allSkills.length}
+            {totalSkillCount.toLocaleString()}
           </p>
         </div>
         <div className="rounded-2xl border border-border bg-card p-4">
@@ -515,31 +576,57 @@ export function AdminPanel({ userEmail }: AdminPanelProps) {
       </div>
 
       <AutoPopulateSection
-        fetchReposResult={fetchReposResult}
         importResults={importResults}
         importUrl={importUrl}
-        isFetchingAllRepos={isFetchingAllRepos}
-        isImportingAll={isImportingAll}
-        isImportingSkillsSh={isImportingSkillsSh}
         isImportingUrl={isImportingUrl}
-        onFetchAllRepos={handleFetchAllRepos}
-        onImportAllOfficial={handleImportAllOfficial}
-        onImportFromSkillsSh={handleImportFromSkillsSh}
+        isSyncingContent={isSyncingContent}
+        isSyncingFromSkillsSh={isSyncingFromSkillsSh}
+        isSyncingMetadata={isSyncingMetadata}
+        isSyncingRepos={isSyncingRepos}
         onImportFromUrl={handleImportFromUrl}
+        onResetSyncProgress={handleResetSyncProgress}
+        onSyncContent={handleSyncContent}
+        onSyncFromSkillsSh={handleSyncFromSkillsSh}
+        onSyncMetadata={handleSyncMetadata}
+        onSyncRepos={handleSyncRepos}
         setImportUrl={setImportUrl}
+        syncProgress={syncProgress ?? null}
       />
 
       <div className="rounded-3xl border border-border bg-card p-6 shadow-sm">
-        <div className="mb-4 flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-500/10">
-            <Database className="h-4 w-4 text-purple-500" />
+        <div className="mb-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-500/10">
+              <Database className="h-4 w-4 text-purple-500" />
+            </div>
+            <h3 className="font-semibold text-foreground">
+              Reference Repositories
+            </h3>
+            <span className="rounded-full bg-purple-500/10 px-2 py-0.5 font-medium text-purple-600 text-xs">
+              {officialRepos.length}
+            </span>
           </div>
-          <h3 className="font-semibold text-foreground">
-            Reference Repositories
-          </h3>
-          <span className="rounded-full bg-purple-500/10 px-2 py-0.5 font-medium text-purple-600 text-xs">
-            {officialRepos.length}
-          </span>
+          {officialRepos.length > 0 && (
+            <button
+              className="flex items-center gap-2 rounded-xl bg-purple-600 px-3 py-1.5 font-medium text-sm text-white transition-colors hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={isSyncingAllRepos}
+              onClick={handleSyncAllRepos}
+              title="Sync all repositories"
+              type="button"
+            >
+              {isSyncingAllRepos ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Syncing...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-4 w-4" />
+                  Sync All
+                </>
+              )}
+            </button>
+          )}
         </div>
 
         <div className="mb-4 rounded-xl border border-border bg-muted/30 p-4">
@@ -644,9 +731,14 @@ export function AdminPanel({ userEmail }: AdminPanelProps) {
       </div>
 
       <div className="rounded-3xl border border-border bg-card p-6 shadow-sm">
-        <h3 className="mb-4 font-semibold text-foreground">Manage Skills</h3>
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="font-semibold text-foreground">Manage Skills</h3>
+          <span className="text-muted-foreground text-sm">
+            Showing {adminSkills.length} of {totalSkillCount.toLocaleString()}
+          </span>
+        </div>
         <div className="max-h-96 space-y-2 overflow-y-auto">
-          {allSkills.map((skill) => (
+          {adminSkills.map((skill) => (
             <div
               className="flex items-center justify-between rounded-xl bg-muted/50 px-4 py-3"
               key={skill._id}
@@ -673,10 +765,24 @@ export function AdminPanel({ userEmail }: AdminPanelProps) {
               </button>
             </div>
           ))}
-          {allSkills.length === 0 && (
+          {adminSkills.length === 0 && adminSkillsStatus === "Exhausted" && (
             <p className="py-8 text-center text-muted-foreground text-sm">
               No skills found.
             </p>
+          )}
+          {adminSkillsStatus === "CanLoadMore" && (
+            <button
+              className="mt-2 w-full rounded-xl border border-border bg-muted/30 py-2 text-muted-foreground text-sm transition-colors hover:bg-muted/50 hover:text-foreground"
+              onClick={() => loadMoreAdminSkills(50)}
+              type="button"
+            >
+              Load more skills...
+            </button>
+          )}
+          {adminSkillsStatus === "LoadingMore" && (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
           )}
         </div>
       </div>
@@ -871,49 +977,209 @@ export function isAdminUser(email?: string): boolean {
   return email === ADMIN_EMAIL;
 }
 
+interface SyncProgress {
+  syncType: string;
+  status: "idle" | "fetching" | "processing" | "completed" | "error";
+  currentPhase: string;
+  totalItems: number;
+  processedItems: number;
+  totalSkillsFetched: number;
+  uniqueReposFound: number;
+  reposCreated: number;
+  reposUpdated: number;
+  skillsCreated: number;
+  installCountsUpdated: number;
+  errorMessage?: string;
+  startedAt: number;
+  completedAt?: number;
+}
+
 interface AutoPopulateSectionProps {
   importUrl: string;
   setImportUrl: (url: string) => void;
-  isImportingAll: boolean;
   isImportingUrl: boolean;
-  isImportingSkillsSh: boolean;
-  isFetchingAllRepos: boolean;
+  isSyncingFromSkillsSh: boolean;
+  isSyncingRepos: boolean;
+  isSyncingMetadata: boolean;
+  isSyncingContent: boolean;
   importResults: {
     results: ImportResult[];
     summary: ImportSummary;
     reposDiscovered?: string[];
   } | null;
-  fetchReposResult: {
-    totalSkillsFetched: number;
-    uniqueReposFound: number;
-    reposCreated: number;
-    reposUpdated: number;
-  } | null;
-  onImportAllOfficial: () => void;
+  syncProgress: SyncProgress | null;
   onImportFromUrl: () => void;
-  onImportFromSkillsSh: () => void;
-  onFetchAllRepos: () => void;
+  onSyncFromSkillsSh: () => void;
+  onSyncRepos: () => void;
+  onSyncMetadata: () => void;
+  onSyncContent: () => void;
+  onResetSyncProgress: () => void;
+}
+
+function SyncProgressUI({ progress }: { progress: SyncProgress }) {
+  const isActive =
+    progress.status === "fetching" || progress.status === "processing";
+  const isCompleted = progress.status === "completed";
+  const isError = progress.status === "error";
+
+  const progressPercent =
+    progress.totalItems > 0
+      ? Math.round((progress.processedItems / progress.totalItems) * 100)
+      : 0;
+
+  const elapsedTime = progress.completedAt
+    ? progress.completedAt - progress.startedAt
+    : Date.now() - progress.startedAt;
+
+  const formatDuration = (ms: number) => {
+    const seconds = Math.floor(ms / 1000);
+    if (seconds < 60) {
+      return `${seconds}s`;
+    }
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}m ${remainingSeconds}s`;
+  };
+
+  const getTextColorClass = () => {
+    if (isError) {
+      return "text-red-600";
+    }
+    if (isCompleted) {
+      return "text-emerald-600";
+    }
+    return "text-blue-600";
+  };
+
+  return (
+    <div className="mt-3 space-y-3">
+      {/* Status header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          {isActive && (
+            <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+          )}
+          {isCompleted && <CheckCircle2 className="h-4 w-4 text-emerald-500" />}
+          {isError && <AlertTriangle className="h-4 w-4 text-red-500" />}
+          <span className={`font-medium text-sm ${getTextColorClass()}`}>
+            {progress.currentPhase}
+          </span>
+        </div>
+        <span className="text-muted-foreground text-xs">
+          {formatDuration(elapsedTime)}
+        </span>
+      </div>
+
+      {/* Progress bar */}
+      {isActive && progress.totalItems > 0 && (
+        <div className="space-y-1">
+          <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full rounded-full bg-blue-500 transition-all duration-300"
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
+          <div className="flex justify-between text-muted-foreground text-xs">
+            <span>
+              {progress.processedItems.toLocaleString()} /{" "}
+              {progress.totalItems.toLocaleString()}
+            </span>
+            <span>{progressPercent}%</span>
+          </div>
+        </div>
+      )}
+
+      {/* Error message */}
+      {isError && progress.errorMessage && (
+        <div className="rounded-lg bg-red-500/10 p-3 text-red-600 text-xs">
+          {progress.errorMessage}
+        </div>
+      )}
+
+      {/* Stats grid */}
+      <div className="grid grid-cols-2 gap-2 rounded-lg bg-background/50 p-3 text-xs">
+        <div>
+          <span className="text-muted-foreground">Skills fetched:</span>{" "}
+          <span className="font-medium text-foreground">
+            {progress.totalSkillsFetched.toLocaleString()}
+          </span>
+        </div>
+        <div>
+          <span className="text-muted-foreground">Repos found:</span>{" "}
+          <span className="font-medium text-foreground">
+            {progress.uniqueReposFound.toLocaleString()}
+          </span>
+        </div>
+        <div>
+          <span className="text-muted-foreground">New repos:</span>{" "}
+          <span className="font-medium text-emerald-600">
+            {progress.reposCreated}
+          </span>
+        </div>
+        <div>
+          <span className="text-muted-foreground">Skills created:</span>{" "}
+          <span className="font-medium text-emerald-600">
+            {progress.skillsCreated}
+          </span>
+        </div>
+        <div>
+          <span className="text-muted-foreground">Repos updated:</span>{" "}
+          <span className="font-medium text-blue-600">
+            {progress.reposUpdated}
+          </span>
+        </div>
+        <div>
+          <span className="text-muted-foreground">Install counts:</span>{" "}
+          <span className="font-medium text-blue-600">
+            {progress.installCountsUpdated}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function AutoPopulateSection({
   importUrl,
   setImportUrl,
-  isImportingAll,
   isImportingUrl,
-  isImportingSkillsSh,
-  isFetchingAllRepos,
+  isSyncingFromSkillsSh,
+  isSyncingRepos,
+  isSyncingMetadata,
+  isSyncingContent,
   importResults,
-  fetchReposResult,
-  onImportAllOfficial,
+  syncProgress,
   onImportFromUrl,
-  onImportFromSkillsSh,
-  onFetchAllRepos,
+  onSyncFromSkillsSh,
+  onSyncRepos,
+  onSyncMetadata,
+  onSyncContent,
+  onResetSyncProgress,
 }: AutoPopulateSectionProps) {
-  const isImporting =
-    isImportingAll ||
+  const isAnySyncing =
     isImportingUrl ||
-    isImportingSkillsSh ||
-    isFetchingAllRepos;
+    isSyncingFromSkillsSh ||
+    isSyncingRepos ||
+    isSyncingMetadata ||
+    isSyncingContent;
+  const isSyncActive =
+    syncProgress?.status === "fetching" ||
+    syncProgress?.status === "processing";
+  const isSyncCompleted = syncProgress?.status === "completed";
+  const isSyncError = syncProgress?.status === "error";
+
+  const getSyncBorderClass = () => {
+    if (isSyncActive) {
+      return "border-blue-500/30 bg-blue-500/10";
+    }
+    if (isSyncCompleted) {
+      return "border-emerald-500/30 bg-emerald-500/10";
+    }
+    if (isSyncError) {
+      return "border-red-500/30 bg-red-500/10";
+    }
+    return "border-blue-500/20 bg-blue-500/5";
+  };
 
   return (
     <div className="rounded-3xl border border-border bg-card p-6 shadow-sm">
@@ -927,37 +1193,6 @@ function AutoPopulateSection({
       <div className="space-y-4">
         <div className="rounded-xl border border-border bg-muted/30 p-4">
           <div className="mb-3 flex items-center gap-2">
-            <Github className="h-4 w-4 text-muted-foreground" />
-            <span className="font-medium text-foreground text-sm">
-              Import from Official Repos
-            </span>
-          </div>
-          <p className="mb-3 text-muted-foreground text-xs">
-            Import skills from known official repositories: Anthropic, Expo,
-            Vercel Labs, Better Auth, Supabase, Stripe
-          </p>
-          <button
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 font-medium text-sm text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={isImporting}
-            onClick={onImportAllOfficial}
-            type="button"
-          >
-            {isImportingAll ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Importing...
-              </>
-            ) : (
-              <>
-                <Download className="h-4 w-4" />
-                Import All Official Repos
-              </>
-            )}
-          </button>
-        </div>
-
-        <div className="rounded-xl border border-border bg-muted/30 p-4">
-          <div className="mb-3 flex items-center gap-2">
             <Link2 className="h-4 w-4 text-muted-foreground" />
             <span className="font-medium text-foreground text-sm">
               Import from URL
@@ -969,10 +1204,10 @@ function AutoPopulateSection({
           <div className="flex gap-2">
             <input
               className="flex-1 rounded-xl border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-              disabled={isImporting}
+              disabled={isAnySyncing || isSyncActive}
               onChange={(e) => setImportUrl(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && !isImporting) {
+                if (e.key === "Enter" && !isAnySyncing && !isSyncActive) {
                   onImportFromUrl();
                 }
               }}
@@ -982,7 +1217,7 @@ function AutoPopulateSection({
             />
             <button
               className="flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 font-medium text-sm text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={isImporting || !importUrl.trim()}
+              disabled={isAnySyncing || isSyncActive || !importUrl.trim()}
               onClick={onImportFromUrl}
               type="button"
             >
@@ -995,94 +1230,131 @@ function AutoPopulateSection({
           </div>
         </div>
 
-        <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-4">
-          <div className="mb-3 flex items-center gap-2">
-            <ExternalLink className="h-4 w-4 text-blue-500" />
-            <span className="font-medium text-foreground text-sm">
-              Import from skills.sh Leaderboard
-            </span>
+        <div className={`rounded-xl border p-4 ${getSyncBorderClass()}`}>
+          <div className="mb-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <ExternalLink className="h-4 w-4 text-blue-500" />
+              <span className="font-medium text-foreground text-sm">
+                Sync from skills.sh
+              </span>
+            </div>
+            {(isSyncCompleted || isSyncError) && (
+              <button
+                className="text-muted-foreground text-xs hover:text-foreground"
+                onClick={onResetSyncProgress}
+                type="button"
+              >
+                Reset
+              </button>
+            )}
           </div>
           <p className="mb-3 text-muted-foreground text-xs">
-            Import popular skills from skills.sh leaderboard with their install
-            counts. Discovers repos automatically.
+            Sync skills from skills.sh in 3 steps. Run each step sequentially or
+            only the step you need.
           </p>
-          <button
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 font-medium text-sm text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={isImporting}
-            onClick={onImportFromSkillsSh}
-            type="button"
-          >
-            {isImportingSkillsSh ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Importing from skills.sh...
-              </>
-            ) : (
-              <>
-                <ExternalLink className="h-4 w-4" />
-                Import from skills.sh
-              </>
-            )}
-          </button>
-        </div>
 
-        <div className="rounded-xl border border-purple-500/20 bg-purple-500/5 p-4">
-          <div className="mb-3 flex items-center gap-2">
-            <Database className="h-4 w-4 text-purple-500" />
-            <span className="font-medium text-foreground text-sm">
-              Fetch All Repos from skills.sh
-            </span>
-          </div>
-          <p className="mb-3 text-muted-foreground text-xs">
-            Scans all ~12,500 skills on skills.sh and adds their source
-            repositories as official repos. This may take a few minutes.
-          </p>
-          <button
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-purple-600 px-4 py-2.5 font-medium text-sm text-white transition-colors hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={isImporting}
-            onClick={onFetchAllRepos}
-            type="button"
-          >
-            {isFetchingAllRepos ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Fetching repos from skills.sh...
-              </>
-            ) : (
-              <>
-                <Database className="h-4 w-4" />
-                Fetch All Repos
-              </>
-            )}
-          </button>
-          {fetchReposResult && (
-            <div className="mt-3 rounded-lg bg-background/50 p-3 text-xs">
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <span className="text-muted-foreground">Skills scanned:</span>{" "}
-                  <span className="font-medium text-foreground">
-                    {fetchReposResult.totalSkillsFetched.toLocaleString()}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Unique repos:</span>{" "}
-                  <span className="font-medium text-foreground">
-                    {fetchReposResult.uniqueReposFound.toLocaleString()}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Created:</span>{" "}
-                  <span className="font-medium text-emerald-600">
-                    {fetchReposResult.reposCreated}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Updated:</span>{" "}
-                  <span className="font-medium text-blue-600">
-                    {fetchReposResult.reposUpdated}
-                  </span>
-                </div>
+          {/* Three step buttons */}
+          <div className="space-y-2">
+            {/* Step 1: Sync Repos */}
+            <button
+              className="flex w-full items-center justify-between rounded-xl border border-blue-500/30 bg-blue-500/5 px-4 py-2.5 text-sm transition-colors hover:bg-blue-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={isAnySyncing || isSyncActive}
+              onClick={onSyncRepos}
+              type="button"
+            >
+              <div className="flex items-center gap-2">
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-500 font-medium text-white text-xs">
+                  1
+                </span>
+                <span className="font-medium text-foreground">Sync Repos</span>
               </div>
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground text-xs">
+                  Fetch GitHub repos from skills.sh
+                </span>
+                {isSyncingRepos ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                ) : (
+                  <Github className="h-4 w-4 text-blue-500" />
+                )}
+              </div>
+            </button>
+
+            {/* Step 2: Sync Skills Metadata */}
+            <button
+              className="flex w-full items-center justify-between rounded-xl border border-purple-500/30 bg-purple-500/5 px-4 py-2.5 text-sm transition-colors hover:bg-purple-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={isAnySyncing || isSyncActive}
+              onClick={onSyncMetadata}
+              type="button"
+            >
+              <div className="flex items-center gap-2">
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-purple-500 font-medium text-white text-xs">
+                  2
+                </span>
+                <span className="font-medium text-foreground">
+                  Sync Skills Metadata
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground text-xs">
+                  Create skills with install counts
+                </span>
+                {isSyncingMetadata ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-purple-500" />
+                ) : (
+                  <Database className="h-4 w-4 text-purple-500" />
+                )}
+              </div>
+            </button>
+
+            {/* Step 3: Sync Skills Content */}
+            <button
+              className="flex w-full items-center justify-between rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-4 py-2.5 text-sm transition-colors hover:bg-emerald-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={isAnySyncing || isSyncActive}
+              onClick={onSyncContent}
+              type="button"
+            >
+              <div className="flex items-center gap-2">
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 font-medium text-white text-xs">
+                  3
+                </span>
+                <span className="font-medium text-foreground">
+                  Sync Skills Content
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground text-xs">
+                  Fetch markdown from GitHub
+                </span>
+                {isSyncingContent ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-emerald-500" />
+                ) : (
+                  <Download className="h-4 w-4 text-emerald-500" />
+                )}
+              </div>
+            </button>
+          </div>
+
+          {/* Full sync button (legacy, optional) */}
+          <div className="mt-3 border-border border-t pt-3">
+            <button
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 font-medium text-sm text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={isAnySyncing || isSyncActive}
+              onClick={onSyncFromSkillsSh}
+              type="button"
+            >
+              {isSyncingFromSkillsSh ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              Full Sync (All Steps)
+            </button>
+          </div>
+
+          {syncProgress && (isSyncActive || isSyncCompleted || isSyncError) && (
+            <div className="mt-3">
+              <SyncProgressUI progress={syncProgress} />
             </div>
           )}
         </div>

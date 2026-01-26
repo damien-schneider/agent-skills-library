@@ -1,5 +1,10 @@
 import { v } from "convex/values";
-import { internalMutation, mutation, query } from "./_generated/server";
+import {
+  internalMutation,
+  internalQuery,
+  mutation,
+  query,
+} from "./_generated/server";
 
 export const list = query({
   args: {},
@@ -16,6 +21,22 @@ export const getById = query({
 });
 
 export const getByNamespace = query({
+  args: {
+    githubOwner: v.string(),
+    githubRepo: v.string(),
+  },
+  handler: (ctx, args) => {
+    return ctx.db
+      .query("officialRepos")
+      .withIndex("by_github_namespace", (q) =>
+        q.eq("githubOwner", args.githubOwner).eq("githubRepo", args.githubRepo)
+      )
+      .unique();
+  },
+});
+
+// Internal version for use in actions
+export const getByNamespaceInternal = internalQuery({
   args: {
     githubOwner: v.string(),
     githubRepo: v.string(),

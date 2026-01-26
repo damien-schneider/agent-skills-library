@@ -4,6 +4,7 @@ import { ConvexHttpClient } from "convex/browser";
 import type { MetadataRoute } from "next";
 
 const SITE_URL = env.NEXT_PUBLIC_SITE_URL;
+const MAX_SITEMAP_SKILLS = 5000; // Limit to prevent hitting Convex limits
 
 // Create a server-side Convex client for sitemap generation
 function getConvexClient() {
@@ -12,6 +13,46 @@ function getConvexClient() {
     return null;
   }
   return new ConvexHttpClient(convexUrl);
+}
+
+interface SitemapSkill {
+  _id: string;
+  _creationTime: number;
+  githubOwner?: string;
+  skillSlug?: string;
+}
+
+interface PaginatedResult {
+  page: SitemapSkill[];
+  continueCursor: string | null;
+  isDone: boolean;
+}
+
+// Fetch all skills using pagination to avoid hitting read limits
+async function fetchAllSkillsForSitemap(
+  client: ConvexHttpClient
+): Promise<SitemapSkill[]> {
+  const allSkills: SitemapSkill[] = [];
+  let cursor: string | null = null;
+  let isDone = false;
+
+  while (!isDone && allSkills.length < MAX_SITEMAP_SKILLS) {
+    const result: PaginatedResult = await client.query(
+      api.skills.listForSitemap,
+      {
+        paginationOpts: {
+          numItems: 500,
+          cursor,
+        },
+      }
+    );
+
+    allSkills.push(...result.page);
+    cursor = result.continueCursor;
+    isDone = result.isDone;
+  }
+
+  return allSkills;
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
@@ -63,18 +104,26 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
   ];
 
-  // Try to fetch dynamic skill pages
+  // Try to fetch dynamic skill pages using pagination
   try {
     const client = getConvexClient();
     if (client) {
-      const skills = await client.query(api.skills.list, {});
+      const skills = await fetchAllSkillsForSitemap(client);
 
-      const skillRoutes: MetadataRoute.Sitemap = skills.map((skill) => ({
-        url: `${SITE_URL}/skills/${skill._id}`,
-        lastModified: new Date(skill._creationTime),
-        changeFrequency: "weekly" as const,
-        priority: 0.7,
-      }));
+      const skillRoutes: MetadataRoute.Sitemap = skills.map((skill) => {
+        // Use namespace URL if available, otherwise use ID-based URL
+        const skillUrl =
+          skill.githubOwner && skill.skillSlug
+            ? `${SITE_URL}/s/${skill.githubOwner}/${skill.skillSlug}`
+            : `${SITE_URL}/skills/${skill._id}`;
+
+        return {
+          url: skillUrl,
+          lastModified: new Date(skill._creationTime),
+          changeFrequency: "weekly" as const,
+          priority: 0.7,
+        };
+      });
 
       return [...staticRoutes, ...skillRoutes];
     }

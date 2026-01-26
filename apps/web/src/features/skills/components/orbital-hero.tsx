@@ -19,7 +19,7 @@ interface OrbitalHeroProps {
   searchQuery: string;
   onSearchChange: (query: string) => void;
   onSearch: () => void;
-  onCategoryClick: (slug: string) => void;
+  onCategoryClick: (slug: string, categoryName: string) => void;
   onRandomSkill: () => void;
   skills?: Skill[];
 }
