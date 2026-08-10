@@ -47,6 +47,9 @@ const dmg = `${BUNDLE_DIR}/dmg/${productName}_${version}_universal.dmg`;
 const tarballAsset = `${ASSET_PREFIX}.app.tar.gz`;
 const dmgAsset = `${ASSET_PREFIX}_${version}_universal.dmg`;
 
+await $`xcrun notarytool submit ${dmg} --apple-id ${process.env.APPLE_ID} --password ${process.env.APPLE_PASSWORD} --team-id ${process.env.APPLE_TEAM_ID} --wait`;
+await $`xcrun stapler staple ${dmg}`;
+
 await $`mkdir -p ${STAGING_DIR}`;
 await $`cp ${tarball} ${STAGING_DIR}/${tarballAsset}`;
 await $`cp ${dmg} ${STAGING_DIR}/${dmgAsset}`;
