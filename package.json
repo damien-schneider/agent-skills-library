@@ -22,7 +22,7 @@
     "start": "cd apps/web && bun run start",
     "test": "turbo test",
     "check-types": "turbo check-types",
-    "dev:native": "turbo -F native dev",
+    "dev:desktop": "turbo -F desktop dev",
     "dev:web": "turbo -F web dev",
     "dev:server": "turbo -F @skills-agent-library/backend dev",
     "dev:setup": "turbo -F @skills-agent-library/backend dev:setup",
@@ -47,5 +47,8 @@
       "bun x ultracite fix"
     ]
   },
-  "packageManager": "bun@1.3.5"
+  "packageManager": "bun@1.3.5",
+  "overrides": {
+    "vite": "^7.3.6"
+  }
 }

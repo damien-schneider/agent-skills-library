@@ -1,0 +1,22 @@
+{
+  "name": "@skills-agent-library/skills-core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check-types": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "exports": {
+    "./install-targets": "./src/install-targets.ts",
+    "./skill-parser": "./src/skill-parser.ts",
+    "./frontmatter": "./src/frontmatter.ts",
+    "./scan-targets": "./src/scan-targets.ts"
+  },
+  "devDependencies": {
+    "@skills-agent-library/config": "workspace:*",
+    "@types/node": "^25",
+    "typescript": "catalog:",
+    "vitest": "^4.0.17"
+  }
+}

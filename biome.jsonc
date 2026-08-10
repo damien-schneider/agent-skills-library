@@ -20,7 +20,8 @@
       "includes": [
         "apps/web/src/shared/components/ui/**/*",
         "apps/web/src/features/*/index.ts",
-        "apps/web/src/features/*/lib/index.ts"
+        "apps/web/src/features/*/lib/index.ts",
+        "apps/desktop/src/shared/components/ui/**/*"
       ],
       "linter": {
         "rules": {
