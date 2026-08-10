@@ -38,7 +38,8 @@ const commit = (await $`git rev-parse HEAD`.text()).trim();
 await $`./node_modules/.bin/tauri build --target ${TARGET}`.env({
   ...process.env,
   APPLE_SIGNING_IDENTITY: SIGNING_IDENTITY,
-  TAURI_SIGNING_PRIVATE_KEY_PATH: KEY_PATH,
+  TAURI_SIGNING_PRIVATE_KEY: await file(KEY_PATH).text(),
+  TAURI_SIGNING_PRIVATE_KEY_PASSWORD: "",
 });
 
 const tarball = `${BUNDLE_DIR}/macos/${productName}.app.tar.gz`;
