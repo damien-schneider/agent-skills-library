@@ -1,6 +1,6 @@
 [package]
 name = "another-dev-tool"
-version = "0.0.1"
+version = "0.0.2"
 description = "Local manager for agent configuration files"
 authors = ["Damien Schneider <damien-schneider>"]
 edition = "2021"
