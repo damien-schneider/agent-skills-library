@@ -4,9 +4,9 @@
 
 A modern platform for discovering, sharing, and managing high-quality skills for AI agents.
 
-## 🖥️ Desktop App
+## 🖥️ Another Dev Tool — the desktop app
 
-[![Download for macOS](https://img.shields.io/github/v/release/damien-schneider/agent-skills-library?label=Download%20for%20macOS&style=for-the-badge&logo=apple&color=black)](https://github.com/damien-schneider/agent-skills-library/releases/latest/download/agents-library_universal.dmg)
+[![Download for macOS](https://img.shields.io/github/v/release/damien-schneider/agent-skills-library?label=Download%20for%20macOS&style=for-the-badge&logo=apple&color=black)](https://github.com/damien-schneider/agent-skills-library/releases/latest/download/another-dev-tool_universal.dmg)
 
 Browse, deduplicate and sync the skills scattered across your machine — Claude skills and agents, Cursor rules, `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`. Universal binary for Apple Silicon and Intel, signed and notarized by Apple, with built-in automatic updates.
 
@@ -29,7 +29,7 @@ The **Skills Agent Library** is a centralized ecosystem dedicated to expanding w
 .
 ├── apps/
 │   ├── web/           # Frontend application & user interface
-│   └── desktop/       # macOS app (Tauri) for managing local skills
+│   └── desktop/       # Another Dev Tool — macOS app (Tauri) for local skills
 ├── packages/
 │   ├── backend/       # Real-time data management & business logic
 │   ├── skills-core/   # Skill parsing & target detection, shared by web and desktop

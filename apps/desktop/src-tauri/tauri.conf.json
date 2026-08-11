@@ -1,9 +1,9 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Agents Library",
-  "mainBinaryName": "agents-library-desktop",
+  "productName": "Another Dev Tool",
+  "mainBinaryName": "another-dev-tool",
   "version": "0.0.1",
-  "identifier": "dev.agents-library.desktop",
+  "identifier": "dev.anotherdevtool.desktop",
   "build": {
     "beforeDevCommand": "bun run dev:vite",
     "devUrl": "http://localhost:1420",
@@ -14,7 +14,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Agents Library",
+        "title": "Another Dev Tool",
         "width": 1280,
         "height": 820,
         "minWidth": 900,

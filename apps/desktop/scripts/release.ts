@@ -5,10 +5,10 @@ const TARGET = "universal-apple-darwin";
 const SIGNING_IDENTITY =
   "Developer ID Application: Damien Schneider (L6N962KCN4)";
 const NOTARIZATION_VARS = ["APPLE_ID", "APPLE_PASSWORD", "APPLE_TEAM_ID"];
-const KEY_PATH = `${process.env.HOME}/.tauri/agents-library.key`;
+const KEY_PATH = `${process.env.HOME}/.tauri/another-dev-tool.key`;
 const BUNDLE_DIR = `src-tauri/target/${TARGET}/release/bundle`;
 const STAGING_DIR = `src-tauri/target/${TARGET}/release/publish`;
-const ASSET_PREFIX = "agents-library";
+const ASSET_PREFIX = "another-dev-tool";
 
 const { productName, version } = await file("src-tauri/tauri.conf.json").json();
 const missingVars = NOTARIZATION_VARS.filter((name) => !process.env[name]);

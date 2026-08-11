@@ -2,3 +2,5 @@ dist/
 src-tauri/target/
 src-tauri/gen/schemas/
 .env*
+
+.impeccable

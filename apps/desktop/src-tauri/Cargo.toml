@@ -1,17 +1,17 @@
 [package]
-name = "agents-library-desktop"
+name = "another-dev-tool"
 version = "0.0.1"
 description = "Local manager for agent configuration files"
 authors = ["Damien Schneider <damien-schneider>"]
 edition = "2021"
 license = "MIT"
-default-run = "agents-library-desktop"
+default-run = "another-dev-tool"
 
 [profile.dev]
 incremental = true
 
 [lib]
-name = "agents_library_desktop_lib"
+name = "another_dev_tool_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
