@@ -9,7 +9,7 @@ import { onIndexUpdated } from "@/lib/events";
 import { type IpcError, readFile, toIpcError, writeFile } from "@/lib/ipc";
 import type { FileContent } from "@/lib/ipc-types";
 
-export type EditorMode = "rich" | "raw";
+export type EditorMode = "rich" | "preview" | "raw";
 
 export interface FileBuffer {
   content: FileContent;
@@ -31,7 +31,7 @@ export interface UseFileContent {
   setMode: (mode: EditorMode) => void;
   setBody: (body: string) => void;
   setRaw: (raw: string) => void;
-  save: () => Promise<void>;
+  save: () => Promise<boolean>;
   overwrite: () => Promise<void>;
   reload: () => Promise<void>;
   dismissConflict: () => void;
@@ -51,7 +51,6 @@ function documentOf(buffer: FileBuffer, mode: EditorMode): string {
 export function useFileContent(fileId: number | null): UseFileContent {
   const [buffer, setBuffer] = useState<FileBuffer | null>(null);
   const [mode, setModeState] = useState<EditorMode>("rich");
-  const [dirty, setDirty] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -64,7 +63,6 @@ export function useFileContent(fileId: number | null): UseFileContent {
     try {
       const content = await readFile(id);
       setBuffer(toBuffer(content));
-      setDirty(false);
       setConflict(false);
       setChangedOnDisk(false);
     } catch (cause) {
@@ -78,7 +76,6 @@ export function useFileContent(fileId: number | null): UseFileContent {
   useEffect(() => {
     if (fileId === null) {
       setBuffer(null);
-      setDirty(false);
       setConflict(false);
       setChangedOnDisk(false);
       return;
@@ -97,47 +94,51 @@ export function useFileContent(fileId: number | null): UseFileContent {
     };
   }, [fileId]);
 
-  const setMode = useCallback((next: EditorMode) => {
-    setModeState((current) => {
-      if (current === next) {
-        return current;
+  const setMode = useCallback(
+    (next: EditorMode) => {
+      if (mode === next) {
+        return;
       }
       setBuffer((previous) => {
         if (!previous) {
           return previous;
         }
         if (next === "raw") {
-          return { ...previous, raw: documentOf(previous, "rich") };
+          return { ...previous, raw: documentOf(previous, mode) };
         }
-        const split = splitFrontmatter(previous.raw);
-        return { ...previous, split, body: split.body };
+        if (mode === "raw") {
+          const split = splitFrontmatter(previous.raw);
+          return { ...previous, split, body: split.body };
+        }
+        return previous;
       });
-      return next;
-    });
-  }, []);
+      setModeState(next);
+    },
+    [mode]
+  );
 
   const setBody = useCallback((body: string) => {
     setBuffer((previous) => (previous ? { ...previous, body } : previous));
-    setDirty(true);
   }, []);
 
   const setRaw = useCallback((raw: string) => {
     setBuffer((previous) => (previous ? { ...previous, raw } : previous));
-    setDirty(true);
   }, []);
 
+  const documentText = buffer ? documentOf(buffer, mode) : "";
+  const dirty = buffer ? documentText !== buffer.content.content : false;
+
   const persist = useCallback(
-    async (expectedHash: string) => {
+    async (expectedHash: string): Promise<boolean> => {
       if (!buffer) {
-        return;
+        return false;
       }
       setSaving(true);
       setError(null);
       try {
-        const text = documentOf(buffer, mode);
         const result = await writeFile(
           buffer.content.fileId,
-          text,
+          documentText,
           expectedHash
         );
         setBuffer((previous) =>
@@ -146,16 +147,16 @@ export function useFileContent(fileId: number | null): UseFileContent {
                 ...previous,
                 content: {
                   ...previous.content,
-                  content: text,
+                  content: documentText,
                   hash: result.hash,
                   mtimeMs: result.mtimeMs,
                 },
               }
             : previous
         );
-        setDirty(false);
         setConflict(false);
         setChangedOnDisk(false);
+        return true;
       } catch (cause) {
         const ipcError: IpcError = toIpcError(cause);
         if (ipcError.code === "conflict") {
@@ -163,20 +164,21 @@ export function useFileContent(fileId: number | null): UseFileContent {
         } else {
           setError(ipcError.message);
         }
+        return false;
       } finally {
         setSaving(false);
       }
     },
-    [buffer, mode]
+    [buffer, documentText]
   );
 
-  const save = useCallback(async () => {
-    if (buffer) {
-      await persist(buffer.content.hash);
+  const save = useCallback(async (): Promise<boolean> => {
+    if (!(buffer && dirty) || saving) {
+      return false;
     }
-  }, [buffer, persist]);
+    return await persist(buffer.content.hash);
+  }, [buffer, dirty, persist, saving]);
 
-  // re-reads the disk hash first: overwriting is a deliberate "mine wins".
   const overwrite = useCallback(async () => {
     if (!buffer) {
       return;
@@ -204,7 +206,7 @@ export function useFileContent(fileId: number | null): UseFileContent {
     error,
     conflict,
     changedOnDisk,
-    documentText: buffer ? documentOf(buffer, mode) : "",
+    documentText,
     setMode,
     setBody,
     setRaw,

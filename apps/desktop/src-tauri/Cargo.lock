@@ -60,7 +60,7 @@ dependencies = [
 
 [[package]]
 name = "another-dev-tool"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "blake3",
  "crossbeam-channel",

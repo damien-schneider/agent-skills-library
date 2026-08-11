@@ -132,72 +132,91 @@
 }
 
 .tiptap-editor {
-  @apply font-sans text-foreground;
+  @apply font-sans text-foreground caret-foreground;
+  text-wrap: pretty;
 }
 
 .tiptap-editor:focus {
   @apply outline-none;
 }
 
-.tiptap-editor > * + * {
-  @apply mt-3;
+.tiptap-editor > :first-child {
+  @apply mt-0;
 }
 
 .tiptap-editor h1 {
-  @apply font-display text-4xl font-bold text-foreground tracking-tight mt-6 mb-4 first:mt-0;
+  @apply mt-2 mb-6 text-balance font-sans font-semibold text-3xl leading-tight tracking-tight text-foreground;
 }
 
 .tiptap-editor h2 {
-  @apply font-display text-2xl font-semibold text-foreground tracking-tight mt-5 mb-3;
+  @apply mt-9 mb-4 text-balance font-sans font-semibold text-2xl leading-snug tracking-tight text-foreground;
 }
 
 .tiptap-editor h3 {
-  @apply font-sans text-xl font-semibold text-foreground mt-4 mb-2;
+  @apply mt-7 mb-3 text-balance font-sans font-semibold text-xl leading-snug text-foreground;
+}
+
+.tiptap-editor h4 {
+  @apply mt-6 mb-2 font-sans font-semibold text-base leading-6 text-foreground;
+}
+
+.tiptap-editor h5,
+.tiptap-editor h6 {
+  @apply mt-5 mb-2 font-sans font-semibold text-sm leading-6 text-foreground;
 }
 
 .tiptap-editor p {
-  @apply text-base text-foreground/80 leading-relaxed;
+  @apply my-3 text-[15px] leading-7 text-foreground/85;
 }
 
 .tiptap-editor p.is-editor-empty:first-child::before {
-  @apply text-foreground/40 float-left h-0 pointer-events-none;
+  @apply pointer-events-none float-left h-0 text-muted-foreground;
   content: attr(data-placeholder);
 }
 
 .tiptap-editor ul {
-  @apply list-disc pl-6 my-3 space-y-1.5;
+  @apply my-4 list-disc space-y-1 pl-6;
 }
 
 .tiptap-editor ol {
-  @apply list-decimal pl-6 my-3 space-y-1.5;
+  @apply my-4 list-decimal space-y-1 pl-6;
 }
 
 .tiptap-editor li {
-  @apply text-foreground/80;
+  @apply text-[15px] leading-7 text-foreground/85;
 }
 
 .tiptap-editor li p {
   @apply my-0;
 }
 
+.tiptap-editor li > ul,
+.tiptap-editor li > ol {
+  @apply my-1;
+}
+
 .tiptap-editor blockquote {
-  @apply border-l-4 border-chart-3/40 pl-4 my-4 italic text-foreground/70;
+  @apply my-5 rounded-lg bg-muted/60 px-5 py-4 text-foreground/75;
+}
+
+.tiptap-editor blockquote p {
+  @apply my-0 text-inherit;
 }
 
 .tiptap-editor code {
-  @apply font-mono text-sm bg-muted text-muted-foreground px-1.5 py-0.5 rounded-md;
+  @apply rounded-md bg-muted px-1.5 py-0.5 font-mono text-[0.875em] text-foreground;
 }
 
 .tiptap-editor pre {
-  @apply font-mono text-sm bg-muted/50 text-foreground p-4 rounded-xl my-4 overflow-x-auto border border-border;
+  @apply my-5 overflow-x-auto rounded-lg border border-border bg-muted/50 p-5 font-mono text-[13px] leading-6 text-foreground;
 }
 
 .tiptap-editor pre code {
-  @apply bg-transparent text-inherit p-0 rounded-none;
+  @apply rounded-none bg-transparent p-0 text-inherit;
 }
 
 .tiptap-editor a {
-  @apply text-primary underline underline-offset-2 hover:opacity-80 transition-colors;
+  @apply text-foreground underline decoration-foreground/40 underline-offset-3 transition-colors hover:decoration-foreground;
 }
 
 .tiptap-editor strong {
@@ -209,13 +228,17 @@
 }
 
 .tiptap-editor s {
-  @apply line-through text-foreground/60;
+  @apply text-foreground/60 line-through;
 }
 
 .tiptap-editor hr {
-  @apply border-t border-border my-6;
+  @apply my-8 border-border border-t;
 }
 
 .tiptap-editor ::selection {
   @apply bg-chart-3/20;
+}
+
+.tiptap-preview {
+  @apply cursor-default;
 }
