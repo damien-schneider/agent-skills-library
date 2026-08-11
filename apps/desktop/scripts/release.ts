@@ -45,7 +45,7 @@ await $`./node_modules/.bin/tauri build --target ${TARGET}`.env({
 const tarball = `${BUNDLE_DIR}/macos/${productName}.app.tar.gz`;
 const dmg = `${BUNDLE_DIR}/dmg/${productName}_${version}_universal.dmg`;
 const tarballAsset = `${ASSET_PREFIX}.app.tar.gz`;
-const dmgAsset = `${ASSET_PREFIX}_${version}_universal.dmg`;
+const dmgAsset = `${ASSET_PREFIX}_universal.dmg`;
 
 await $`xcrun notarytool submit ${dmg} --apple-id ${process.env.APPLE_ID} --password ${process.env.APPLE_PASSWORD} --team-id ${process.env.APPLE_TEAM_ID} --wait`;
 await $`xcrun stapler staple ${dmg}`;
