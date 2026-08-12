@@ -1,6 +1,17 @@
 "use client";
 
 import {
+  AGENT_TOOLS,
+  type AgentTool,
+  detectOS,
+  getDisplayPath,
+  getScopeOptions,
+  type InstallScope,
+  type OperatingSystem,
+  slugifySkillName,
+  validateSkillName,
+} from "@skills-agent-library/skills-core/install-targets";
+import {
   Check,
   Copy,
   Download,
@@ -12,7 +23,6 @@ import {
 } from "lucide-react";
 import { motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-
 import { Button } from "@/shared/components/ui/button";
 import {
   Dialog,
@@ -28,24 +38,12 @@ import {
   TabsTrigger,
 } from "@/shared/components/ui/tabs";
 import { cn } from "@/shared/lib/utils";
-
 import {
   type GeneratedCommand,
   generateCurlCommand,
   generateGitHubCLICommand,
   generateInstallCommand,
 } from "./install-commands";
-import {
-  AGENT_TOOLS,
-  type AgentTool,
-  detectOS,
-  getDisplayPath,
-  getScopeOptions,
-  type InstallScope,
-  type OperatingSystem,
-  slugifySkillName,
-  validateSkillName,
-} from "./install-targets";
 
 interface InstallSkillDialogProps {
   open: boolean;

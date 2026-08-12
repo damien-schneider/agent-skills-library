@@ -1,7 +1,7 @@
+import { slugifySkillName } from "@skills-agent-library/skills-core/install-targets";
 import JSZip from "jszip";
 import { NextResponse } from "next/server";
 import { fetchBundleFiles } from "@/features/skills/install/install-bundle";
-import { slugifySkillName } from "@/features/skills/install/install-targets";
 
 interface InstallZipRequest {
   skillName: string;

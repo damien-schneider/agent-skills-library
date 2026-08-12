@@ -19,7 +19,7 @@ import {
   parseSkillMarkdown,
   type ValidationResult,
   validateParsedSkill,
-} from "./skill-parser";
+} from "@skills-agent-library/skills-core/skill-parser";
 
 interface GitHubFile {
   name: string;

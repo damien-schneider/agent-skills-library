@@ -1,11 +1,15 @@
 "use client";
 
 import { api } from "@skills-agent-library/backend/convex/_generated/api";
+import {
+  type ParsedSkill,
+  parseSkillMarkdown,
+  type ValidationResult,
+  validateParsedSkill,
+} from "@skills-agent-library/skills-core/skill-parser";
 import { useMutation } from "convex/react";
 import { useState } from "react";
-
 import { useAuthClient } from "@/shared/lib/auth-client";
-
 import { calculateAIScore, getRandomSkillColor } from "../lib";
 import {
   type FetchedSkill,
@@ -14,12 +18,6 @@ import {
   isDirectFileUrl,
   isRepoUrl,
 } from "../lib/github-fetcher";
-import {
-  type ParsedSkill,
-  parseSkillMarkdown,
-  type ValidationResult,
-  validateParsedSkill,
-} from "../lib/skill-parser";
 import { ImportInputStep } from "./import-steps/import-input-step";
 import { ImportPreviewStep } from "./import-steps/import-preview-step";
 import { ImportResultsStep } from "./import-steps/import-results-step";

@@ -11,6 +11,7 @@ import {
   type LucideIcon,
   PencilLine,
   Save,
+  Star,
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -32,6 +33,8 @@ import { type EditorMode, useFileContent } from "./use-file-content";
 
 export interface EditorPaneProps {
   file: FileRow | null;
+  favorite: boolean;
+  onToggleFavorite: (path: string) => Promise<void>;
 }
 
 const EDITOR_MODES: {
@@ -113,7 +116,36 @@ function FrontmatterPanel({
   );
 }
 
-export function EditorPane({ file }: EditorPaneProps) {
+function ProjectFavoriteButton({
+  path,
+  favorite,
+  onToggle,
+}: {
+  path: string;
+  favorite: boolean;
+  onToggle: (path: string) => Promise<void>;
+}) {
+  return (
+    <Button
+      aria-label={`${favorite ? "Remove" : "Add"} project ${favorite ? "from" : "to"} favorites`}
+      aria-pressed={favorite}
+      onClick={async () => {
+        await onToggle(path);
+      }}
+      size="icon-sm"
+      title={favorite ? "Remove project from favorites" : "Favorite project"}
+      variant="ghost"
+    >
+      <Star className={favorite ? "fill-current" : undefined} />
+    </Button>
+  );
+}
+
+export function EditorPane({
+  file,
+  favorite,
+  onToggleFavorite,
+}: EditorPaneProps) {
   const editor = useFileContent(file?.id ?? null);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [frontmatterOpen, setFrontmatterOpen] = useState(false);
@@ -163,6 +195,13 @@ export function EditorPane({ file }: EditorPaneProps) {
             {targetLabel(file.kind)} · {file.path}
           </p>
         </div>
+        {file.projectDir ? (
+          <ProjectFavoriteButton
+            favorite={favorite}
+            onToggle={onToggleFavorite}
+            path={file.projectDir}
+          />
+        ) : null}
 
         <EditorModeTabs mode={editor.mode} onChange={editor.setMode} />
 

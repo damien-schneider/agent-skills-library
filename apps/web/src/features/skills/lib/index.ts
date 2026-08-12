@@ -1,3 +1,8 @@
+export {
+  type ParsedSkill,
+  parseSkillMarkdown,
+  validateParsedSkill,
+} from "@skills-agent-library/skills-core/skill-parser";
 export { calculateAIScore } from "./ai-scoring";
 export {
   type FetchedSkill,
@@ -7,11 +12,6 @@ export {
   isRepoUrl,
   parseGitHubUrl,
 } from "./github-fetcher";
-export {
-  type ParsedSkill,
-  parseSkillMarkdown,
-  validateParsedSkill,
-} from "./skill-parser";
 export {
   type AgentPlatform,
   type AIScore,

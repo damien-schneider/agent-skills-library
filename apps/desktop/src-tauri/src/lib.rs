@@ -38,10 +38,10 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
-            let db_path = app.path().app_data_dir()?.join(DB_FILE);
-            let db = Db::open(&db_path)?;
+            let app_data_dir = app.path().app_data_dir()?;
+            let db = Db::open(&app_data_dir.join(DB_FILE))?;
             commands::roots::seed_default_roots(&db)?;
-            app.manage(AppState::new(db));
+            app.manage(AppState::new(db, app_data_dir.join("prompt-attachments")));
 
             let handle = app.handle().clone();
             let state = handle.state::<AppState>();
@@ -53,8 +53,11 @@ pub fn run() {
             commands::roots::add_root,
             commands::roots::set_root_enabled,
             commands::roots::remove_root,
+            commands::favorite_projects::list_favorite_projects,
+            commands::favorite_projects::set_project_favorite,
             commands::prompts::list_prompt_history,
             commands::prompts::create_prompt,
+            commands::prompts::read_prompt_attachment,
             commands::scan::start_scan,
             commands::scan::cancel_scan,
             commands::files::list_files,

@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -12,14 +13,16 @@ pub struct RunningScan {
 
 pub struct AppState {
     pub db: Arc<Db>,
+    pub prompt_attachments_dir: PathBuf,
     scan: Mutex<Option<RunningScan>>,
     watcher: Mutex<Option<WatcherHandle>>,
 }
 
 impl AppState {
-    pub fn new(db: Db) -> Self {
+    pub fn new(db: Db, prompt_attachments_dir: PathBuf) -> Self {
         Self {
             db: Arc::new(db),
+            prompt_attachments_dir,
             scan: Mutex::new(None),
             watcher: Mutex::new(None),
         }
@@ -85,7 +88,7 @@ mod tests {
     use super::*;
 
     fn state() -> AppState {
-        AppState::new(Db::open_in_memory().unwrap())
+        AppState::new(Db::open_in_memory().unwrap(), PathBuf::from("/tmp/prompts"))
     }
 
     #[test]

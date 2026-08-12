@@ -28,14 +28,6 @@ export function FileTree({
   const index = useMemo(() => buildTree(files, roots), [files, roots]);
   const expanded = useMemo(() => expandedFolderIds(index), [index]);
 
-  if (files.length === 0) {
-    return (
-      <p className="px-4 py-6 text-muted-foreground text-sm">
-        Nothing indexed yet — add a root and run a scan.
-      </p>
-    );
-  }
-
   return (
     <TreeView<TreeNode>
       expandedIds={expanded}

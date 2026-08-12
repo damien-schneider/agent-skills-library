@@ -1,4 +1,4 @@
-pub const SCHEMA_VERSION: i64 = 2;
+pub const SCHEMA_VERSION: i64 = 4;
 
 pub const MIGRATION_1: &str = r"
 CREATE TABLE IF NOT EXISTS roots (
@@ -81,4 +81,29 @@ CREATE TABLE IF NOT EXISTS prompt_history (
 
 CREATE INDEX IF NOT EXISTS prompt_history_created_at_idx
 ON prompt_history(created_at DESC);
+";
+
+pub const MIGRATION_3: &str = r"
+CREATE TABLE IF NOT EXISTS favorite_projects (
+    path       TEXT    PRIMARY KEY,
+    created_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS favorite_projects_created_at_idx
+ON favorite_projects(created_at DESC);
+";
+
+pub const MIGRATION_4: &str = r"
+CREATE TABLE IF NOT EXISTS prompt_attachments (
+    id           INTEGER PRIMARY KEY,
+    prompt_id    INTEGER NOT NULL REFERENCES prompt_history(id) ON DELETE CASCADE,
+    path         TEXT    NOT NULL UNIQUE,
+    mime_type    TEXT    NOT NULL,
+    width        INTEGER NOT NULL,
+    height       INTEGER NOT NULL,
+    created_at   INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS prompt_attachments_prompt_idx
+ON prompt_attachments(prompt_id, id);
 ";

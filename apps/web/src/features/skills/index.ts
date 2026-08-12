@@ -1,5 +1,10 @@
 // Skills feature barrel export
 
+export {
+  type ParsedSkill,
+  parseSkillMarkdown,
+  validateParsedSkill,
+} from "@skills-agent-library/skills-core/skill-parser";
 // Components
 export { AdminPanel, isAdminUser } from "./components/admin-panel";
 export { defaultFolders, GlassFolder } from "./components/glass-folder";
@@ -18,7 +23,6 @@ export { SkillImportForm } from "./components/skill-import-form-new";
 export { SkillPasteDropView } from "./components/skill-paste-drop-view";
 export { SkillPreviewDialog } from "./components/skill-preview-dialog";
 export { MarkdownPreview } from "./components/skill-preview-sections";
-
 // Lib
 export { calculateAIScore } from "./lib/ai-scoring";
 export {
@@ -29,10 +33,5 @@ export {
   isRepoUrl,
   parseGitHubUrl,
 } from "./lib/github-fetcher";
-export {
-  type ParsedSkill,
-  parseSkillMarkdown,
-  validateParsedSkill,
-} from "./lib/skill-parser";
 export type { AIScore, Category, Skill, SkillFormData } from "./lib/types";
 export { getSkillUrl } from "./lib/types";

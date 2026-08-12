@@ -1,6 +1,12 @@
 "use client";
 
 import { api } from "@skills-agent-library/backend/convex/_generated/api";
+import {
+  type ParsedSkill,
+  parseSkillMarkdown,
+  type ValidationResult,
+  validateParsedSkill,
+} from "@skills-agent-library/skills-core/skill-parser";
 import { useMutation } from "convex/react";
 import {
   AlertCircle,
@@ -14,16 +20,8 @@ import {
 import { motion } from "motion/react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-
 import { useAuthClient } from "@/shared/lib/auth-client";
-
 import { getRandomSkillColor } from "../lib";
-import {
-  type ParsedSkill,
-  parseSkillMarkdown,
-  type ValidationResult,
-  validateParsedSkill,
-} from "../lib/skill-parser";
 import { MarkdownPreview } from "./skill-preview-sections";
 
 type ViewState = "input" | "preview";

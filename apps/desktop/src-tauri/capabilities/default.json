@@ -7,6 +7,8 @@
     "core:default",
     "dialog:allow-open",
     "clipboard-manager:allow-write-text",
+    "clipboard-manager:allow-read-image",
+    "clipboard-manager:allow-write-image",
     "opener:default",
     "opener:allow-reveal-item-in-dir",
     "log:default",

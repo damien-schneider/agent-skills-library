@@ -1,19 +1,5 @@
 "use client";
 
-import { Apple, Check, Copy, Info, Monitor, Terminal } from "lucide-react";
-import { motion } from "motion/react";
-import { useCallback, useEffect, useMemo, useState } from "react";
-
-import { Button } from "@/shared/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-} from "@/shared/components/ui/dialog";
-import { ScrollArea } from "@/shared/components/ui/scroll-area";
-import { cn } from "@/shared/lib/utils";
-
 import {
   AGENT_TOOLS,
   type AgentTool,
@@ -23,7 +9,19 @@ import {
   type InstallScope,
   type OperatingSystem,
   slugifySkillName,
-} from "./install-targets";
+} from "@skills-agent-library/skills-core/install-targets";
+import { Apple, Check, Copy, Info, Monitor, Terminal } from "lucide-react";
+import { motion } from "motion/react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Button } from "@/shared/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/shared/components/ui/dialog";
+import { ScrollArea } from "@/shared/components/ui/scroll-area";
+import { cn } from "@/shared/lib/utils";
 
 interface SkillData {
   name: string;

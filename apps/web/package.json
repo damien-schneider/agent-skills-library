@@ -14,6 +14,7 @@
     "@convex-dev/better-auth": "catalog:",
     "@skills-agent-library/backend": "workspace:*",
     "@skills-agent-library/env": "workspace:*",
+    "@skills-agent-library/skills-core": "workspace:*",
     "@tanstack/react-form": "^1.27.7",
     "@tanstack/react-pacer": "^0.19.3",
     "@tiptap/extension-bullet-list": "^3.16.0",

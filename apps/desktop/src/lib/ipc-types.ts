@@ -27,12 +27,28 @@ export interface Root {
   addedAt: number;
 }
 
+/** Mirrors db::favorite_projects_repo::FavoriteProject */
+export interface FavoriteProject {
+  path: string;
+  createdAt: number;
+}
+
+export interface PromptAttachment {
+  id: number;
+  promptId: number;
+  path: string;
+  mimeType: string;
+  width: number;
+  height: number;
+}
+
 /** Mirrors db::prompts_repo::PromptHistoryEntry */
 export interface PromptHistoryEntry {
   id: number;
   content: string;
   destinationPath: string | null;
   createdAt: number;
+  attachments: PromptAttachment[];
 }
 
 /** Mirrors db::files_repo::FileRow */

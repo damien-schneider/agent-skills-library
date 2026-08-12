@@ -7,6 +7,7 @@ import type {
   Backup,
   DiffResult,
   DuplicateGroup,
+  FavoriteProject,
   FileContent,
   FileRow,
   InstallResult,
@@ -69,8 +70,30 @@ export const removeRoot = (id: number) => call<null>("remove_root", { id });
 export const listPromptHistory = () =>
   call<PromptHistoryEntry[]>("list_prompt_history");
 
-export const createPrompt = (content: string, destinationPath: string | null) =>
-  call<PromptHistoryEntry>("create_prompt", { content, destinationPath });
+export const createPrompt = (
+  content: string,
+  destinationPath: string | null,
+  images: PendingPromptImage[]
+) =>
+  call<PromptHistoryEntry>("create_prompt", {
+    content,
+    destinationPath,
+    images,
+  });
+export interface PendingPromptImage {
+  rgba: number[];
+  width: number;
+  height: number;
+}
+
+export const readPromptAttachment = (attachmentId: number) =>
+  call<number[]>("read_prompt_attachment", { attachmentId });
+
+export const listFavoriteProjects = () =>
+  call<FavoriteProject[]>("list_favorite_projects");
+
+export const setProjectFavorite = (path: string, favorite: boolean) =>
+  call<null>("set_project_favorite", { path, favorite });
 
 export const startScan = (rootIds?: number[]) =>
   call<number>("start_scan", { rootIds: rootIds ?? null });

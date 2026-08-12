@@ -65,7 +65,7 @@ const agentPlatforms = [
     description:
       "Codeium's AI IDE with cascading flows and agent-powered development features.",
   },
-];
+] as const;
 
 const skillCategories = [
   {

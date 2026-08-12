@@ -3,7 +3,7 @@ import {
   getInstallPath,
   type InstallScope,
   type OperatingSystem,
-} from "./install-targets";
+} from "@skills-agent-library/skills-core/install-targets";
 
 const GITHUB_URL_PATTERN =
   /github\.com\/([^/]+)\/([^/]+)(?:\/(?:blob|tree)\/[^/]+\/(.+))?/;

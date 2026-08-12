@@ -1,4 +1,5 @@
 pub mod backups_repo;
+pub mod favorite_projects_repo;
 pub mod files_repo;
 pub mod groups_repo;
 pub mod prompts_repo;
@@ -99,6 +100,12 @@ impl Db {
         if version < 2 {
             conn.execute_batch(schema::MIGRATION_2)?;
         }
+        if version < 3 {
+            conn.execute_batch(schema::MIGRATION_3)?;
+        }
+        if version < 4 {
+            conn.execute_batch(schema::MIGRATION_4)?;
+        }
 
         conn.execute(
             "INSERT INTO meta (key, value) VALUES (?1, ?2)
@@ -168,6 +175,8 @@ mod tests {
             "backups",
             "meta",
             "prompt_history",
+            "favorite_projects",
+            "prompt_attachments",
         ] {
             assert!(tables.iter().any(|t| t == expected), "missing {expected}");
         }
@@ -182,7 +191,7 @@ mod tests {
             .with_conn(|conn| get_meta(conn, META_SCHEMA_VERSION))
             .unwrap();
 
-        assert_eq!(version.as_deref(), Some("2"));
+        assert_eq!(version.as_deref(), Some("4"));
     }
 
     #[test]
@@ -212,7 +221,72 @@ mod tests {
             db.with_conn(|conn| get_meta(conn, META_SCHEMA_VERSION))
                 .unwrap()
                 .as_deref(),
-            Some("2")
+            Some("4")
+        );
+    }
+
+    #[test]
+    fn migrating_from_version_two_adds_favorite_projects() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(schema::MIGRATION_1).unwrap();
+        conn.execute_batch(schema::MIGRATION_2).unwrap();
+        conn.execute(
+            "INSERT INTO meta (key, value) VALUES (?1, '2')",
+            [META_SCHEMA_VERSION],
+        )
+        .unwrap();
+
+        let db = Db::from_connection(conn).unwrap();
+        let favorite_tables: i64 = db
+            .with_conn(|conn| {
+                Ok(conn.query_row(
+                    "SELECT COUNT(*) FROM sqlite_master
+                     WHERE type = 'table' AND name = 'favorite_projects'",
+                    [],
+                    |row| row.get(0),
+                )?)
+            })
+            .unwrap();
+
+        assert_eq!(favorite_tables, 1);
+        assert_eq!(
+            db.with_conn(|conn| get_meta(conn, META_SCHEMA_VERSION))
+                .unwrap()
+                .as_deref(),
+            Some("4")
+        );
+    }
+
+    #[test]
+    fn migrating_from_version_three_adds_prompt_attachments() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(schema::MIGRATION_1).unwrap();
+        conn.execute_batch(schema::MIGRATION_2).unwrap();
+        conn.execute_batch(schema::MIGRATION_3).unwrap();
+        conn.execute(
+            "INSERT INTO meta (key, value) VALUES (?1, '3')",
+            [META_SCHEMA_VERSION],
+        )
+        .unwrap();
+
+        let db = Db::from_connection(conn).unwrap();
+        let attachment_tables: i64 = db
+            .with_conn(|conn| {
+                Ok(conn.query_row(
+                    "SELECT COUNT(*) FROM sqlite_master
+                     WHERE type = 'table' AND name = 'prompt_attachments'",
+                    [],
+                    |row| row.get(0),
+                )?)
+            })
+            .unwrap();
+
+        assert_eq!(attachment_tables, 1);
+        assert_eq!(
+            db.with_conn(|conn| get_meta(conn, META_SCHEMA_VERSION))
+                .unwrap()
+                .as_deref(),
+            Some("4")
         );
     }
 
