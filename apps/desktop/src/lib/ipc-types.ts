@@ -6,6 +6,7 @@ import type { FileKind } from "@skills-agent-library/skills-core/scan-targets";
 export type AppErrorCode =
   | "not_found"
   | "invalid_path"
+  | "invalid_input"
   | "outside_roots"
   | "conflict"
   | "scan_busy"
@@ -24,6 +25,14 @@ export interface Root {
   path: string;
   enabled: boolean;
   addedAt: number;
+}
+
+/** Mirrors db::prompts_repo::PromptHistoryEntry */
+export interface PromptHistoryEntry {
+  id: number;
+  content: string;
+  destinationPath: string | null;
+  createdAt: number;
 }
 
 /** Mirrors db::files_repo::FileRow */

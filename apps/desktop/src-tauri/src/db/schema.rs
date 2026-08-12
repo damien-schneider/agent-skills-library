@@ -1,4 +1,4 @@
-pub const SCHEMA_VERSION: i64 = 1;
+pub const SCHEMA_VERSION: i64 = 2;
 
 pub const MIGRATION_1: &str = r"
 CREATE TABLE IF NOT EXISTS roots (
@@ -69,4 +69,16 @@ CREATE TABLE IF NOT EXISTS meta (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+";
+
+pub const MIGRATION_2: &str = r"
+CREATE TABLE IF NOT EXISTS prompt_history (
+    id               INTEGER PRIMARY KEY,
+    content          TEXT    NOT NULL,
+    destination_path TEXT,
+    created_at       INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS prompt_history_created_at_idx
+ON prompt_history(created_at DESC);
 ";

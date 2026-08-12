@@ -1,4 +1,5 @@
 pub mod files;
+pub mod prompts;
 pub mod registry;
 pub mod roots;
 pub mod scan;

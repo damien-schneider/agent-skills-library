@@ -1,6 +1,7 @@
 pub mod backups_repo;
 pub mod files_repo;
 pub mod groups_repo;
+pub mod prompts_repo;
 pub mod roots_repo;
 pub mod schema;
 
@@ -73,6 +74,32 @@ impl Db {
     fn migrate(&self) -> AppResult<()> {
         let conn = self.lock()?;
         conn.execute_batch(schema::MIGRATION_1)?;
+
+        let version = conn
+            .query_row(
+                "SELECT value FROM meta WHERE key = ?1",
+                [META_SCHEMA_VERSION],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()?
+            .map(|value| {
+                value
+                    .parse::<i64>()
+                    .map_err(|_| AppError::internal("invalid database schema version"))
+            })
+            .transpose()?
+            .unwrap_or_default();
+
+        if version > schema::SCHEMA_VERSION {
+            return Err(AppError::internal(format!(
+                "database schema version {version} is newer than supported version {}",
+                schema::SCHEMA_VERSION
+            )));
+        }
+        if version < 2 {
+            conn.execute_batch(schema::MIGRATION_2)?;
+        }
+
         conn.execute(
             "INSERT INTO meta (key, value) VALUES (?1, ?2)
              ON CONFLICT(key) DO UPDATE SET value = excluded.value",
@@ -140,6 +167,7 @@ mod tests {
             "sync_members",
             "backups",
             "meta",
+            "prompt_history",
         ] {
             assert!(tables.iter().any(|t| t == expected), "missing {expected}");
         }
@@ -154,7 +182,38 @@ mod tests {
             .with_conn(|conn| get_meta(conn, META_SCHEMA_VERSION))
             .unwrap();
 
-        assert_eq!(version.as_deref(), Some("1"));
+        assert_eq!(version.as_deref(), Some("2"));
+    }
+
+    #[test]
+    fn migrating_from_version_one_adds_prompt_history() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(schema::MIGRATION_1).unwrap();
+        conn.execute(
+            "INSERT INTO meta (key, value) VALUES (?1, '1')",
+            [META_SCHEMA_VERSION],
+        )
+        .unwrap();
+
+        let db = Db::from_connection(conn).unwrap();
+        let prompt_tables: i64 = db
+            .with_conn(|conn| {
+                Ok(conn.query_row(
+                    "SELECT COUNT(*) FROM sqlite_master
+                     WHERE type = 'table' AND name = 'prompt_history'",
+                    [],
+                    |row| row.get(0),
+                )?)
+            })
+            .unwrap();
+
+        assert_eq!(prompt_tables, 1);
+        assert_eq!(
+            db.with_conn(|conn| get_meta(conn, META_SCHEMA_VERSION))
+                .unwrap()
+                .as_deref(),
+            Some("2")
+        );
     }
 
     #[test]

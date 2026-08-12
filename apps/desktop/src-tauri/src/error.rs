@@ -9,6 +9,9 @@ pub enum AppError {
     #[error("{0}")]
     InvalidPath(String),
 
+    #[error("{0}")]
+    InvalidInput(String),
+
     #[error("path is not inside an enabled root: {0}")]
     OutsideRoots(String),
 
@@ -33,6 +36,7 @@ impl AppError {
         match self {
             Self::NotFound(_) => "not_found",
             Self::InvalidPath(_) => "invalid_path",
+            Self::InvalidInput(_) => "invalid_input",
             Self::OutsideRoots(_) => "outside_roots",
             Self::Conflict(_) => "conflict",
             Self::ScanBusy => "scan_busy",

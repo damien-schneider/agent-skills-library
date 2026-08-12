@@ -1,6 +1,6 @@
 [package]
 name = "another-dev-tool"
-version = "0.0.2"
+version = "0.0.3"
 description = "Local manager for agent configuration files"
 authors = ["Damien Schneider <damien-schneider>"]
 edition = "2021"
@@ -34,6 +34,7 @@ notify-debouncer-full = "0.7"
 similar = "3"
 crossbeam-channel = "0.5"
 dirs = "6"
+tauri-plugin-clipboard-manager = "2.3.2"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-single-instance = "2"

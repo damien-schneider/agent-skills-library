@@ -34,6 +34,7 @@ pub fn run() {
 
     builder
         .plugin(tauri_plugin_log::Builder::default().build())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
@@ -52,6 +53,8 @@ pub fn run() {
             commands::roots::add_root,
             commands::roots::set_root_enabled,
             commands::roots::remove_root,
+            commands::prompts::list_prompt_history,
+            commands::prompts::create_prompt,
             commands::scan::start_scan,
             commands::scan::cancel_scan,
             commands::files::list_files,

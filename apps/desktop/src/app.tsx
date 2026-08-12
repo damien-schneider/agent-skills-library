@@ -1,8 +1,16 @@
-import { Copy, FolderTree, RefreshCw, Settings, Store } from "lucide-react";
+import {
+  Copy,
+  FolderTree,
+  History,
+  RefreshCw,
+  Settings,
+  Store,
+} from "lucide-react";
 import { useState } from "react";
 
 import { DuplicatesView } from "./features/duplicates/duplicates-view";
 import { LibraryView } from "./features/library/library-view";
+import { PromptHistoryView } from "./features/prompts/prompt-history-view";
 import { RegistryPane } from "./features/registry/registry-pane";
 import { useScan } from "./features/scan/use-scan";
 import { RootsSettings } from "./features/settings/roots-settings";
@@ -14,6 +22,7 @@ import { Toaster } from "./shared/components/ui/sonner";
 
 export type ViewId =
   | "library"
+  | "prompts"
   | "duplicates"
   | "sync"
   | "registry"
@@ -21,6 +30,7 @@ export type ViewId =
 
 const RAIL_ITEMS: { id: ViewId; label: string; icon: typeof FolderTree }[] = [
   { id: "library", label: "Library", icon: FolderTree },
+  { id: "prompts", label: "Prompts", icon: History },
   { id: "duplicates", label: "Duplicates", icon: Copy },
   { id: "sync", label: "Sync", icon: RefreshCw },
   { id: "registry", label: "Registry", icon: Store },
@@ -59,6 +69,7 @@ export function App() {
 
         <main className="min-w-0 flex-1">
           {view === "library" ? <LibraryView scan={scan} /> : null}
+          {view === "prompts" ? <PromptHistoryView /> : null}
           {view === "settings" ? <RootsSettings scan={scan} /> : null}
           {view === "duplicates" ? (
             <DuplicatesView onGroupCreated={() => setView("sync")} />

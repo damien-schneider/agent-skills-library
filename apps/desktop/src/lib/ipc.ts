@@ -11,6 +11,7 @@ import type {
   FileRow,
   InstallResult,
   ListFilesArgs,
+  PromptHistoryEntry,
   Root,
   SyncGroupView,
   SyncPreview,
@@ -64,6 +65,12 @@ export const setRootEnabled = (id: number, enabled: boolean) =>
   call<null>("set_root_enabled", { id, enabled });
 
 export const removeRoot = (id: number) => call<null>("remove_root", { id });
+
+export const listPromptHistory = () =>
+  call<PromptHistoryEntry[]>("list_prompt_history");
+
+export const createPrompt = (content: string, destinationPath: string | null) =>
+  call<PromptHistoryEntry>("create_prompt", { content, destinationPath });
 
 export const startScan = (rootIds?: number[]) =>
   call<number>("start_scan", { rootIds: rootIds ?? null });
