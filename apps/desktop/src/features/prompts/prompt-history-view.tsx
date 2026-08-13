@@ -24,10 +24,12 @@ import {
 import { toast } from "sonner";
 
 import { useFavoriteProjects } from "@/features/projects/use-favorite-projects";
+import { onCaptureSaved } from "@/lib/events";
 import { createPrompt, listPromptHistory, toIpcError } from "@/lib/ipc";
 import type { PromptAttachment, PromptHistoryEntry } from "@/lib/ipc-types";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
+import { CaptureShortcut } from "./capture-shortcut";
 import {
   attachmentDataUrl,
   claudeCodePrompt,
@@ -71,6 +73,18 @@ export function PromptHistoryView() {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    const unlisten = onCaptureSaved((captured) => {
+      setEntries((current) => [
+        captured,
+        ...current.filter((entry) => entry.id !== captured.id),
+      ]);
+    }).catch(() => undefined);
+    return () => {
+      unlisten.then((stop) => stop?.()).catch(() => undefined);
+    };
+  }, []);
 
   useEffect(
     () => () => {
@@ -170,11 +184,14 @@ export function PromptHistoryView() {
   return (
     <div className="grid h-full min-h-0 grid-cols-[minmax(360px,44%)_1fr]">
       <section className="flex min-h-0 flex-col border-border border-r">
-        <header className="border-border border-b px-6 py-5">
-          <h1 className="font-semibold text-lg">Prompt history</h1>
-          <p className="mt-1 text-muted-foreground text-sm">
-            Stored locally, available with or without a connection.
-          </p>
+        <header className="flex items-center justify-between gap-4 border-border border-b px-6 py-5">
+          <div>
+            <h1 className="font-semibold text-lg">Prompt history</h1>
+            <p className="mt-1 text-muted-foreground text-sm">
+              Stored locally, available with or without a connection.
+            </p>
+          </div>
+          <CaptureShortcut />
         </header>
 
         <form
@@ -196,10 +213,9 @@ export function PromptHistoryView() {
               ref={textareaRef}
               value={content}
             />
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center justify-end gap-3">
               <span className="text-muted-foreground text-xs">
-                Paste a screenshot directly, or add the image currently on your
-                clipboard.
+                {draftImages.length}/{MAX_PROMPT_IMAGES} images
               </span>
               <Button
                 disabled={saving || draftImages.length >= MAX_PROMPT_IMAGES}
@@ -409,7 +425,7 @@ function PromptHistoryItem({
   onCopy: (entry: PromptHistoryEntry) => Promise<void>;
 }) {
   return (
-    <li className="border-border border-b px-6 py-5">
+    <li className="group border-border border-b px-6 py-5 transition-colors hover:bg-muted/25">
       <article>
         <div className="mb-3 flex items-start justify-between gap-4">
           <div className="min-w-0">
@@ -429,17 +445,16 @@ function PromptHistoryItem({
               </div>
             ) : null}
           </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <Button
-              aria-label={`Copy prompt saved ${DATE_TIME_FORMATTER.format(entry.createdAt)}`}
-              onClick={() => onCopy(entry)}
-              size="sm"
-              variant="outline"
-            >
-              {copied ? <Check /> : <Copy />}
-              {copied ? "Copied" : "Copy"}
-            </Button>
-          </div>
+          <Button
+            aria-label={`Copy prompt saved ${DATE_TIME_FORMATTER.format(entry.createdAt)}`}
+            className="opacity-70 group-focus-within:opacity-100 group-hover:opacity-100"
+            onClick={() => onCopy(entry)}
+            size="sm"
+            variant="outline"
+          >
+            {copied ? <Check /> : <Copy />}
+            {copied ? "Copied" : "Copy"}
+          </Button>
         </div>
         {entry.attachments.length > 0 ? (
           <AttachmentStrip attachments={entry.attachments} />

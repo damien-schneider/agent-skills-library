@@ -1,5 +1,11 @@
 import "@testing-library/jest-dom/vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PromptHistoryEntry } from "@/lib/ipc-types";
@@ -8,12 +14,16 @@ import type * as PromptAttachments from "./prompt-attachments";
 import { PromptHistoryView } from "./prompt-history-view";
 
 const mocks = vi.hoisted(() => ({
+  captureAccessStatus: vi.fn(),
   createPrompt: vi.fn(),
   listFavoriteProjects: vi.fn(),
   listPromptHistory: vi.fn(),
+  onCaptureAccessChanged: vi.fn(),
+  onCaptureSaved: vi.fn(),
   open: vi.fn(),
   readImage: vi.fn(),
   readPromptAttachment: vi.fn(),
+  requestCaptureAccess: vi.fn(),
   setProjectFavorite: vi.fn(),
   writeImage: vi.fn(),
   writeText: vi.fn(),
@@ -38,11 +48,17 @@ vi.mock("./prompt-attachments", async (importOriginal) => {
     }),
   };
 });
+vi.mock("@/lib/events", () => ({
+  onCaptureAccessChanged: mocks.onCaptureAccessChanged,
+  onCaptureSaved: mocks.onCaptureSaved,
+}));
 vi.mock("@/lib/ipc", () => ({
+  captureAccessStatus: mocks.captureAccessStatus,
   createPrompt: mocks.createPrompt,
   listFavoriteProjects: mocks.listFavoriteProjects,
   listPromptHistory: mocks.listPromptHistory,
   readPromptAttachment: mocks.readPromptAttachment,
+  requestCaptureAccess: mocks.requestCaptureAccess,
   setProjectFavorite: mocks.setProjectFavorite,
   toIpcError: (cause: unknown) =>
     cause instanceof Error ? cause : new Error(String(cause)),
@@ -62,11 +78,17 @@ const COPY_BUTTON_NAME = /Copy prompt saved/;
 
 describe("PromptHistoryView", () => {
   beforeEach(() => {
+    mocks.captureAccessStatus
+      .mockReset()
+      .mockResolvedValue({ supported: true, granted: true });
     mocks.createPrompt.mockReset();
     mocks.listFavoriteProjects.mockReset().mockResolvedValue([]);
     mocks.listPromptHistory.mockReset().mockResolvedValue([]);
+    mocks.onCaptureAccessChanged.mockReset().mockResolvedValue(() => undefined);
+    mocks.onCaptureSaved.mockReset().mockResolvedValue(() => undefined);
     mocks.readImage.mockReset();
     mocks.readPromptAttachment.mockReset();
+    mocks.requestCaptureAccess.mockReset();
     mocks.open.mockReset().mockResolvedValue(null);
     mocks.setProjectFavorite.mockReset().mockResolvedValue(null);
     mocks.writeText.mockReset().mockResolvedValue(undefined);
@@ -138,6 +160,20 @@ describe("PromptHistoryView", () => {
 
     expect(await screen.findByText(storedPrompt.content)).toBeVisible();
     expect(screen.getByText(DESTINATION_PATH)).toBeVisible();
+    expect(screen.getByText("1 prompt")).toBeVisible();
+  });
+
+  it("adds a globally captured selection to the visible history", async () => {
+    render(<PromptHistoryView />);
+    await waitFor(() => expect(mocks.onCaptureSaved).toHaveBeenCalledOnce());
+
+    const listener = mocks.onCaptureSaved.mock.calls[0]?.[0];
+    if (typeof listener !== "function") {
+      throw new Error("Capture listener was not registered");
+    }
+    act(() => listener(storedPrompt));
+
+    expect(await screen.findByText(storedPrompt.content)).toBeVisible();
     expect(screen.getByText("1 prompt")).toBeVisible();
   });
 

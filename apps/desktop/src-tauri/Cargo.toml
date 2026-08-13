@@ -1,6 +1,6 @@
 [package]
 name = "another-dev-tool"
-version = "0.0.4"
+version = "0.0.5"
 description = "Local manager for agent configuration files"
 authors = ["Damien Schneider <damien-schneider>"]
 edition = "2021"
@@ -18,7 +18,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["image-png"] }
+tauri = { version = "2", features = ["macos-private-api", "image-png"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-opener = "2"
 tauri-plugin-log = "2"
@@ -43,6 +43,14 @@ tauri-plugin-single-instance = "2"
 tauri-plugin-window-state = "2"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+axuielement = "0.9.1"
+core-foundation = "0.10.1"
+core-graphics = "0.25.0"
+objc2 = "0.6.4"
+objc2-app-kit = { version = "0.3.2", default-features = false, features = ["NSPasteboard", "NSPasteboardItem"] }
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSArray", "NSData", "NSObject", "NSString"] }
 
 [dev-dependencies]
 

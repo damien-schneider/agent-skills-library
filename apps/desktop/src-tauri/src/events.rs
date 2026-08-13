@@ -1,12 +1,17 @@
 use serde::Serialize;
 use tauri::{AppHandle, Emitter as _};
 
+use crate::capture::CaptureAccessStatus;
+use crate::db::prompts_repo::PromptHistoryEntry;
 use crate::scanner::ScanStats;
 
 pub const SCAN_PROGRESS: &str = "scan:progress";
 pub const SCAN_DONE: &str = "scan:done";
 pub const SCAN_ERROR: &str = "scan:error";
 pub const INDEX_UPDATED: &str = "index:updated";
+pub const CAPTURE_SAVED: &str = "capture:saved";
+pub const CAPTURE_ERROR: &str = "capture:error";
+pub const CAPTURE_ACCESS_CHANGED: &str = "capture:access-changed";
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -39,6 +44,12 @@ pub struct IndexUpdated {
     pub file_ids: Vec<i64>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CaptureError {
+    pub message: String,
+}
+
 pub fn emit_scan_progress(app: &AppHandle, payload: ScanProgress) {
     let _ = app.emit(SCAN_PROGRESS, payload);
 }
@@ -56,6 +67,18 @@ pub fn emit_index_updated(app: &AppHandle, file_ids: Vec<i64>) {
         return;
     }
     let _ = app.emit(INDEX_UPDATED, IndexUpdated { file_ids });
+}
+
+pub fn emit_capture_saved(app: &AppHandle, prompt: PromptHistoryEntry) {
+    let _ = app.emit(CAPTURE_SAVED, prompt);
+}
+
+pub fn emit_capture_error(app: &AppHandle, message: String) {
+    let _ = app.emit(CAPTURE_ERROR, CaptureError { message });
+}
+
+pub fn emit_capture_access_changed(app: &AppHandle, status: CaptureAccessStatus) {
+    let _ = app.emit(CAPTURE_ACCESS_CHANGED, status);
 }
 
 #[cfg(test)]

@@ -10,6 +10,8 @@ A modern platform for discovering, sharing, and managing high-quality skills for
 
 Browse, deduplicate and sync the skills scattered across your machine — Claude skills and agents, Cursor rules, `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`. Universal binary for Apple Silicon and Intel, signed and notarized by Apple, with built-in automatic updates.
 
+Grant Accessibility access once, then select text in any macOS app—including Claude Code, Codex, and terminal sessions—and tap Shift twice to save it to local Prompt history. When direct selection access is unavailable, Another Dev Tool briefly invokes Copy and restores the previous clipboard afterward.
+
 ## 🚀 The Hub for Agent Capabilities
 
 The **Skills Agent Library** is a centralized ecosystem dedicated to expanding what AI agents can do. It provides a structured, community-driven repository of markdown-based skills that enable agents to execute complex workflows, interact with various tools, and master specific domain knowledge.

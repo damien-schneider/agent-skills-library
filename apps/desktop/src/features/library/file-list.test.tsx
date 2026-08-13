@@ -1,21 +1,10 @@
 import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { Fragment, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { FileKind, FileRow, Root } from "@/lib/ipc-types";
 
 import { FileList } from "./file-list";
-
-vi.mock("virtua", () => ({
-  Virtualizer: ({
-    children,
-    data,
-  }: {
-    children: (item: { id: string }) => ReactNode;
-    data: { id: string }[];
-  }) => data.map((item) => <Fragment key={item.id}>{children(item)}</Fragment>),
-}));
 
 const root: Root = {
   id: 1,
@@ -24,7 +13,10 @@ const root: Root = {
   addedAt: 0,
 };
 
+const CAVEMAN_FILE_NAME = /caveman\s+Claude skill/;
 const REVIEWER_FILE_NAME = /reviewer\.md/i;
+const SKILLS_GROUP_NAME = /skills/;
+const AGENTS_GROUP_NAME = /Toggle agents/;
 
 function file(id: number, relPath: string, kind: FileKind): FileRow {
   return {
@@ -46,16 +38,13 @@ function file(id: number, relPath: string, kind: FileKind): FileRow {
 }
 
 describe("FileList", () => {
-  it("names nested skills by their skill folders", () => {
+  it("collapses skills from the same folder into one collection", () => {
     render(
       <FileList
         files={[
-          file(
-            1,
-            "plugins/marketplaces/caveman/skills/caveman/SKILL.md",
-            "claude-skill"
-          ),
-          file(2, "plugins/cache/last30days-skill/SKILL.md", "claude-skill"),
+          file(1, "skills/caveman/SKILL.md", "claude-skill"),
+          file(2, "skills/last30days/SKILL.md", "claude-skill"),
+          file(3, "agents/reviewer.md", "claude-agent"),
         ]}
         onSelectFile={vi.fn()}
         roots={[root]}
@@ -63,28 +52,94 @@ describe("FileList", () => {
       />
     );
 
-    expect(screen.getByText("caveman")).toBeVisible();
-    expect(screen.getByText("last30days-skill")).toBeVisible();
-    expect(screen.queryAllByText("SKILL.md")).toHaveLength(0);
+    const skillsGroup = screen.getByRole("button", { name: SKILLS_GROUP_NAME });
+    expect(skillsGroup).toHaveAttribute("aria-expanded", "false");
     expect(
-      screen.getByText("plugins/marketplaces/caveman/skills/caveman/SKILL.md")
+      screen.queryByRole("button", { name: CAVEMAN_FILE_NAME })
+    ).toBeNull();
+    expect(
+      screen.getByRole("button", { name: REVIEWER_FILE_NAME })
     ).toBeVisible();
+
+    fireEvent.click(skillsGroup);
+
+    expect(skillsGroup).toHaveAttribute("aria-expanded", "true");
+    expect(
+      screen.getByRole("button", { name: CAVEMAN_FILE_NAME })
+    ).toBeVisible();
+    expect(screen.getByText("last30days")).toBeVisible();
   });
 
-  it("selects a file from the simplified list", () => {
-    const onSelectFile = vi.fn();
-    const selected = file(3, "agents/reviewer.md", "claude-agent");
+  it("keeps singleton folders compact instead of adding another toggle", () => {
     render(
       <FileList
-        files={[selected]}
+        files={[file(3, "agents/reviewer.md", "claude-agent")]}
+        onSelectFile={vi.fn()}
+        roots={[root]}
+        selectedFileId={null}
+      />
+    );
+
+    expect(
+      screen.getByRole("button", { name: REVIEWER_FILE_NAME })
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: AGENTS_GROUP_NAME })
+    ).toBeNull();
+  });
+
+  it("expands a selected file and preserves selection", () => {
+    const onSelectFile = vi.fn();
+    const selected = file(3, "skills/caveman/SKILL.md", "claude-skill");
+    const { rerender } = render(
+      <FileList
+        files={[
+          selected,
+          file(4, "skills/last30days/SKILL.md", "claude-skill"),
+        ]}
         onSelectFile={onSelectFile}
         roots={[root]}
         selectedFileId={null}
       />
     );
 
-    fireEvent.click(screen.getByRole("button", { name: REVIEWER_FILE_NAME }));
-
+    fireEvent.click(screen.getByRole("button", { name: SKILLS_GROUP_NAME }));
+    fireEvent.click(screen.getByRole("button", { name: CAVEMAN_FILE_NAME }));
     expect(onSelectFile).toHaveBeenCalledWith(selected);
+
+    rerender(
+      <FileList
+        files={[
+          selected,
+          file(4, "skills/last30days/SKILL.md", "claude-skill"),
+        ]}
+        onSelectFile={onSelectFile}
+        roots={[root]}
+        selectedFileId={selected.id}
+      />
+    );
+
+    expect(
+      screen.getByRole("button", { name: CAVEMAN_FILE_NAME })
+    ).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("expands every matching group while filtering", () => {
+    render(
+      <FileList
+        expandAll={true}
+        files={[
+          file(1, "skills/caveman/SKILL.md", "claude-skill"),
+          file(2, "skills/last30days/SKILL.md", "claude-skill"),
+        ]}
+        onSelectFile={vi.fn()}
+        roots={[root]}
+        selectedFileId={null}
+      />
+    );
+
+    expect(
+      screen.getByRole("button", { name: CAVEMAN_FILE_NAME })
+    ).toBeVisible();
   });
 });

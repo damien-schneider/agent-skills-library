@@ -51,6 +51,15 @@ export interface PromptHistoryEntry {
   attachments: PromptAttachment[];
 }
 
+export interface CaptureAccessStatus {
+  supported: boolean;
+  granted: boolean;
+}
+
+export interface CaptureErrorEvent {
+  message: string;
+}
+
 /** Mirrors db::files_repo::FileRow */
 export interface FileRow {
   id: number;

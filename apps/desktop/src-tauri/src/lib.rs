@@ -1,3 +1,4 @@
+mod capture;
 mod commands;
 mod db;
 mod error;
@@ -46,6 +47,10 @@ pub fn run() {
             let handle = app.handle().clone();
             let state = handle.state::<AppState>();
             commands::watcher::start_if_enabled(&handle, &state.db.clone(), &state)?;
+            if let Some(window) = app.get_webview_window("capture-overlay") {
+                window.set_ignore_cursor_events(true)?;
+            }
+            capture::start(&handle);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -58,6 +63,8 @@ pub fn run() {
             commands::prompts::list_prompt_history,
             commands::prompts::create_prompt,
             commands::prompts::read_prompt_attachment,
+            capture::capture_access_status,
+            capture::request_capture_access,
             commands::scan::start_scan,
             commands::scan::cancel_scan,
             commands::files::list_files,

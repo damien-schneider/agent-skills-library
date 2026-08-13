@@ -116,22 +116,20 @@ describe("LibraryView", () => {
     mocks.listRoots.mockReset().mockResolvedValue([root]);
   });
 
-  it("switches between tree and simplified views without losing selection", async () => {
+  it("starts simplified and switches views without losing selection", async () => {
     render(<LibraryView scan={scan} />);
 
-    expect(await screen.findByLabelText("Tree files")).toBeVisible();
-    expect(screen.getByRole("button", { name: "Tree" })).toHaveAttribute(
+    expect(await screen.findByLabelText("Simplified files")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Simplified" })).toHaveAttribute(
       "aria-pressed",
       "true"
     );
-
-    fireEvent.click(screen.getByRole("button", { name: "Simplified" }));
-    expect(screen.getByLabelText("Simplified files")).toBeVisible();
 
     fireEvent.click(screen.getByRole("button", { name: SIMPLIFIED_ITEM_NAME }));
     expect(screen.getByText(selectedFile.path)).toBeVisible();
 
     fireEvent.click(screen.getByRole("button", { name: "Tree" }));
+    expect(screen.getByLabelText("Tree files")).toBeVisible();
     expect(
       screen.getByRole("button", { name: TREE_ITEM_NAME })
     ).toHaveAttribute("aria-pressed", "true");

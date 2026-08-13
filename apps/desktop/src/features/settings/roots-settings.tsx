@@ -1,5 +1,5 @@
 import { open } from "@tauri-apps/plugin-dialog";
-import { FolderPlus, Trash2 } from "lucide-react";
+import { FolderPlus, Settings, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ScanStatus } from "@/features/scan/scan-status";
@@ -16,6 +16,12 @@ import {
 import type { Root, WatcherStatus } from "@/lib/ipc-types";
 import { Button } from "@/shared/components/ui/button";
 import { Separator } from "@/shared/components/ui/separator";
+import {
+  EmptyState,
+  ErrorState,
+  ViewHeader,
+  ViewLayout,
+} from "@/shared/components/view-layout";
 
 export function RootsSettings({ scan }: { scan: UseScan }) {
   const [roots, setRoots] = useState<Root[]>([]);
@@ -82,28 +88,26 @@ export function RootsSettings({ scan }: { scan: UseScan }) {
   };
 
   return (
-    <div className="mx-auto flex h-full max-w-3xl flex-col gap-5 overflow-auto px-8 py-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="font-semibold text-lg">Roots</h1>
-          <p className="text-muted-foreground text-sm">
-            Directories walked for agent config files.
-          </p>
-        </div>
-        <Button
-          onClick={() => {
-            handleAdd();
-          }}
-          size="sm"
-        >
-          <FolderPlus />
-          Add root
-        </Button>
-      </div>
+    <ViewLayout>
+      <ViewHeader
+        actions={
+          <Button
+            onClick={() => {
+              handleAdd();
+            }}
+            size="sm"
+          >
+            <FolderPlus />
+            Add root
+          </Button>
+        }
+        description="Choose which directories are indexed for agent files."
+        title="Settings"
+      />
 
       <Separator />
 
-      {error ? <p className="text-destructive text-sm">{error}</p> : null}
+      {error ? <ErrorState message={error} onRetry={refresh} /> : null}
 
       <ul className="flex flex-col gap-2">
         {roots.map((root) => (
@@ -138,8 +142,20 @@ export function RootsSettings({ scan }: { scan: UseScan }) {
             </Button>
           </li>
         ))}
-        {roots.length === 0 ? (
-          <li className="text-muted-foreground text-sm">No roots yet.</li>
+        {roots.length === 0 && !error ? (
+          <li>
+            <EmptyState
+              action={
+                <Button onClick={handleAdd} size="sm">
+                  <FolderPlus />
+                  Add root
+                </Button>
+              }
+              description="Add a directory to begin indexing agent configuration files."
+              icon={Settings}
+              title="No indexed directories"
+            />
+          </li>
         ) : null}
       </ul>
 
@@ -178,6 +194,6 @@ export function RootsSettings({ scan }: { scan: UseScan }) {
         </div>
         <ScanStatus scan={scan} />
       </div>
-    </div>
+    </ViewLayout>
   );
 }

@@ -1,9 +1,15 @@
 import { api } from "@skills-agent-library/backend/convex/_generated/api";
 import { usePaginatedQuery, useQuery } from "convex/react";
-import { Download, Search } from "lucide-react";
+import { Download, Search, Store } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
+import {
+  EmptyState,
+  ListSkeleton,
+  ViewHeader,
+  ViewLayout,
+} from "@/shared/components/view-layout";
 import {
   type InstallableSkill,
   InstallSkillDialog,
@@ -24,17 +30,16 @@ export function RegistryView() {
   );
 
   return (
-    <div className="mx-auto flex h-full max-w-4xl flex-col gap-4 overflow-auto px-8 py-8">
-      <div>
-        <h1 className="font-semibold text-lg">Registry</h1>
-        <p className="text-muted-foreground text-sm">
-          Skills published on agents-library.dev.
-        </p>
-      </div>
+    <ViewLayout>
+      <ViewHeader
+        description="Browse skills published on agents-library.dev and install them locally."
+        title="Registry"
+      />
 
       <div className="flex items-center gap-2 rounded-xl border border-border px-3">
         <Search className="size-3.5 shrink-0 text-muted-foreground" />
         <Input
+          aria-label="Search skills"
           className="h-9 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
           onChange={(event) => setSearch(event.target.value)}
           placeholder="Search skills"
@@ -42,8 +47,10 @@ export function RegistryView() {
         />
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <fieldset className="flex flex-wrap gap-2">
+        <legend className="sr-only">Skill category</legend>
         <Button
+          aria-pressed={category === undefined}
           onClick={() => setCategory(undefined)}
           size="sm"
           variant={category === undefined ? "default" : "outline"}
@@ -52,6 +59,7 @@ export function RegistryView() {
         </Button>
         {categories?.map((item) => (
           <Button
+            aria-pressed={category === item.slug}
             key={item._id}
             onClick={() => setCategory(item.slug)}
             size="sm"
@@ -60,39 +68,43 @@ export function RegistryView() {
             {item.name}
           </Button>
         ))}
-      </div>
+      </fieldset>
 
-      <ul className="flex flex-col gap-2">
-        {skills.results.map((skill) => (
-          <li
-            className="flex items-center gap-3 rounded-xl border border-border px-4 py-3"
-            key={skill._id}
-          >
-            <div className="min-w-0 flex-1">
-              <p className="truncate font-medium text-sm">{skill.name}</p>
-              <p className="line-clamp-2 text-muted-foreground text-xs">
-                {skill.description}
-              </p>
-            </div>
-            <Button
-              onClick={() =>
-                setSelected({
-                  name: skill.name,
-                  markdown: skill.markdown,
-                  githubOwner: skill.githubOwner,
-                  githubRepo: skill.githubRepo,
-                  skillSlug: skill.skillSlug,
-                })
-              }
-              size="sm"
-              variant="outline"
+      {skills.status === "LoadingFirstPage" ? (
+        <ListSkeleton rows={5} />
+      ) : (
+        <ul className="overflow-hidden rounded-xl border border-border">
+          {skills.results.map((skill) => (
+            <li
+              className="flex items-center gap-3 border-border border-b px-4 py-3 last:border-b-0"
+              key={skill._id}
             >
-              <Download />
-              Install
-            </Button>
-          </li>
-        ))}
-      </ul>
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-medium text-sm">{skill.name}</p>
+                <p className="line-clamp-2 text-muted-foreground text-xs">
+                  {skill.description}
+                </p>
+              </div>
+              <Button
+                onClick={() =>
+                  setSelected({
+                    name: skill.name,
+                    markdown: skill.markdown,
+                    githubOwner: skill.githubOwner,
+                    githubRepo: skill.githubRepo,
+                    skillSlug: skill.skillSlug,
+                  })
+                }
+                size="sm"
+                variant="outline"
+              >
+                <Download />
+                Install
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
 
       {skills.status === "CanLoadMore" ? (
         <Button
@@ -104,12 +116,12 @@ export function RegistryView() {
         </Button>
       ) : null}
 
-      {skills.status === "LoadingFirstPage" ? (
-        <p className="text-muted-foreground text-sm">Loading…</p>
-      ) : null}
-
       {skills.status === "Exhausted" && skills.results.length === 0 ? (
-        <p className="text-muted-foreground text-sm">No skills found.</p>
+        <EmptyState
+          description="Try a different search term or category."
+          icon={Store}
+          title="No skills found"
+        />
       ) : null}
 
       <InstallSkillDialog
@@ -117,6 +129,6 @@ export function RegistryView() {
         open={selected !== null}
         skill={selected}
       />
-    </div>
+    </ViewLayout>
   );
 }

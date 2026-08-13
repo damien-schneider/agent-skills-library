@@ -5,6 +5,7 @@ import type {
   AppErrorPayload,
   ApplyResult,
   Backup,
+  CaptureAccessStatus,
   DiffResult,
   DuplicateGroup,
   FavoriteProject,
@@ -88,6 +89,12 @@ export interface PendingPromptImage {
 
 export const readPromptAttachment = (attachmentId: number) =>
   call<number[]>("read_prompt_attachment", { attachmentId });
+
+export const captureAccessStatus = () =>
+  call<CaptureAccessStatus>("capture_access_status");
+
+export const requestCaptureAccess = () =>
+  call<CaptureAccessStatus>("request_capture_access");
 
 export const listFavoriteProjects = () =>
   call<FavoriteProject[]>("list_favorite_projects");

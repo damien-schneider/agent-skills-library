@@ -131,6 +131,50 @@
   }
 }
 
+html.capture-overlay-window,
+html.capture-overlay-window body,
+html.capture-overlay-window #root {
+  @apply bg-transparent;
+}
+
+.capture-island {
+  transform-origin: top center;
+  animation: capture-island-in 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.capture-island[data-exiting="true"] {
+  animation: capture-island-out 180ms cubic-bezier(0.76, 0, 0.24, 1) forwards;
+}
+
+@keyframes capture-island-in {
+  from {
+    opacity: 0.65;
+    transform: translateY(-8px) scale(0.86);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes capture-island-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.92);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .capture-island,
+  .capture-island[data-exiting="true"] {
+    animation-duration: 1ms;
+  }
+}
+
 .tiptap-editor {
   @apply font-sans text-foreground caret-foreground;
   text-wrap: pretty;

@@ -30,6 +30,7 @@ function LibraryFiles({
   roots,
   selectedFileId,
   viewMode,
+  expandAll,
   onSelectFile,
 }: {
   error: string | null;
@@ -38,6 +39,7 @@ function LibraryFiles({
   roots: Root[];
   selectedFileId: number | null;
   viewMode: LibraryViewMode;
+  expandAll: boolean;
   onSelectFile: (file: FileRow) => void;
 }) {
   if (error) {
@@ -56,6 +58,7 @@ function LibraryFiles({
 
   return viewMode === "simplified" ? (
     <FileList
+      expandAll={expandAll}
       files={files}
       onSelectFile={onSelectFile}
       roots={roots}
@@ -75,7 +78,7 @@ export function LibraryView({ scan }: { scan: UseScan }) {
   const [files, setFiles] = useState<FileRow[]>([]);
   const [roots, setRoots] = useState<Root[]>([]);
   const [search, setSearch] = useState("");
-  const [viewMode, setViewMode] = useState<LibraryViewMode>("tree");
+  const [viewMode, setViewMode] = useState<LibraryViewMode>("simplified");
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const favoriteProjects = useFavoriteProjects();
@@ -156,6 +159,7 @@ export function LibraryView({ scan }: { scan: UseScan }) {
         <div className="min-h-0 flex-1">
           <LibraryFiles
             error={error}
+            expandAll={search.trim().length > 0}
             files={visible}
             indexedFileCount={files.length}
             onSelectFile={(file) => setSelectedId(file.id)}

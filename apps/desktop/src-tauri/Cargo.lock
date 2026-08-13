@@ -60,15 +60,21 @@ dependencies = [
 
 [[package]]
 name = "another-dev-tool"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
+ "axuielement",
  "blake3",
+ "core-foundation",
+ "core-graphics",
  "crossbeam-channel",
  "dirs",
  "ignore",
  "log",
  "notify",
  "notify-debouncer-full",
+ "objc2",
+ "objc2-app-kit",
+ "objc2-foundation",
  "png 0.18.1",
  "rusqlite",
  "serde",
@@ -93,6 +99,15 @@ name = "anyhow"
 version = "1.0.104"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
+
+[[package]]
+name = "apple-cf"
+version = "0.9.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e7fd680cd0f3f02ee717b2014b26d18985c57b784384ba47213fcf8791e8c250"
+dependencies = [
+ "doom-fish-utils",
+]
 
 [[package]]
 name = "arbitrary"
@@ -301,6 +316,15 @@ name = "autocfg"
 version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
+
+[[package]]
+name = "axuielement"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7b73f5695be92296c35c332cfd287d2fce87d8d205306ee2e56659f6ae6386df"
+dependencies = [
+ "apple-cf",
+]
 
 [[package]]
 name = "base64"
@@ -726,6 +750,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "crossbeam-queue"
+version = "0.3.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "803d13fb3b09d88be9f4dbc29062c66b19bf7170867ceb746d2a8689bf6c7a26"
+dependencies = [
+ "crossbeam-utils",
+]
+
+[[package]]
 name = "crossbeam-utils"
 version = "0.8.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -962,6 +995,16 @@ dependencies = [
  "precomputed-hash",
  "selectors",
  "tendril",
+]
+
+[[package]]
+name = "doom-fish-utils"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c801f6c2a0db1a1909d89fc395b9dccc594de9ef599659fbde9bb3b55ef67f9f"
+dependencies = [
+ "crossbeam-queue",
+ "futures-util",
 ]
 
 [[package]]

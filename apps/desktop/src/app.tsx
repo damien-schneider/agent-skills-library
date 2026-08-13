@@ -28,14 +28,23 @@ export type ViewId =
   | "registry"
   | "settings";
 
-const RAIL_ITEMS: { id: ViewId; label: string; icon: typeof FolderTree }[] = [
+const PRIMARY_RAIL_ITEMS: {
+  id: Exclude<ViewId, "settings">;
+  label: string;
+  icon: typeof FolderTree;
+}[] = [
   { id: "library", label: "Library", icon: FolderTree },
   { id: "prompts", label: "Prompts", icon: History },
   { id: "duplicates", label: "Duplicates", icon: Copy },
   { id: "sync", label: "Sync", icon: RefreshCw },
   { id: "registry", label: "Registry", icon: Store },
-  { id: "settings", label: "Settings", icon: Settings },
 ];
+
+const SETTINGS_RAIL_ITEM = {
+  id: "settings",
+  label: "Settings",
+  icon: Settings,
+} satisfies { id: ViewId; label: string; icon: typeof FolderTree };
 
 export function App() {
   const [view, setView] = useState<ViewId>("library");
@@ -47,24 +56,27 @@ export function App() {
       <UpdateBanner {...update} />
 
       <div className="flex min-h-0 flex-1">
-        <nav className="flex w-16 shrink-0 flex-col items-center gap-1 border-border border-r bg-sidebar py-3">
-          {RAIL_ITEMS.map(({ id, label, icon: Icon }) => (
-            <button
-              className={cn(
-                "flex h-12 w-12 flex-col items-center justify-center gap-1 rounded-xl transition-colors",
-                view === id
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                  : "text-muted-foreground hover:bg-sidebar-accent/60"
-              )}
-              key={id}
-              onClick={() => setView(id)}
-              title={label}
-              type="button"
-            >
-              <Icon className="h-4 w-4" />
-              <span className="text-[10px] leading-none">{label}</span>
-            </button>
-          ))}
+        <nav
+          aria-label="Main navigation"
+          className="flex w-16 shrink-0 flex-col items-center border-border border-r bg-sidebar py-3"
+        >
+          <div className="flex flex-col gap-1">
+            {PRIMARY_RAIL_ITEMS.map((item) => (
+              <RailItem
+                active={view === item.id}
+                item={item}
+                key={item.id}
+                onSelect={setView}
+              />
+            ))}
+          </div>
+          <div className="mt-auto border-sidebar-border border-t pt-2">
+            <RailItem
+              active={view === SETTINGS_RAIL_ITEM.id}
+              item={SETTINGS_RAIL_ITEM}
+              onSelect={setView}
+            />
+          </div>
         </nav>
 
         <main className="min-w-0 flex-1">
@@ -81,5 +93,35 @@ export function App() {
 
       <Toaster />
     </div>
+  );
+}
+
+function RailItem({
+  active,
+  item,
+  onSelect,
+}: {
+  active: boolean;
+  item: { id: ViewId; label: string; icon: typeof FolderTree };
+  onSelect: (view: ViewId) => void;
+}) {
+  const Icon = item.icon;
+  return (
+    <button
+      aria-current={active ? "page" : undefined}
+      aria-label={item.label}
+      className={cn(
+        "flex h-12 w-12 flex-col items-center justify-center gap-1 rounded-lg outline-none transition-colors focus-visible:ring-2 focus-visible:ring-sidebar-ring motion-reduce:transition-none",
+        active
+          ? "bg-sidebar-accent text-sidebar-accent-foreground"
+          : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
+      )}
+      onClick={() => onSelect(item.id)}
+      title={item.label}
+      type="button"
+    >
+      <Icon className="size-4" />
+      <span className="text-[10px] leading-none">{item.label}</span>
+    </button>
   );
 }

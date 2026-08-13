@@ -6,6 +6,13 @@ import { onIndexUpdated } from "@/lib/events";
 import { createSyncGroup, listDuplicates, toIpcError } from "@/lib/ipc";
 import type { DuplicateGroup, FileRow } from "@/lib/ipc-types";
 import { Button } from "@/shared/components/ui/button";
+import {
+  EmptyState,
+  ErrorState,
+  ListSkeleton,
+  ViewHeader,
+  ViewLayout,
+} from "@/shared/components/view-layout";
 
 export function DuplicatesView({
   onGroupCreated,
@@ -16,6 +23,7 @@ export function DuplicatesView({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const [creatingHash, setCreatingHash] = useState<string | null>(null);
   const refresh = useCallback(async () => {
     try {
       setGroups(await listDuplicates());
@@ -44,6 +52,7 @@ export function DuplicatesView({
     group: DuplicateGroup,
     canonical: FileRow
   ) => {
+    setCreatingHash(group.hash);
     try {
       await createSyncGroup({
         name: canonical.relPath,
@@ -56,33 +65,38 @@ export function DuplicatesView({
       onGroupCreated();
     } catch (cause) {
       toast.error(toIpcError(cause).message);
+    } finally {
+      setCreatingHash(null);
     }
   };
 
   if (loading) {
     return (
-      <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
-        Loading…
-      </div>
+      <ViewLayout>
+        <ViewHeader
+          description="Choose one source of truth for files with identical content."
+          title="Duplicates"
+        />
+        <ListSkeleton rows={4} />
+      </ViewLayout>
     );
   }
 
   return (
-    <div className="mx-auto flex h-full max-w-4xl flex-col gap-5 overflow-auto px-8 py-8">
-      <div>
-        <h1 className="font-semibold text-lg">Duplicates</h1>
-        <p className="text-muted-foreground text-sm">
-          Files sharing the exact same content. Pick a source of truth to turn a
-          group into a sync group.
-        </p>
-      </div>
+    <ViewLayout>
+      <ViewHeader
+        description="Choose one source of truth for files with identical content."
+        title="Duplicates"
+      />
 
-      {error ? <p className="text-destructive text-sm">{error}</p> : null}
+      {error ? <ErrorState message={error} onRetry={refresh} /> : null}
 
       {groups.length === 0 && !error ? (
-        <p className="text-muted-foreground text-sm">
-          No duplicate content in the index.
-        </p>
+        <EmptyState
+          description="Files with matching content will appear here after indexing."
+          icon={Copy}
+          title="No duplicate content"
+        />
       ) : null}
 
       {groups.map((group) => (
@@ -112,19 +126,20 @@ export function DuplicatesView({
                   <Link2 className="size-3.5 shrink-0 text-chart-3" />
                 ) : null}
                 <Button
+                  disabled={creatingHash !== null}
                   onClick={() => {
                     handleCreateGroup(group, file);
                   }}
                   size="sm"
                   variant="outline"
                 >
-                  Use as source
+                  {creatingHash === group.hash ? "Creating…" : "Use as source"}
                 </Button>
               </li>
             ))}
           </ul>
         </section>
       ))}
-    </div>
+    </ViewLayout>
   );
 }
