@@ -90,6 +90,9 @@ export interface PendingPromptImage {
 export const readPromptAttachment = (attachmentId: number) =>
   call<number[]>("read_prompt_attachment", { attachmentId });
 
+export const deletePrompt = (promptId: number) =>
+  call<null>("delete_prompt", { promptId });
+
 export const captureAccessStatus = () =>
   call<CaptureAccessStatus>("capture_access_status");
 

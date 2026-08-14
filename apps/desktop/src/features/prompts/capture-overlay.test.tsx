@@ -8,11 +8,13 @@ import { CaptureOverlay } from "./capture-overlay";
 const mocks = vi.hoisted(() => ({
   onCaptureError: vi.fn(),
   onCaptureSaved: vi.fn(),
+  onCaptureShortcutProgress: vi.fn(),
 }));
 
 vi.mock("@/lib/events", () => ({
   onCaptureError: mocks.onCaptureError,
   onCaptureSaved: mocks.onCaptureSaved,
+  onCaptureShortcutProgress: mocks.onCaptureShortcutProgress,
 }));
 
 const capturedPrompt: PromptHistoryEntry = {
@@ -27,6 +29,9 @@ describe("CaptureOverlay", () => {
   beforeEach(() => {
     mocks.onCaptureError.mockReset().mockResolvedValue(() => undefined);
     mocks.onCaptureSaved.mockReset().mockResolvedValue(() => undefined);
+    mocks.onCaptureShortcutProgress
+      .mockReset()
+      .mockResolvedValue(() => undefined);
   });
 
   it("confirms the selected text was saved", async () => {
@@ -41,6 +46,34 @@ describe("CaptureOverlay", () => {
 
     expect(screen.getByText("Saved to Prompts")).toBeVisible();
     expect(screen.getByText("Summarize this terminal output")).toBeVisible();
+  });
+
+  it("fills both shortcut keys only after the double tap completes", async () => {
+    const { container } = render(<CaptureOverlay />);
+    await waitFor(() =>
+      expect(mocks.onCaptureShortcutProgress).toHaveBeenCalledOnce()
+    );
+
+    const listener = mocks.onCaptureShortcutProgress.mock.calls[0]?.[0];
+    if (typeof listener !== "function") {
+      throw new Error("Shortcut progress listener was not registered");
+    }
+    act(() => listener({ completedTaps: 1 }));
+    expect(screen.queryByText("Capture selection")).not.toBeInTheDocument();
+
+    act(() => listener({ completedTaps: 2 }));
+    expect(screen.getByText("Capture selection")).toBeVisible();
+    expect(container.querySelectorAll('[data-completed="true"]')).toHaveLength(
+      2
+    );
+    const activeIsland = container.querySelector(".capture-island");
+    const savedListener = mocks.onCaptureSaved.mock.calls[0]?.[0];
+    if (typeof savedListener !== "function") {
+      throw new Error("Capture listener was not registered");
+    }
+    act(() => savedListener(capturedPrompt));
+    expect(container.querySelector(".capture-island")).toBe(activeIsland);
+    expect(screen.getByText("Saved to Prompts")).toBeVisible();
   });
 
   it("limits long capture previews", async () => {

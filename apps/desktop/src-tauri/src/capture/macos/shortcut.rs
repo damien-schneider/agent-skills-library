@@ -10,13 +10,26 @@ use core_graphics::event::{
 
 const DOUBLE_SHIFT_INTERVAL: Duration = Duration::from_millis(500);
 
-pub(super) fn listen_for_double_shift(sender: SyncSender<()>) -> Result<(), ()> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum ShortcutProgress {
+    FirstTap,
+    Complete,
+}
+
+pub(super) fn listen_for_double_shift(sender: SyncSender<ShortcutProgress>) -> Result<(), ()> {
     let detector = RefCell::new(DoubleShiftDetector::new(DOUBLE_SHIFT_INTERVAL));
     CGEventTap::with_enabled(
         CGEventTapLocation::Session,
         CGEventTapPlacement::HeadInsertEventTap,
         CGEventTapOptions::ListenOnly,
-        vec![CGEventType::FlagsChanged, CGEventType::KeyDown],
+        vec![
+            CGEventType::FlagsChanged,
+            CGEventType::KeyDown,
+            CGEventType::LeftMouseDown,
+            CGEventType::RightMouseDown,
+            CGEventType::OtherMouseDown,
+            CGEventType::ScrollWheel,
+        ],
         move |_proxy, event_type, event| {
             let mut detector = detector.borrow_mut();
             match event_type {
@@ -25,14 +38,18 @@ pub(super) fn listen_for_double_shift(sender: SyncSender<()>) -> Result<(), ()> 
                         event.get_integer_value_field(EventField::KEYBOARD_EVENT_KEYCODE) as u16;
                     if is_shift_key(key_code) {
                         let is_down = event.get_flags().contains(CGEventFlags::CGEventFlagShift);
-                        if detector.update_shift(is_down, Instant::now()) {
-                            let _ = sender.try_send(());
+                        if let Some(progress) = detector.update_shift(is_down, Instant::now()) {
+                            let _ = sender.try_send(progress);
                         }
                     } else {
                         detector.cancel();
                     }
                 }
-                CGEventType::KeyDown => detector.cancel(),
+                CGEventType::KeyDown
+                | CGEventType::LeftMouseDown
+                | CGEventType::RightMouseDown
+                | CGEventType::OtherMouseDown
+                | CGEventType::ScrollWheel => detector.cancel(),
                 _ => {}
             }
             CallbackResult::Keep
@@ -63,7 +80,7 @@ impl DoubleShiftDetector {
         }
     }
 
-    fn update_shift(&mut self, is_down: bool, now: Instant) -> bool {
+    fn update_shift(&mut self, is_down: bool, now: Instant) -> Option<ShortcutProgress> {
         if is_down {
             if self.current_press_started_at.is_some() {
                 self.current_press_valid = false;
@@ -71,24 +88,26 @@ impl DoubleShiftDetector {
                 self.current_press_started_at = Some(now);
                 self.current_press_valid = true;
             }
-            return false;
+            return None;
         }
 
-        let Some(started_at) = self.current_press_started_at.take() else {
-            return false;
-        };
+        let started_at = self.current_press_started_at.take()?;
         if !std::mem::take(&mut self.current_press_valid)
             || now.duration_since(started_at) > self.interval
         {
             self.last_release = None;
-            return false;
+            return None;
         }
 
         let is_double_tap = self
             .last_release
             .is_some_and(|last| now.duration_since(last) <= self.interval);
         self.last_release = if is_double_tap { None } else { Some(now) };
-        is_double_tap
+        Some(if is_double_tap {
+            ShortcutProgress::Complete
+        } else {
+            ShortcutProgress::FirstTap
+        })
     }
 
     fn cancel(&mut self) {
@@ -107,10 +126,19 @@ mod tests {
         let start = Instant::now();
         let mut detector = DoubleShiftDetector::new(Duration::from_millis(500));
 
-        assert!(!detector.update_shift(true, start));
-        assert!(!detector.update_shift(false, start + Duration::from_millis(20)));
-        assert!(!detector.update_shift(true, start + Duration::from_millis(200)));
-        assert!(detector.update_shift(false, start + Duration::from_millis(220)));
+        assert_eq!(detector.update_shift(true, start), None);
+        assert_eq!(
+            detector.update_shift(false, start + Duration::from_millis(20)),
+            Some(ShortcutProgress::FirstTap)
+        );
+        assert_eq!(
+            detector.update_shift(true, start + Duration::from_millis(200)),
+            None
+        );
+        assert_eq!(
+            detector.update_shift(false, start + Duration::from_millis(220)),
+            Some(ShortcutProgress::Complete)
+        );
     }
 
     #[test]
@@ -121,13 +149,22 @@ mod tests {
         detector.update_shift(true, start);
         detector.update_shift(false, start + Duration::from_millis(20));
         detector.update_shift(true, start + Duration::from_millis(600));
-        assert!(!detector.update_shift(false, start + Duration::from_millis(620)));
+        assert_eq!(
+            detector.update_shift(false, start + Duration::from_millis(620)),
+            Some(ShortcutProgress::FirstTap)
+        );
 
         detector.update_shift(true, start + Duration::from_millis(700));
         detector.cancel();
-        assert!(!detector.update_shift(false, start + Duration::from_millis(720)));
+        assert_eq!(
+            detector.update_shift(false, start + Duration::from_millis(720)),
+            None
+        );
         detector.update_shift(true, start + Duration::from_millis(800));
-        assert!(!detector.update_shift(false, start + Duration::from_millis(820)));
+        assert_eq!(
+            detector.update_shift(false, start + Duration::from_millis(820)),
+            Some(ShortcutProgress::FirstTap)
+        );
     }
 
     #[test]
@@ -136,9 +173,15 @@ mod tests {
         let mut detector = DoubleShiftDetector::new(Duration::from_millis(500));
 
         detector.update_shift(true, start);
-        assert!(!detector.update_shift(false, start + Duration::from_secs(2)));
+        assert_eq!(
+            detector.update_shift(false, start + Duration::from_secs(2)),
+            None
+        );
         detector.update_shift(true, start + Duration::from_millis(2100));
-        assert!(!detector.update_shift(false, start + Duration::from_millis(2120)));
+        assert_eq!(
+            detector.update_shift(false, start + Duration::from_millis(2120)),
+            Some(ShortcutProgress::FirstTap)
+        );
     }
 
     #[test]
@@ -149,8 +192,14 @@ mod tests {
         detector.update_shift(true, start);
         detector.update_shift(true, start + Duration::from_millis(10));
         detector.update_shift(true, start + Duration::from_millis(20));
-        assert!(!detector.update_shift(false, start + Duration::from_millis(30)));
+        assert_eq!(
+            detector.update_shift(false, start + Duration::from_millis(30)),
+            None
+        );
         detector.update_shift(true, start + Duration::from_millis(100));
-        assert!(!detector.update_shift(false, start + Duration::from_millis(120)));
+        assert_eq!(
+            detector.update_shift(false, start + Duration::from_millis(120)),
+            Some(ShortcutProgress::FirstTap)
+        );
     }
 }

@@ -3,6 +3,7 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type {
   CaptureAccessStatus,
   CaptureErrorEvent,
+  CaptureShortcutProgress,
   IndexUpdatedEvent,
   PromptHistoryEntry,
   ScanDoneEvent,
@@ -17,6 +18,7 @@ export const INDEX_UPDATED = "index:updated";
 export const CAPTURE_SAVED = "capture:saved";
 export const CAPTURE_ERROR = "capture:error";
 export const CAPTURE_ACCESS_CHANGED = "capture:access-changed";
+export const CAPTURE_SHORTCUT_PROGRESS = "capture:shortcut-progress";
 
 function on<T>(
   event: string,
@@ -43,6 +45,10 @@ export const onCaptureSaved = (
 
 export const onCaptureError = (handler: (payload: CaptureErrorEvent) => void) =>
   on<CaptureErrorEvent>(CAPTURE_ERROR, handler);
+
+export const onCaptureShortcutProgress = (
+  handler: (payload: CaptureShortcutProgress) => void
+) => on<CaptureShortcutProgress>(CAPTURE_SHORTCUT_PROGRESS, handler);
 
 export const onCaptureAccessChanged = (
   handler: (payload: CaptureAccessStatus) => void

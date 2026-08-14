@@ -131,6 +131,7 @@ export function RootsSettings({ scan }: { scan: UseScan }) {
               {root.path}
             </label>
             <Button
+              aria-label={`Remove ${root.path} from indexed roots`}
               onClick={() => {
                 handleRemove(root);
               }}

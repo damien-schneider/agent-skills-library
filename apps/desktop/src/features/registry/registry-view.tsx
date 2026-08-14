@@ -1,6 +1,6 @@
 import { api } from "@skills-agent-library/backend/convex/_generated/api";
 import { usePaginatedQuery, useQuery } from "convex/react";
-import { Download, Search, Store } from "lucide-react";
+import { Download, Search, Store, X } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
@@ -42,9 +42,25 @@ export function RegistryView() {
           aria-label="Search skills"
           className="h-9 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
           onChange={(event) => setSearch(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Escape" && search.length > 0) {
+              event.preventDefault();
+              setSearch("");
+            }
+          }}
           placeholder="Search skills"
           value={search}
         />
+        {search.length > 0 ? (
+          <button
+            aria-label="Clear skill search"
+            className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none"
+            onClick={() => setSearch("")}
+            type="button"
+          >
+            <X className="size-3.5" />
+          </button>
+        ) : null}
       </div>
 
       <fieldset className="flex flex-wrap gap-2">

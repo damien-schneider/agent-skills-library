@@ -172,6 +172,58 @@ pub fn read_prompt_attachment(
     fs::read(attachment.path).map_err(AppError::from)
 }
 
+#[tauri::command]
+pub fn delete_prompt(state: State<'_, AppState>, prompt_id: i64) -> AppResult<()> {
+    delete_prompt_in(state.inner(), prompt_id)
+}
+
+fn delete_prompt_in(state: &AppState, prompt_id: i64) -> AppResult<()> {
+    let prompt_exists = state
+        .db
+        .with_conn(|conn| prompts_repo::get(conn, prompt_id))?
+        .is_some();
+    if !prompt_exists {
+        return Err(AppError::NotFound(format!(
+            "prompt {prompt_id} does not exist"
+        )));
+    }
+
+    let prompt_dir = state.prompt_attachments_dir.join(prompt_id.to_string());
+    let staged_dir = if prompt_dir.is_dir() {
+        fs::create_dir_all(&state.prompt_attachments_dir)?;
+        let staged_path = tempfile::Builder::new()
+            .prefix("deleting-")
+            .tempdir_in(&state.prompt_attachments_dir)?
+            .keep();
+        fs::remove_dir(&staged_path)?;
+        fs::rename(&prompt_dir, &staged_path)?;
+        Some(staged_path)
+    } else {
+        None
+    };
+
+    if let Err(error) = state
+        .db
+        .with_conn(|conn| prompts_repo::delete(conn, prompt_id))
+    {
+        if let Some(staged_path) = staged_dir {
+            if let Err(rollback_error) = fs::rename(&staged_path, &prompt_dir) {
+                log::error!(
+                    "could not restore prompt attachments after delete failed: {rollback_error}"
+                );
+            }
+        }
+        return Err(error);
+    }
+
+    if let Some(staged_path) = staged_dir {
+        if let Err(error) = fs::remove_dir_all(&staged_path) {
+            log::warn!("could not remove deleted prompt attachments: {error}");
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -279,5 +331,25 @@ mod tests {
             fs::read_dir(&state.prompt_attachments_dir).unwrap().count(),
             1
         );
+    }
+
+    #[test]
+    fn deletes_a_prompt_and_its_attachments() {
+        let app_data = tempdir().unwrap();
+        let attachment_root = app_data.path().join("prompt-attachments");
+        let state = AppState::new(Db::open_in_memory().unwrap(), attachment_root);
+        let image = PendingPromptImage {
+            rgba: vec![255, 0, 0, 255],
+            width: 1,
+            height: 1,
+        };
+        let prompt =
+            create_prompt_in(&state, "Delete this prompt".into(), None, vec![image]).unwrap();
+        let prompt_dir = state.prompt_attachments_dir.join(prompt.id.to_string());
+
+        delete_prompt_in(&state, prompt.id).unwrap();
+
+        assert!(state.db.with_conn(prompts_repo::list).unwrap().is_empty());
+        assert!(!prompt_dir.exists());
     }
 }

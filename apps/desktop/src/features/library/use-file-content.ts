@@ -3,7 +3,7 @@ import {
   joinFrontmatter,
   splitFrontmatter,
 } from "@skills-agent-library/skills-core/frontmatter";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { onIndexUpdated } from "@/lib/events";
 import { type IpcError, readFile, toIpcError, writeFile } from "@/lib/ipc";
@@ -48,36 +48,57 @@ function documentOf(buffer: FileBuffer, mode: EditorMode): string {
     : joinFrontmatter({ ...buffer.split, body: buffer.body });
 }
 
+interface FileError {
+  fileId: number;
+  message: string;
+}
+
 export function useFileContent(fileId: number | null): UseFileContent {
   const [buffer, setBuffer] = useState<FileBuffer | null>(null);
   const [mode, setModeState] = useState<EditorMode>("rich");
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [conflict, setConflict] = useState(false);
-  const [changedOnDisk, setChangedOnDisk] = useState(false);
+  const [loadingFileId, setLoadingFileId] = useState<number | null>(null);
+  const [savingFileId, setSavingFileId] = useState<number | null>(null);
+  const [error, setError] = useState<FileError | null>(null);
+  const [conflictFileId, setConflictFileId] = useState<number | null>(null);
+  const [changedOnDiskFileId, setChangedOnDiskFileId] = useState<number | null>(
+    null
+  );
+  const loadRequestRef = useRef(0);
 
   const load = useCallback(async (id: number) => {
-    setLoading(true);
+    loadRequestRef.current += 1;
+    const requestId = loadRequestRef.current;
+    setLoadingFileId(id);
     setError(null);
     try {
       const content = await readFile(id);
+      if (loadRequestRef.current !== requestId) {
+        return;
+      }
       setBuffer(toBuffer(content));
-      setConflict(false);
-      setChangedOnDisk(false);
+      setConflictFileId(null);
+      setChangedOnDiskFileId(null);
     } catch (cause) {
+      if (loadRequestRef.current !== requestId) {
+        return;
+      }
       setBuffer(null);
-      setError(toIpcError(cause).message);
+      setError({ fileId: id, message: toIpcError(cause).message });
     } finally {
-      setLoading(false);
+      if (loadRequestRef.current === requestId) {
+        setLoadingFileId(null);
+      }
     }
   }, []);
 
   useEffect(() => {
     if (fileId === null) {
+      loadRequestRef.current += 1;
       setBuffer(null);
-      setConflict(false);
-      setChangedOnDisk(false);
+      setLoadingFileId(null);
+      setError(null);
+      setConflictFileId(null);
+      setChangedOnDiskFileId(null);
       return;
     }
     load(fileId);
@@ -86,7 +107,7 @@ export function useFileContent(fileId: number | null): UseFileContent {
   useEffect(() => {
     const unlisten = onIndexUpdated(({ fileIds }) => {
       if (fileId !== null && fileIds.includes(fileId)) {
-        setChangedOnDisk(true);
+        setChangedOnDiskFileId(fileId);
       }
     });
     return () => {
@@ -94,13 +115,22 @@ export function useFileContent(fileId: number | null): UseFileContent {
     };
   }, [fileId]);
 
+  const currentBuffer =
+    fileId !== null && buffer?.content.fileId === fileId ? buffer : null;
+  const currentError =
+    fileId !== null && error?.fileId === fileId ? error.message : null;
+  const loading =
+    fileId !== null &&
+    currentError === null &&
+    (currentBuffer === null || loadingFileId === fileId);
+
   const setMode = useCallback(
     (next: EditorMode) => {
       if (mode === next) {
         return;
       }
       setBuffer((previous) => {
-        if (!previous) {
+        if (!previous || previous.content.fileId !== fileId) {
           return previous;
         }
         if (next === "raw") {
@@ -114,35 +144,50 @@ export function useFileContent(fileId: number | null): UseFileContent {
       });
       setModeState(next);
     },
-    [mode]
+    [fileId, mode]
   );
 
-  const setBody = useCallback((body: string) => {
-    setBuffer((previous) => (previous ? { ...previous, body } : previous));
-  }, []);
+  const setBody = useCallback(
+    (body: string) => {
+      setBuffer((previous) =>
+        previous?.content.fileId === fileId ? { ...previous, body } : previous
+      );
+    },
+    [fileId]
+  );
 
-  const setRaw = useCallback((raw: string) => {
-    setBuffer((previous) => (previous ? { ...previous, raw } : previous));
-  }, []);
+  const setRaw = useCallback(
+    (raw: string) => {
+      setBuffer((previous) =>
+        previous?.content.fileId === fileId ? { ...previous, raw } : previous
+      );
+    },
+    [fileId]
+  );
 
-  const documentText = buffer ? documentOf(buffer, mode) : "";
-  const dirty = buffer ? documentText !== buffer.content.content : false;
+  const documentText = currentBuffer ? documentOf(currentBuffer, mode) : "";
+  const dirty = currentBuffer
+    ? documentText !== currentBuffer.content.content
+    : false;
 
   const persist = useCallback(
     async (expectedHash: string): Promise<boolean> => {
-      if (!buffer) {
+      if (!currentBuffer) {
         return false;
       }
-      setSaving(true);
-      setError(null);
+      const targetFileId = currentBuffer.content.fileId;
+      setSavingFileId(targetFileId);
+      setError((current) =>
+        current?.fileId === targetFileId ? null : current
+      );
       try {
         const result = await writeFile(
-          buffer.content.fileId,
+          targetFileId,
           documentText,
           expectedHash
         );
         setBuffer((previous) =>
-          previous
+          previous?.content.fileId === targetFileId
             ? {
                 ...previous,
                 content: {
@@ -154,42 +199,53 @@ export function useFileContent(fileId: number | null): UseFileContent {
               }
             : previous
         );
-        setConflict(false);
-        setChangedOnDisk(false);
+        setConflictFileId((current) =>
+          current === targetFileId ? null : current
+        );
+        setChangedOnDiskFileId((current) =>
+          current === targetFileId ? null : current
+        );
         return true;
       } catch (cause) {
         const ipcError: IpcError = toIpcError(cause);
         if (ipcError.code === "conflict") {
-          setConflict(true);
+          setConflictFileId(targetFileId);
         } else {
-          setError(ipcError.message);
+          setError({ fileId: targetFileId, message: ipcError.message });
         }
         return false;
       } finally {
-        setSaving(false);
+        setSavingFileId((current) =>
+          current === targetFileId ? null : current
+        );
       }
     },
-    [buffer, documentText]
+    [currentBuffer, documentText]
   );
 
+  const saving = fileId !== null && savingFileId === fileId;
+
   const save = useCallback(async (): Promise<boolean> => {
-    if (!(buffer && dirty) || saving) {
+    if (!(currentBuffer && dirty) || saving) {
       return false;
     }
-    return await persist(buffer.content.hash);
-  }, [buffer, dirty, persist, saving]);
+    return await persist(currentBuffer.content.hash);
+  }, [currentBuffer, dirty, persist, saving]);
 
   const overwrite = useCallback(async () => {
-    if (!buffer) {
+    if (!currentBuffer) {
       return;
     }
     try {
-      const fresh = await readFile(buffer.content.fileId);
+      const fresh = await readFile(currentBuffer.content.fileId);
       await persist(fresh.hash);
     } catch (cause) {
-      setError(toIpcError(cause).message);
+      setError({
+        fileId: currentBuffer.content.fileId,
+        message: toIpcError(cause).message,
+      });
     }
-  }, [buffer, persist]);
+  }, [currentBuffer, persist]);
 
   const reload = useCallback(async () => {
     if (fileId !== null) {
@@ -197,15 +253,19 @@ export function useFileContent(fileId: number | null): UseFileContent {
     }
   }, [fileId, load]);
 
+  const dismissConflict = useCallback(() => {
+    setConflictFileId((current) => (current === fileId ? null : current));
+  }, [fileId]);
+
   return {
-    buffer,
+    buffer: currentBuffer,
     mode,
     dirty,
     loading,
     saving,
-    error,
-    conflict,
-    changedOnDisk,
+    error: currentError,
+    conflict: fileId !== null && conflictFileId === fileId,
+    changedOnDisk: fileId !== null && changedOnDiskFileId === fileId,
     documentText,
     setMode,
     setBody,
@@ -213,6 +273,6 @@ export function useFileContent(fileId: number | null): UseFileContent {
     save,
     overwrite,
     reload,
-    dismissConflict: () => setConflict(false),
+    dismissConflict,
   };
 }

@@ -12,6 +12,7 @@ pub const INDEX_UPDATED: &str = "index:updated";
 pub const CAPTURE_SAVED: &str = "capture:saved";
 pub const CAPTURE_ERROR: &str = "capture:error";
 pub const CAPTURE_ACCESS_CHANGED: &str = "capture:access-changed";
+pub const CAPTURE_SHORTCUT_PROGRESS: &str = "capture:shortcut-progress";
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -50,6 +51,12 @@ pub struct CaptureError {
     pub message: String,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CaptureShortcutProgress {
+    pub completed_taps: u8,
+}
+
 pub fn emit_scan_progress(app: &AppHandle, payload: ScanProgress) {
     let _ = app.emit(SCAN_PROGRESS, payload);
 }
@@ -75,6 +82,13 @@ pub fn emit_capture_saved(app: &AppHandle, prompt: PromptHistoryEntry) {
 
 pub fn emit_capture_error(app: &AppHandle, message: String) {
     let _ = app.emit(CAPTURE_ERROR, CaptureError { message });
+}
+
+pub fn emit_capture_shortcut_progress(app: &AppHandle, completed_taps: u8) {
+    let _ = app.emit(
+        CAPTURE_SHORTCUT_PROGRESS,
+        CaptureShortcutProgress { completed_taps },
+    );
 }
 
 pub fn emit_capture_access_changed(app: &AppHandle, status: CaptureAccessStatus) {
@@ -112,5 +126,12 @@ mod tests {
         .unwrap();
 
         assert_eq!(json["fileIds"], serde_json::json!([1, 2]));
+    }
+
+    #[test]
+    fn shortcut_progress_uses_camel_case() {
+        let json = serde_json::to_value(CaptureShortcutProgress { completed_taps: 2 }).unwrap();
+
+        assert_eq!(json["completedTaps"], 2);
     }
 }

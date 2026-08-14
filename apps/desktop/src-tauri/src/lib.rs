@@ -63,6 +63,7 @@ pub fn run() {
             commands::prompts::list_prompt_history,
             commands::prompts::create_prompt,
             commands::prompts::read_prompt_attachment,
+            commands::prompts::delete_prompt,
             capture::capture_access_status,
             capture::request_capture_access,
             commands::scan::start_scan,

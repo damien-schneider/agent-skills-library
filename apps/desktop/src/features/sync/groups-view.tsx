@@ -132,6 +132,7 @@ export function GroupsView() {
                   Preview & apply
                 </Button>
                 <Button
+                  aria-label={`Delete sync group ${group.name}`}
                   onClick={() => {
                     run(deleteSyncGroup(group.id), `Deleted ${group.name}`);
                   }}
@@ -164,6 +165,7 @@ export function GroupsView() {
                       {member.status}
                     </span>
                     <Button
+                      aria-label={`Promote ${member.file.relPath} to source`}
                       onClick={() => {
                         run(
                           setCanonical(group.id, member.file.id),
@@ -176,6 +178,7 @@ export function GroupsView() {
                       Promote
                     </Button>
                     <Button
+                      aria-label={`Remove ${member.file.relPath} from ${group.name}`}
                       onClick={() => {
                         run(
                           removeMember(group.id, member.file.id),

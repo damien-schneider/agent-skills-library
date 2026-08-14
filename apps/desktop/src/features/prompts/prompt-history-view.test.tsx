@@ -16,10 +16,12 @@ import { PromptHistoryView } from "./prompt-history-view";
 const mocks = vi.hoisted(() => ({
   captureAccessStatus: vi.fn(),
   createPrompt: vi.fn(),
+  deletePrompt: vi.fn(),
   listFavoriteProjects: vi.fn(),
   listPromptHistory: vi.fn(),
   onCaptureAccessChanged: vi.fn(),
   onCaptureSaved: vi.fn(),
+  onCaptureShortcutProgress: vi.fn(),
   open: vi.fn(),
   readImage: vi.fn(),
   readPromptAttachment: vi.fn(),
@@ -51,10 +53,12 @@ vi.mock("./prompt-attachments", async (importOriginal) => {
 vi.mock("@/lib/events", () => ({
   onCaptureAccessChanged: mocks.onCaptureAccessChanged,
   onCaptureSaved: mocks.onCaptureSaved,
+  onCaptureShortcutProgress: mocks.onCaptureShortcutProgress,
 }));
 vi.mock("@/lib/ipc", () => ({
   captureAccessStatus: mocks.captureAccessStatus,
   createPrompt: mocks.createPrompt,
+  deletePrompt: mocks.deletePrompt,
   listFavoriteProjects: mocks.listFavoriteProjects,
   listPromptHistory: mocks.listPromptHistory,
   readPromptAttachment: mocks.readPromptAttachment,
@@ -75,6 +79,20 @@ const storedPrompt: PromptHistoryEntry = {
 };
 
 const COPY_BUTTON_NAME = /Copy prompt saved/;
+const DELETE_BUTTON_NAME = /Delete prompt saved/;
+
+function deferred<T>() {
+  let resolveValue: (value: T) => void = () => {
+    throw new Error("Deferred promise was not initialized");
+  };
+  const promise = new Promise<T>((resolve) => {
+    resolveValue = resolve;
+  });
+  return {
+    promise,
+    resolve: (value: T) => resolveValue(value),
+  };
+}
 
 describe("PromptHistoryView", () => {
   beforeEach(() => {
@@ -82,10 +100,14 @@ describe("PromptHistoryView", () => {
       .mockReset()
       .mockResolvedValue({ supported: true, granted: true });
     mocks.createPrompt.mockReset();
+    mocks.deletePrompt.mockReset().mockResolvedValue(null);
     mocks.listFavoriteProjects.mockReset().mockResolvedValue([]);
     mocks.listPromptHistory.mockReset().mockResolvedValue([]);
     mocks.onCaptureAccessChanged.mockReset().mockResolvedValue(() => undefined);
     mocks.onCaptureSaved.mockReset().mockResolvedValue(() => undefined);
+    mocks.onCaptureShortcutProgress
+      .mockReset()
+      .mockResolvedValue(() => undefined);
     mocks.readImage.mockReset();
     mocks.readPromptAttachment.mockReset();
     mocks.requestCaptureAccess.mockReset();
@@ -163,6 +185,63 @@ describe("PromptHistoryView", () => {
     expect(screen.getByText("1 prompt")).toBeVisible();
   });
 
+  it("deletes a saved prompt after inline confirmation", async () => {
+    mocks.listPromptHistory.mockResolvedValue([storedPrompt]);
+    render(<PromptHistoryView />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: DELETE_BUTTON_NAME })
+    );
+    expect(mocks.deletePrompt).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+
+    await waitFor(() =>
+      expect(mocks.deletePrompt).toHaveBeenCalledWith(storedPrompt.id)
+    );
+    expect(screen.queryByText(storedPrompt.content)).not.toBeInTheDocument();
+    expect(screen.getByText("No saved prompts yet")).toBeVisible();
+  });
+
+  it("locks other delete requests while one is pending", async () => {
+    const deletion = deferred<null>();
+    const otherPrompt = {
+      ...storedPrompt,
+      id: 8,
+      content: "Ship the release notes",
+      createdAt: storedPrompt.createdAt - 60_000,
+    };
+    mocks.listPromptHistory.mockResolvedValue([storedPrompt, otherPrompt]);
+    mocks.deletePrompt.mockReturnValue(deletion.promise);
+    render(<PromptHistoryView />);
+
+    const [firstDeleteButton] = await screen.findAllByRole("button", {
+      name: DELETE_BUTTON_NAME,
+    });
+    if (!firstDeleteButton) {
+      throw new Error("First delete button was not rendered");
+    }
+    fireEvent.click(firstDeleteButton);
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+
+    const otherDeleteButton = screen.getByRole("button", {
+      name: DELETE_BUTTON_NAME,
+    });
+    expect(otherDeleteButton).toBeDisabled();
+    fireEvent.click(otherDeleteButton);
+    expect(mocks.deletePrompt).toHaveBeenCalledOnce();
+
+    await act(async () => {
+      deletion.resolve(null);
+      await deletion.promise;
+    });
+
+    await waitFor(() => expect(otherDeleteButton).toBeEnabled());
+    expect(screen.queryByText(storedPrompt.content)).not.toBeInTheDocument();
+    fireEvent.click(otherDeleteButton);
+    expect(screen.getByRole("button", { name: "Delete" })).toBeVisible();
+  });
+
   it("adds a globally captured selection to the visible history", async () => {
     render(<PromptHistoryView />);
     await waitFor(() => expect(mocks.onCaptureSaved).toHaveBeenCalledOnce());
@@ -177,6 +256,24 @@ describe("PromptHistoryView", () => {
     expect(screen.getByText("1 prompt")).toBeVisible();
   });
 
+  it("fills each shortcut key as the double tap progresses", async () => {
+    const { container } = render(<PromptHistoryView />);
+    expect(await screen.findByText("Capture selection")).toBeVisible();
+
+    const listener = mocks.onCaptureShortcutProgress.mock.calls[0]?.[0];
+    if (typeof listener !== "function") {
+      throw new Error("Shortcut progress listener was not registered");
+    }
+    act(() => listener({ completedTaps: 1 }));
+    expect(container.querySelectorAll('[data-completed="true"]')).toHaveLength(
+      1
+    );
+
+    act(() => listener({ completedTaps: 2 }));
+    expect(container.querySelectorAll('[data-completed="true"]')).toHaveLength(
+      2
+    );
+  });
   it("offers a copy action on every saved attachment", async () => {
     mocks.listPromptHistory.mockResolvedValue([
       {

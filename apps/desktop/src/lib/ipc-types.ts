@@ -60,6 +60,10 @@ export interface CaptureErrorEvent {
   message: string;
 }
 
+export interface CaptureShortcutProgress {
+  completedTaps: 1 | 2;
+}
+
 /** Mirrors db::files_repo::FileRow */
 export interface FileRow {
   id: number;

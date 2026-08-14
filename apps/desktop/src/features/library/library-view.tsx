@@ -1,4 +1,4 @@
-import { List, Search, SquareStack } from "lucide-react";
+import { List, Search, SquareStack, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useFavoriteProjects } from "@/features/projects/use-favorite-projects";
 import { ScanStatus } from "@/features/scan/scan-status";
@@ -6,11 +6,21 @@ import type { UseScan } from "@/features/scan/use-scan";
 import { onIndexUpdated } from "@/lib/events";
 import { listFiles, listRoots, toIpcError } from "@/lib/ipc";
 import type { FileRow, Root } from "@/lib/ipc-types";
+import { Button } from "@/shared/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/shared/components/ui/dialog";
 import { Input } from "@/shared/components/ui/input";
 
 import { EditorPane } from "./editor-pane";
 import { FileList } from "./file-list";
 import { FileTree } from "./file-tree";
+import type { UseFileContent } from "./use-file-content";
 
 type LibraryViewMode = "simplified" | "tree";
 
@@ -31,6 +41,8 @@ function LibraryFiles({
   selectedFileId,
   viewMode,
   expandAll,
+  onOpenSettings,
+  onRetry,
   onSelectFile,
 }: {
   error: string | null;
@@ -40,18 +52,37 @@ function LibraryFiles({
   selectedFileId: number | null;
   viewMode: LibraryViewMode;
   expandAll: boolean;
+  onOpenSettings: () => void;
+  onRetry: () => Promise<void>;
   onSelectFile: (file: FileRow) => void;
 }) {
   if (error) {
-    return <p className="px-4 py-6 text-destructive text-sm">{error}</p>;
+    return (
+      <div className="flex flex-col items-start gap-3 px-4 py-6">
+        <p className="text-destructive text-sm">{error}</p>
+        <Button onClick={onRetry} size="sm" variant="outline">
+          Try again
+        </Button>
+      </div>
+    );
   }
 
   if (files.length === 0) {
+    if (indexedFileCount === 0) {
+      return (
+        <div className="flex flex-col items-start gap-3 px-4 py-6">
+          <p className="text-muted-foreground text-sm">
+            Nothing indexed yet. Add a root to begin.
+          </p>
+          <Button onClick={onOpenSettings} size="sm" variant="outline">
+            Open settings
+          </Button>
+        </div>
+      );
+    }
     return (
       <p className="px-4 py-6 text-muted-foreground text-sm">
-        {indexedFileCount === 0
-          ? "Nothing indexed yet — add a root and run a scan."
-          : "No files match this filter."}
+        No files match this filter.
       </p>
     );
   }
@@ -74,12 +105,25 @@ function LibraryFiles({
   );
 }
 
-export function LibraryView({ scan }: { scan: UseScan }) {
+export function LibraryView({
+  editor,
+  onOpenSettings,
+  onSelectedFileIdChange,
+  scan,
+  selectedFileId,
+}: {
+  editor: UseFileContent;
+  onOpenSettings: () => void;
+  onSelectedFileIdChange: (fileId: number | null) => void;
+  scan: UseScan;
+  selectedFileId: number | null;
+}) {
   const [files, setFiles] = useState<FileRow[]>([]);
   const [roots, setRoots] = useState<Root[]>([]);
   const [search, setSearch] = useState("");
   const [viewMode, setViewMode] = useState<LibraryViewMode>("simplified");
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selectedFile, setSelectedFile] = useState<FileRow | null>(null);
+  const [pendingFile, setPendingFile] = useState<FileRow | null>(null);
   const [error, setError] = useState<string | null>(null);
   const favoriteProjects = useFavoriteProjects();
 
@@ -117,9 +161,25 @@ export function LibraryView({ scan }: { scan: UseScan }) {
       : files.filter((file) => file.path.toLowerCase().includes(needle));
   }, [files, search]);
 
-  const selected = useMemo(
-    () => files.find((file) => file.id === selectedId) ?? null,
-    [files, selectedId]
+  const indexedSelection =
+    files.find((file) => file.id === selectedFileId) ?? null;
+  const selected =
+    indexedSelection ??
+    (selectedFile?.id === selectedFileId ? selectedFile : null);
+
+  const handleSelectFile = useCallback(
+    (file: FileRow) => {
+      if (file.id === selectedFileId) {
+        return;
+      }
+      if (editor.dirty) {
+        setPendingFile(file);
+        return;
+      }
+      setSelectedFile(file);
+      onSelectedFileIdChange(file.id);
+    },
+    [editor.dirty, onSelectedFileIdChange, selectedFileId]
   );
 
   return (
@@ -132,9 +192,25 @@ export function LibraryView({ scan }: { scan: UseScan }) {
               aria-label="Filter files by path"
               className="h-8 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
               onChange={(event) => setSearch(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Escape" && search.length > 0) {
+                  event.preventDefault();
+                  setSearch("");
+                }
+              }}
               placeholder="Filter by path"
               value={search}
             />
+            {search.length > 0 ? (
+              <button
+                aria-label="Clear file filter"
+                className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none"
+                onClick={() => setSearch("")}
+                type="button"
+              >
+                <X className="size-3.5" />
+              </button>
+            ) : null}
           </div>
           <fieldset className="mt-1 flex items-center rounded-lg bg-muted p-0.5">
             <legend className="sr-only">Library view</legend>
@@ -162,9 +238,11 @@ export function LibraryView({ scan }: { scan: UseScan }) {
             expandAll={search.trim().length > 0}
             files={visible}
             indexedFileCount={files.length}
-            onSelectFile={(file) => setSelectedId(file.id)}
+            onOpenSettings={onOpenSettings}
+            onRetry={refresh}
+            onSelectFile={handleSelectFile}
             roots={roots}
-            selectedFileId={selectedId}
+            selectedFileId={selectedFileId}
             viewMode={viewMode}
           />
         </div>
@@ -178,6 +256,7 @@ export function LibraryView({ scan }: { scan: UseScan }) {
 
       <section className="min-w-0 flex-1">
         <EditorPane
+          editor={editor}
           favorite={
             selected?.projectDir
               ? favoriteProjects.favoritePaths.has(selected.projectDir)
@@ -187,6 +266,42 @@ export function LibraryView({ scan }: { scan: UseScan }) {
           onToggleFavorite={favoriteProjects.toggle}
         />
       </section>
+
+      <Dialog
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingFile(null);
+          }
+        }}
+        open={pendingFile !== null}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Unsaved changes</DialogTitle>
+            <DialogDescription>
+              Keep editing the current file, or discard those changes before
+              opening {pendingFile?.relPath}.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => setPendingFile(null)} variant="outline">
+              Keep editing
+            </Button>
+            <Button
+              onClick={() => {
+                if (pendingFile) {
+                  setSelectedFile(pendingFile);
+                  onSelectedFileIdChange(pendingFile.id);
+                  setPendingFile(null);
+                }
+              }}
+              variant="destructive"
+            >
+              Discard &amp; open
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

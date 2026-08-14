@@ -13,7 +13,7 @@ import {
   Save,
   Star,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { FileRow } from "@/lib/ipc-types";
 import { cn } from "@/lib/utils";
@@ -29,9 +29,10 @@ import {
 } from "@/shared/components/ui/dialog";
 import { MarkdownEditor } from "@/shared/components/ui/markdown-editor";
 
-import { type EditorMode, useFileContent } from "./use-file-content";
+import type { EditorMode, UseFileContent } from "./use-file-content";
 
 export interface EditorPaneProps {
+  editor: UseFileContent;
   file: FileRow | null;
   favorite: boolean;
   onToggleFavorite: (path: string) => Promise<void>;
@@ -142,13 +143,26 @@ function ProjectFavoriteButton({
 }
 
 export function EditorPane({
+  editor,
   file,
   favorite,
   onToggleFavorite,
 }: EditorPaneProps) {
-  const editor = useFileContent(file?.id ?? null);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [frontmatterOpen, setFrontmatterOpen] = useState(false);
+
+  useEffect(() => {
+    if (!editor.dirty) {
+      return;
+    }
+    const preventAccidentalClose = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+    };
+    window.addEventListener("beforeunload", preventAccidentalClose);
+    return () => {
+      window.removeEventListener("beforeunload", preventAccidentalClose);
+    };
+  }, [editor.dirty]);
 
   if (!file) {
     return (
@@ -190,7 +204,14 @@ export function EditorPane({
     <div className="flex h-full min-h-0 flex-col">
       <header className="flex min-h-14 items-center gap-3 border-border border-b px-4 py-2.5">
         <div className="min-w-0 flex-1">
-          <p className="truncate font-medium text-sm">{file.relPath}</p>
+          <div className="flex min-w-0 items-center gap-2">
+            <p className="truncate font-medium text-sm">{file.relPath}</p>
+            {editor.dirty ? (
+              <span className="shrink-0 rounded-full bg-amber-500/15 px-2 py-0.5 font-medium text-[10px] text-amber-800 dark:text-amber-300">
+                Unsaved
+              </span>
+            ) : null}
+          </div>
           <p className="truncate text-muted-foreground text-xs">
             {targetLabel(file.kind)} · {file.path}
           </p>
@@ -254,13 +275,7 @@ export function EditorPane({
         <div className="flex items-center gap-2 border-border border-b bg-destructive/10 px-4 py-1.5 text-xs">
           <AlertTriangle className="size-3.5" />
           <span className="flex-1">This file changed on disk.</span>
-          <Button
-            onClick={async () => {
-              await editor.reload();
-            }}
-            size="sm"
-            variant="ghost"
-          >
+          <Button onClick={editor.reload} size="sm" variant="ghost">
             Reload
           </Button>
         </div>
@@ -341,20 +356,10 @@ export function EditorPane({
             className="max-h-[50vh]"
           />
           <DialogFooter>
-            <Button
-              onClick={async () => {
-                await editor.reload();
-              }}
-              variant="outline"
-            >
+            <Button onClick={editor.reload} variant="outline">
               Reload from disk
             </Button>
-            <Button
-              onClick={async () => {
-                await editor.overwrite();
-              }}
-              variant="destructive"
-            >
+            <Button onClick={editor.overwrite} variant="destructive">
               Overwrite
             </Button>
           </DialogFooter>

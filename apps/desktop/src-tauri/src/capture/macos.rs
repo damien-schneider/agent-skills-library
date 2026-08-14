@@ -12,7 +12,7 @@ use tauri::{AppHandle, Manager as _, PhysicalPosition};
 use tauri_plugin_opener::OpenerExt as _;
 
 use self::pasteboard::selected_text_from_clipboard;
-use self::shortcut::listen_for_double_shift;
+use self::shortcut::{listen_for_double_shift, ShortcutProgress};
 
 use super::CaptureAccessStatus;
 use crate::commands::prompts::create_prompt_in;
@@ -99,13 +99,19 @@ fn monitor_access_and_shortcut(app: AppHandle) {
             continue;
         }
 
-        let (sender, receiver) = mpsc::sync_channel(1);
+        let (sender, receiver) = mpsc::sync_channel(2);
         let worker_app = app.clone();
         let worker = thread::Builder::new()
             .name("selection-capture-worker".to_string())
             .spawn(move || {
-                while receiver.recv().is_ok() {
-                    capture_selection(&worker_app);
+                while let Ok(progress) = receiver.recv() {
+                    match progress {
+                        ShortcutProgress::FirstTap => show_shortcut_progress(&worker_app, 1),
+                        ShortcutProgress::Complete => {
+                            show_shortcut_progress(&worker_app, 2);
+                            capture_selection(&worker_app);
+                        }
+                    }
                 }
             });
         if let Err(error) = worker {
@@ -118,6 +124,11 @@ fn monitor_access_and_shortcut(app: AppHandle) {
             thread::sleep(ACCESS_RETRY_DELAY);
         }
     }
+}
+
+fn show_shortcut_progress(app: &AppHandle, completed_taps: u8) {
+    position_overlay(app);
+    events::emit_capture_shortcut_progress(app, completed_taps);
 }
 
 fn capture_selection(app: &AppHandle) {

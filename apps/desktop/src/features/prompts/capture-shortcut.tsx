@@ -1,15 +1,23 @@
 import { Accessibility, Check } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { onCaptureAccessChanged } from "@/lib/events";
+import {
+  onCaptureAccessChanged,
+  onCaptureShortcutProgress,
+} from "@/lib/events";
 import { captureAccessStatus, requestCaptureAccess } from "@/lib/ipc";
 import type { CaptureAccessStatus } from "@/lib/ipc-types";
 import { Button } from "@/shared/components/ui/button";
+import { ShiftShortcut, type ShiftShortcutProgress } from "./shift-shortcut";
+
+const SHORTCUT_FEEDBACK_MS = 650;
 
 export function CaptureShortcut() {
   const [status, setStatus] = useState<CaptureAccessStatus | null>(null);
   const [requesting, setRequesting] = useState(false);
+  const [completedTaps, setCompletedTaps] = useState<ShiftShortcutProgress>(0);
+  const feedbackTimerRef = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     let active = true;
@@ -24,11 +32,23 @@ export function CaptureShortcut() {
           setStatus(null);
         }
       });
-    const unlisten = onCaptureAccessChanged(setStatus).catch(() => undefined);
+    const accessUnlisten = onCaptureAccessChanged(setStatus).catch(
+      () => undefined
+    );
+    const progressUnlisten = onCaptureShortcutProgress(({ completedTaps }) => {
+      setCompletedTaps(completedTaps);
+      window.clearTimeout(feedbackTimerRef.current);
+      feedbackTimerRef.current = window.setTimeout(
+        () => setCompletedTaps(0),
+        SHORTCUT_FEEDBACK_MS
+      );
+    }).catch(() => undefined);
 
     return () => {
       active = false;
-      unlisten.then((stop) => stop?.()).catch(() => undefined);
+      window.clearTimeout(feedbackTimerRef.current);
+      accessUnlisten.then((stop) => stop?.()).catch(() => undefined);
+      progressUnlisten.then((stop) => stop?.()).catch(() => undefined);
     };
   }, []);
 
@@ -44,14 +64,10 @@ export function CaptureShortcut() {
       >
         <Check aria-hidden="true" className="size-3.5 text-emerald-600" />
         <span>Capture selection</span>
-        <span className="flex items-center gap-1 text-foreground">
-          <kbd className="flex size-5 items-center justify-center rounded bg-background font-sans text-[10px] shadow-sm">
-            ⇧
-          </kbd>
-          <kbd className="flex size-5 items-center justify-center rounded bg-background font-sans text-[10px] shadow-sm">
-            ⇧
-          </kbd>
+        <span className="sr-only">
+          Select text in any app, then press Shift twice.
         </span>
+        <ShiftShortcut completedTaps={completedTaps} />
       </span>
     );
   }

@@ -6,10 +6,11 @@ import {
   Settings,
   Store,
 } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { DuplicatesView } from "./features/duplicates/duplicates-view";
 import { LibraryView } from "./features/library/library-view";
+import { useFileContent } from "./features/library/use-file-content";
 import { PromptHistoryView } from "./features/prompts/prompt-history-view";
 import { RegistryPane } from "./features/registry/registry-pane";
 import { useScan } from "./features/scan/use-scan";
@@ -46,10 +47,51 @@ const SETTINGS_RAIL_ITEM = {
   icon: Settings,
 } satisfies { id: ViewId; label: string; icon: typeof FolderTree };
 
+const ACTIVE_VIEW_STORAGE_KEY = "another-dev-tool.active-view";
+
+function isViewId(value: string | null): value is ViewId {
+  return (
+    value === "library" ||
+    value === "prompts" ||
+    value === "duplicates" ||
+    value === "sync" ||
+    value === "registry" ||
+    value === "settings"
+  );
+}
+
+function readStoredView(): ViewId {
+  const storedView = window.localStorage.getItem(ACTIVE_VIEW_STORAGE_KEY);
+  return isViewId(storedView) ? storedView : "library";
+}
+
 export function App() {
-  const [view, setView] = useState<ViewId>("library");
+  const [view, setView] = useState<ViewId>(readStoredView);
+  const [mountedViews, setMountedViews] = useState<Set<ViewId>>(
+    () => new Set([view])
+  );
+  const [selectedLibraryFileId, setSelectedLibraryFileId] = useState<
+    number | null
+  >(null);
+  const libraryEditor = useFileContent(selectedLibraryFileId);
   const scan = useScan();
   const update = useAppUpdate();
+
+  useEffect(() => {
+    window.localStorage.setItem(ACTIVE_VIEW_STORAGE_KEY, view);
+  }, [view]);
+
+  const selectView = useCallback((nextView: ViewId) => {
+    setMountedViews((current) => {
+      if (current.has(nextView)) {
+        return current;
+      }
+      const nextMountedViews = new Set(current);
+      nextMountedViews.add(nextView);
+      return nextMountedViews;
+    });
+    setView(nextView);
+  }, []);
 
   return (
     <div className="flex h-full flex-col">
@@ -66,7 +108,8 @@ export function App() {
                 active={view === item.id}
                 item={item}
                 key={item.id}
-                onSelect={setView}
+                onSelect={selectView}
+                unsaved={item.id === "library" && libraryEditor.dirty}
               />
             ))}
           </div>
@@ -74,20 +117,48 @@ export function App() {
             <RailItem
               active={view === SETTINGS_RAIL_ITEM.id}
               item={SETTINGS_RAIL_ITEM}
-              onSelect={setView}
+              onSelect={selectView}
             />
           </div>
         </nav>
 
-        <main className="min-w-0 flex-1">
-          {view === "library" ? <LibraryView scan={scan} /> : null}
-          {view === "prompts" ? <PromptHistoryView /> : null}
-          {view === "settings" ? <RootsSettings scan={scan} /> : null}
-          {view === "duplicates" ? (
-            <DuplicatesView onGroupCreated={() => setView("sync")} />
+        <main className="min-h-0 min-w-0 flex-1">
+          {mountedViews.has("library") ? (
+            <div className="h-full" hidden={view !== "library"}>
+              <LibraryView
+                editor={libraryEditor}
+                onOpenSettings={() => selectView("settings")}
+                onSelectedFileIdChange={setSelectedLibraryFileId}
+                scan={scan}
+                selectedFileId={selectedLibraryFileId}
+              />
+            </div>
           ) : null}
-          {view === "sync" ? <GroupsView /> : null}
-          {view === "registry" ? <RegistryPane /> : null}
+          {mountedViews.has("prompts") ? (
+            <div className="h-full" hidden={view !== "prompts"}>
+              <PromptHistoryView />
+            </div>
+          ) : null}
+          {mountedViews.has("duplicates") ? (
+            <div className="h-full" hidden={view !== "duplicates"}>
+              <DuplicatesView onGroupCreated={() => selectView("sync")} />
+            </div>
+          ) : null}
+          {mountedViews.has("sync") ? (
+            <div className="h-full" hidden={view !== "sync"}>
+              <GroupsView />
+            </div>
+          ) : null}
+          {mountedViews.has("registry") ? (
+            <div className="h-full" hidden={view !== "registry"}>
+              <RegistryPane />
+            </div>
+          ) : null}
+          {mountedViews.has("settings") ? (
+            <div className="h-full" hidden={view !== "settings"}>
+              <RootsSettings scan={scan} />
+            </div>
+          ) : null}
         </main>
       </div>
 
@@ -100,18 +171,20 @@ function RailItem({
   active,
   item,
   onSelect,
+  unsaved,
 }: {
   active: boolean;
   item: { id: ViewId; label: string; icon: typeof FolderTree };
   onSelect: (view: ViewId) => void;
+  unsaved?: boolean;
 }) {
   const Icon = item.icon;
   return (
     <button
       aria-current={active ? "page" : undefined}
-      aria-label={item.label}
+      aria-label={`${item.label}${unsaved ? ", unsaved changes" : ""}`}
       className={cn(
-        "flex h-12 w-12 flex-col items-center justify-center gap-1 rounded-lg outline-none transition-colors focus-visible:ring-2 focus-visible:ring-sidebar-ring motion-reduce:transition-none",
+        "relative flex h-12 w-12 flex-col items-center justify-center gap-1 rounded-lg outline-none transition-colors focus-visible:ring-2 focus-visible:ring-sidebar-ring motion-reduce:transition-none",
         active
           ? "bg-sidebar-accent text-sidebar-accent-foreground"
           : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
@@ -122,6 +195,12 @@ function RailItem({
     >
       <Icon className="size-4" />
       <span className="text-[10px] leading-none">{item.label}</span>
+      {unsaved ? (
+        <span
+          aria-hidden="true"
+          className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-amber-500"
+        />
+      ) : null}
     </button>
   );
 }
