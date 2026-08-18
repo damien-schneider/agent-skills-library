@@ -5,8 +5,10 @@ import { Button } from "@/shared/components/ui/button";
 
 export function ViewLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-5 overflow-auto px-8 py-8">
-      {children}
+    <div className="h-full overflow-y-auto">
+      <div className="mx-auto flex w-full max-w-4xl flex-col gap-5 px-8 py-8">
+        {children}
+      </div>
     </div>
   );
 }
