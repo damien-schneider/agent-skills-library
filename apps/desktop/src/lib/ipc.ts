@@ -6,6 +6,7 @@ import type {
   ApplyResult,
   Backup,
   CaptureAccessStatus,
+  DestinationFolder,
   DiffResult,
   DuplicateGroup,
   FavoriteProject,
@@ -104,6 +105,12 @@ export const listFavoriteProjects = () =>
 
 export const setProjectFavorite = (path: string, favorite: boolean) =>
   call<null>("set_project_favorite", { path, favorite });
+
+export const listDestinationFolders = () =>
+  call<DestinationFolder[]>("list_destination_folders");
+
+export const resolveDestinationFolder = (path: string) =>
+  call<DestinationFolder>("resolve_destination_folder", { path });
 
 export const startScan = (rootIds?: number[]) =>
   call<number>("start_scan", { rootIds: rootIds ?? null });

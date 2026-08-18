@@ -1,3 +1,4 @@
+pub mod destinations;
 pub mod favorite_projects;
 pub mod files;
 pub mod prompts;

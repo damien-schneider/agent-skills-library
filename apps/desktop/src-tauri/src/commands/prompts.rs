@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use serde::Deserialize;
 use tauri::State;
@@ -7,7 +7,7 @@ use tauri::State;
 use crate::db::now_ms;
 use crate::db::prompts_repo::{self, PromptHistoryEntry};
 use crate::error::{AppError, AppResult};
-use crate::paths::canonicalize;
+use crate::paths::resolve_directory;
 use crate::state::AppState;
 
 const MAX_ATTACHMENTS: usize = 8;
@@ -63,17 +63,6 @@ fn validate_content(content: &str) -> AppResult<()> {
     Ok(())
 }
 
-fn normalize_destination_path(path: &str) -> AppResult<String> {
-    let resolved = canonicalize(&PathBuf::from(path))?;
-    if !resolved.is_dir() {
-        return Err(AppError::InvalidPath(format!(
-            "{} is not a directory",
-            resolved.display()
-        )));
-    }
-    Ok(resolved.to_string_lossy().into_owned())
-}
-
 #[tauri::command]
 pub fn list_prompt_history(state: State<'_, AppState>) -> AppResult<Vec<PromptHistoryEntry>> {
     state.db.with_conn(prompts_repo::list)
@@ -97,8 +86,9 @@ pub fn create_prompt_in(
     validate_content(&content)?;
     validate_images(&images)?;
     let destination_path = destination_path
-        .map(|path| normalize_destination_path(&path))
-        .transpose()?;
+        .map(|path| resolve_directory(&path))
+        .transpose()?
+        .map(|path| path.to_string_lossy().into_owned());
 
     let created_at = now_ms();
     if images.is_empty() {
@@ -229,6 +219,7 @@ mod tests {
     use super::*;
     use crate::db::Db;
     use std::io::BufReader;
+    use std::path::PathBuf;
     use tempfile::tempdir;
 
     #[test]
@@ -240,12 +231,25 @@ mod tests {
 
     #[test]
     fn stores_a_canonical_existing_destination() {
-        let directory = tempdir().unwrap();
-        let expected = directory.path().canonicalize().unwrap();
+        let app_data = tempdir().unwrap();
+        let destination = tempdir().unwrap();
+        let state = AppState::new(
+            Db::open_in_memory().unwrap(),
+            app_data.path().join("prompts"),
+        );
 
-        let normalized = normalize_destination_path(&directory.path().to_string_lossy()).unwrap();
+        let prompt = create_prompt_in(
+            &state,
+            "Ship it".into(),
+            Some(destination.path().to_string_lossy().into_owned()),
+            Vec::new(),
+        )
+        .unwrap();
 
-        assert_eq!(PathBuf::from(normalized), expected);
+        assert_eq!(
+            prompt.destination_path.map(PathBuf::from),
+            Some(destination.path().canonicalize().unwrap())
+        );
     }
 
     #[test]

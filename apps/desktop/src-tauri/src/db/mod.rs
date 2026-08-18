@@ -1,4 +1,5 @@
 pub mod backups_repo;
+pub mod destinations_repo;
 pub mod favorite_projects_repo;
 pub mod files_repo;
 pub mod groups_repo;

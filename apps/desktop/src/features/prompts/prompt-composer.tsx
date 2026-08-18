@@ -1,6 +1,5 @@
 import { readImage } from "@tauri-apps/plugin-clipboard-manager";
-import { open } from "@tauri-apps/plugin-dialog";
-import { ClipboardPaste, Folder, FolderOpen, Star, X } from "lucide-react";
+import { ImagePlus, X } from "lucide-react";
 import {
   type ClipboardEvent,
   type FormEvent,
@@ -10,7 +9,7 @@ import {
 } from "react";
 import { toast } from "sonner";
 
-import { useFavoriteProjects } from "@/features/projects/use-favorite-projects";
+import { DestinationPicker } from "@/features/destinations/destination-picker";
 import { createPrompt, toIpcError } from "@/lib/ipc";
 import type { PromptHistoryEntry } from "@/lib/ipc-types";
 import { Button } from "@/shared/components/ui/button";
@@ -20,6 +19,8 @@ import {
   draftImageFromClipboard,
   MAX_PROMPT_IMAGES,
 } from "./prompt-attachments";
+
+const SAVE_SHORTCUT = navigator.platform.includes("Mac") ? "⌘↩" : "Ctrl+↩";
 
 function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
   if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
@@ -38,18 +39,6 @@ export function PromptComposer({
   const [draftImages, setDraftImages] = useState<DraftPromptImage[]>([]);
   const [saving, setSaving] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const favoriteProjects = useFavoriteProjects();
-
-  const handleChooseFolder = async () => {
-    const picked = await open({
-      directory: true,
-      multiple: false,
-      title: "Choose a destination folder",
-    });
-    if (typeof picked === "string") {
-      setDestinationPath(picked);
-    }
-  };
 
   const handleSave = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -66,7 +55,6 @@ export function PromptComposer({
       );
       onCreated(created);
       setContent("");
-      setDestinationPath(null);
       setDraftImages([]);
       textareaRef.current?.focus();
     } catch (cause) {
@@ -111,16 +99,13 @@ export function PromptComposer({
         <CaptureShortcut />
       </header>
 
-      <form
-        className="flex min-h-0 flex-1 flex-col gap-5 p-6"
-        onSubmit={handleSave}
-      >
-        <div className="flex min-h-0 flex-1 flex-col gap-2">
-          <label className="font-medium text-sm" htmlFor="prompt-content">
+      <form className="flex min-h-0 flex-1 flex-col p-6" onSubmit={handleSave}>
+        <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-input transition-shadow focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
+          <label className="sr-only" htmlFor="prompt-content">
             New prompt
           </label>
           <textarea
-            className="min-h-48 flex-1 resize-none rounded-xl border border-input bg-transparent px-4 py-3 text-sm leading-6 outline-none transition-shadow placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
+            className="min-h-40 flex-1 resize-none bg-transparent px-4 py-3 text-sm leading-6 outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
             disabled={saving}
             id="prompt-content"
             onChange={(event) => setContent(event.target.value)}
@@ -130,21 +115,7 @@ export function PromptComposer({
             ref={textareaRef}
             value={content}
           />
-          <div className="flex items-center justify-end gap-3">
-            <span className="text-muted-foreground text-xs">
-              {draftImages.length}/{MAX_PROMPT_IMAGES} images
-            </span>
-            <Button
-              disabled={saving || draftImages.length >= MAX_PROMPT_IMAGES}
-              onClick={addClipboardImage}
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              <ClipboardPaste />
-              Paste image
-            </Button>
-          </div>
+
           <DraftAttachmentStrip
             images={draftImages}
             onRemove={(id) =>
@@ -153,76 +124,48 @@ export function PromptComposer({
               )
             }
           />
-        </div>
 
-        <div className="flex flex-col gap-2">
-          <div className="flex items-baseline justify-between">
-            <span className="font-medium text-sm">Destination folder</span>
-            <span className="text-muted-foreground text-xs">Optional</span>
-          </div>
-          {favoriteProjects.favorites.length > 0 ? (
-            <div className="flex flex-wrap gap-2">
-              {favoriteProjects.favorites.map((project) => (
-                <button
-                  aria-pressed={destinationPath === project.path}
-                  className="inline-flex h-8 max-w-full items-center gap-1.5 rounded-full bg-muted px-3 text-sm transition-colors hover:bg-accent aria-pressed:bg-primary aria-pressed:text-primary-foreground"
-                  key={project.path}
-                  onClick={() => setDestinationPath(project.path)}
-                  title={project.path}
-                  type="button"
-                >
-                  <Star className="size-3 fill-current" />
-                  <span className="truncate">
-                    {project.path.split("/").at(-1) ?? project.path}
-                  </span>
-                </button>
-              ))}
-            </div>
-          ) : null}
-          <div className="flex min-w-0 items-center gap-2 rounded-xl bg-muted/60 p-2">
-            <Folder className="ml-1 size-4 shrink-0 text-muted-foreground" />
-            <span
-              className="min-w-0 flex-1 truncate text-muted-foreground text-sm"
-              title={destinationPath ?? undefined}
-            >
-              {destinationPath ?? "No folder selected"}
-            </span>
-            <Button
+          <div className="flex items-center gap-2 border-border border-t p-2">
+            <DestinationPicker
               disabled={saving}
-              onClick={handleChooseFolder}
+              onChange={setDestinationPath}
+              value={destinationPath}
+            />
+            <Button
+              aria-label="Paste image from clipboard"
+              disabled={saving || draftImages.length >= MAX_PROMPT_IMAGES}
+              onClick={addClipboardImage}
               size="sm"
+              title={
+                draftImages.length >= MAX_PROMPT_IMAGES
+                  ? `A prompt can have at most ${MAX_PROMPT_IMAGES} images`
+                  : "Paste image from clipboard"
+              }
               type="button"
-              variant="outline"
+              variant="ghost"
             >
-              <FolderOpen />
-              {destinationPath ? "Change" : "Choose"}
+              <ImagePlus />
+              {draftImages.length > 0 ? (
+                <span className="text-xs">
+                  {draftImages.length}/{MAX_PROMPT_IMAGES}
+                </span>
+              ) : null}
             </Button>
-            {destinationPath ? (
+            <div className="ml-auto flex items-center gap-3">
+              {content.trim().length > 0 ? (
+                <span className="text-muted-foreground text-xs">
+                  {SAVE_SHORTCUT}
+                </span>
+              ) : null}
               <Button
-                aria-label="Clear destination folder"
-                disabled={saving}
-                onClick={() => setDestinationPath(null)}
-                size="icon-sm"
-                title="Clear destination folder"
-                type="button"
-                variant="ghost"
+                disabled={saving || content.trim().length === 0}
+                size="sm"
+                type="submit"
               >
-                <X />
+                {saving ? "Saving…" : "Save prompt"}
               </Button>
-            ) : null}
+            </div>
           </div>
-        </div>
-
-        <div className="flex items-center justify-between gap-4">
-          <span className="text-muted-foreground text-xs">
-            {navigator.platform.includes("Mac") ? "⌘" : "Ctrl"}+Enter to save
-          </span>
-          <Button
-            disabled={saving || content.trim().length === 0}
-            type="submit"
-          >
-            {saving ? "Saving…" : "Save prompt"}
-          </Button>
         </div>
       </form>
     </section>
@@ -240,7 +183,7 @@ function DraftAttachmentStrip({
     return null;
   }
   return (
-    <div className="flex gap-2 overflow-x-auto pb-1">
+    <div className="flex gap-2 overflow-x-auto px-4 pb-3">
       {images.map((image, index) => (
         <div
           className="group relative size-20 shrink-0 overflow-hidden rounded-lg bg-muted"

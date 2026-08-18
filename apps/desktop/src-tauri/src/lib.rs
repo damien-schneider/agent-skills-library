@@ -58,6 +58,8 @@ pub fn run() {
             commands::roots::add_root,
             commands::roots::set_root_enabled,
             commands::roots::remove_root,
+            commands::destinations::list_destination_folders,
+            commands::destinations::resolve_destination_folder,
             commands::favorite_projects::list_favorite_projects,
             commands::favorite_projects::set_project_favorite,
             commands::prompts::list_prompt_history,

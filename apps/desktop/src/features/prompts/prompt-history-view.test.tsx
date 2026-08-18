@@ -17,6 +17,8 @@ const mocks = vi.hoisted(() => ({
   captureAccessStatus: vi.fn(),
   createPrompt: vi.fn(),
   deletePrompt: vi.fn(),
+  homeDir: vi.fn(),
+  listDestinationFolders: vi.fn(),
   listFavoriteProjects: vi.fn(),
   listPromptHistory: vi.fn(),
   onCaptureAccessChanged: vi.fn(),
@@ -26,6 +28,7 @@ const mocks = vi.hoisted(() => ({
   readImage: vi.fn(),
   readPromptAttachment: vi.fn(),
   requestCaptureAccess: vi.fn(),
+  resolveDestinationFolder: vi.fn(),
   setProjectFavorite: vi.fn(),
   writeImage: vi.fn(),
   writeText: vi.fn(),
@@ -37,6 +40,7 @@ vi.mock("@tauri-apps/plugin-clipboard-manager", () => ({
   writeText: mocks.writeText,
 }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: mocks.open }));
+vi.mock("@tauri-apps/api/path", () => ({ homeDir: mocks.homeDir }));
 vi.mock("./prompt-attachments", async (importOriginal) => {
   const original = await importOriginal<typeof PromptAttachments>();
   return {
@@ -59,16 +63,25 @@ vi.mock("@/lib/ipc", () => ({
   captureAccessStatus: mocks.captureAccessStatus,
   createPrompt: mocks.createPrompt,
   deletePrompt: mocks.deletePrompt,
+  listDestinationFolders: mocks.listDestinationFolders,
   listFavoriteProjects: mocks.listFavoriteProjects,
   listPromptHistory: mocks.listPromptHistory,
   readPromptAttachment: mocks.readPromptAttachment,
   requestCaptureAccess: mocks.requestCaptureAccess,
+  resolveDestinationFolder: mocks.resolveDestinationFolder,
   setProjectFavorite: mocks.setProjectFavorite,
   toIpcError: (cause: unknown) =>
     cause instanceof Error ? cause : new Error(String(cause)),
 }));
 
 const DESTINATION_PATH = "/Users/me/project";
+const DESTINATION_FOLDER = {
+  path: DESTINATION_PATH,
+  favorite: false,
+  lastUsedAt: null,
+  fileCount: 3,
+  available: true,
+};
 
 const storedPrompt: PromptHistoryEntry = {
   id: 7,
@@ -79,6 +92,7 @@ const storedPrompt: PromptHistoryEntry = {
 };
 
 const COPY_BUTTON_NAME = /Copy prompt saved/;
+const DESTINATION_ROW_NAME = /project/;
 const DELETE_BUTTON_NAME = /Delete prompt saved/;
 
 function deferred<T>() {
@@ -101,6 +115,8 @@ describe("PromptHistoryView", () => {
       .mockResolvedValue({ supported: true, granted: true });
     mocks.createPrompt.mockReset();
     mocks.deletePrompt.mockReset().mockResolvedValue(null);
+    mocks.homeDir.mockReset().mockResolvedValue("/Users/me");
+    mocks.listDestinationFolders.mockReset().mockResolvedValue([]);
     mocks.listFavoriteProjects.mockReset().mockResolvedValue([]);
     mocks.listPromptHistory.mockReset().mockResolvedValue([]);
     mocks.onCaptureAccessChanged.mockReset().mockResolvedValue(() => undefined);
@@ -111,14 +127,17 @@ describe("PromptHistoryView", () => {
     mocks.readImage.mockReset();
     mocks.readPromptAttachment.mockReset();
     mocks.requestCaptureAccess.mockReset();
+    mocks.resolveDestinationFolder
+      .mockReset()
+      .mockResolvedValue(DESTINATION_FOLDER);
     mocks.open.mockReset().mockResolvedValue(null);
     mocks.setProjectFavorite.mockReset().mockResolvedValue(null);
     mocks.writeText.mockReset().mockResolvedValue(undefined);
     mocks.writeImage.mockReset().mockResolvedValue(undefined);
   });
 
-  it("saves a prompt with an optional folder and copies it from history", async () => {
-    mocks.open.mockResolvedValue(DESTINATION_PATH);
+  it("saves a prompt into a known folder and keeps it for the next one", async () => {
+    mocks.listDestinationFolders.mockResolvedValue([DESTINATION_FOLDER]);
     mocks.createPrompt.mockResolvedValue(storedPrompt);
     render(<PromptHistoryView />);
 
@@ -127,9 +146,12 @@ describe("PromptHistoryView", () => {
     fireEvent.change(screen.getByLabelText("New prompt"), {
       target: { value: storedPrompt.content },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Choose" }));
-
-    expect(await screen.findByText(DESTINATION_PATH)).toBeVisible();
+    fireEvent.click(
+      screen.getByRole("combobox", { name: "Choose a destination folder" })
+    );
+    fireEvent.click(
+      await screen.findByRole("option", { name: DESTINATION_ROW_NAME })
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Save prompt" }));
 
@@ -140,10 +162,22 @@ describe("PromptHistoryView", () => {
         []
       )
     );
-    expect(screen.getByText(storedPrompt.content)).toBeVisible();
     expect(screen.getByLabelText("New prompt")).toHaveValue("");
+    expect(
+      screen.getByRole("combobox", {
+        name: `Destination folder: ${DESTINATION_PATH}`,
+      })
+    ).toBeVisible();
+    expect(mocks.open).not.toHaveBeenCalled();
+  });
 
-    fireEvent.click(screen.getByRole("button", { name: COPY_BUTTON_NAME }));
+  it("copies a saved prompt from history", async () => {
+    mocks.listPromptHistory.mockResolvedValue([storedPrompt]);
+    render(<PromptHistoryView />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: COPY_BUTTON_NAME })
+    );
 
     await waitFor(() =>
       expect(mocks.writeText).toHaveBeenCalledWith(storedPrompt.content)
@@ -153,35 +187,12 @@ describe("PromptHistoryView", () => {
     ).toHaveTextContent("Copied");
   });
 
-  it("selects a shared favorite project without opening the folder picker", async () => {
-    mocks.listFavoriteProjects.mockResolvedValue([
-      { path: DESTINATION_PATH, createdAt: 1 },
-    ]);
-    mocks.createPrompt.mockResolvedValue(storedPrompt);
-    render(<PromptHistoryView />);
-
-    fireEvent.change(screen.getByLabelText("New prompt"), {
-      target: { value: storedPrompt.content },
-    });
-    fireEvent.click(await screen.findByRole("button", { name: "project" }));
-    fireEvent.click(screen.getByRole("button", { name: "Save prompt" }));
-
-    await waitFor(() =>
-      expect(mocks.createPrompt).toHaveBeenCalledWith(
-        storedPrompt.content,
-        DESTINATION_PATH,
-        []
-      )
-    );
-    expect(mocks.open).not.toHaveBeenCalled();
-  });
-
   it("loads prompts from local history", async () => {
     mocks.listPromptHistory.mockResolvedValue([storedPrompt]);
     render(<PromptHistoryView />);
 
     expect(await screen.findByText(storedPrompt.content)).toBeVisible();
-    expect(screen.getByText(DESTINATION_PATH)).toBeVisible();
+    expect(screen.getByTitle(DESTINATION_PATH)).toHaveTextContent("~project");
     expect(screen.getByText("1 prompt")).toBeVisible();
   });
 
@@ -334,7 +345,9 @@ describe("PromptHistoryView", () => {
     fireEvent.change(screen.getByLabelText("New prompt"), {
       target: { value: storedPrompt.content },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Paste image" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Paste image from clipboard" })
+    );
 
     expect(await screen.findByAltText("Draft attachment 1")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Save prompt" }));

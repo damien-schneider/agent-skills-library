@@ -33,6 +33,15 @@ export interface FavoriteProject {
   createdAt: number;
 }
 
+/** Mirrors commands::destinations::DestinationFolder */
+export interface DestinationFolder {
+  path: string;
+  favorite: boolean;
+  lastUsedAt: number | null;
+  fileCount: number;
+  available: boolean;
+}
+
 export interface PromptAttachment {
   id: number;
   promptId: number;

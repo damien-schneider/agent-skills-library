@@ -10,6 +10,8 @@ import {
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
+import { destinationParts } from "@/features/destinations/destination-path";
+import { useHomeDirectory } from "@/lib/home-dir";
 import type { PromptAttachment, PromptHistoryEntry } from "@/lib/ipc-types";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
@@ -49,6 +51,7 @@ export function PromptHistoryList({
   search: string;
   visibleEntries: PromptHistoryEntry[];
 }) {
+  const home = useHomeDirectory();
   const ready = !loading && error === null;
   return (
     <section className="flex min-h-0 flex-col">
@@ -128,6 +131,7 @@ export function PromptHistoryList({
                 deleteDisabled={deletingId !== null}
                 deleting={deletingId === entry.id}
                 entry={entry}
+                home={home}
                 key={entry.id}
                 onCopy={onCopy}
                 onDelete={onDelete}
@@ -147,6 +151,7 @@ function PromptHistoryItem({
   deleteDisabled,
   deleting,
   entry,
+  home,
   onCopy,
   onDelete,
   onDeleteRequest,
@@ -156,6 +161,7 @@ function PromptHistoryItem({
   deleteDisabled: boolean;
   deleting: boolean;
   entry: PromptHistoryEntry;
+  home: string | null;
   onCopy: (entry: PromptHistoryEntry) => Promise<void>;
   onDelete: (entry: PromptHistoryEntry) => Promise<void>;
   onDeleteRequest: (id: number | null) => void;
@@ -173,13 +179,7 @@ function PromptHistoryItem({
               {DATE_TIME_FORMATTER.format(entry.createdAt)}
             </time>
             {entry.destinationPath ? (
-              <div
-                className="mt-1 flex min-w-0 items-center gap-1.5 text-muted-foreground text-xs"
-                title={entry.destinationPath}
-              >
-                <Folder className="size-3 shrink-0" />
-                <span className="truncate">{entry.destinationPath}</span>
-              </div>
+              <DestinationLabel home={home} path={entry.destinationPath} />
             ) : null}
           </div>
           {pendingDelete ? (
@@ -235,6 +235,26 @@ function PromptHistoryItem({
         </p>
       </article>
     </li>
+  );
+}
+
+function DestinationLabel({
+  home,
+  path,
+}: {
+  home: string | null;
+  path: string;
+}) {
+  const { name, parent } = destinationParts(path, home);
+  return (
+    <div
+      className="mt-1 flex min-w-0 items-center gap-1.5 text-muted-foreground text-xs"
+      title={path}
+    >
+      <Folder className="size-3 shrink-0" />
+      <span className="truncate">{parent}</span>
+      <span className="shrink-0 font-medium text-foreground/80">{name}</span>
+    </div>
   );
 }
 
