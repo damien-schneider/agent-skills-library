@@ -20,6 +20,7 @@ import { UpdateBanner } from "./features/updates/update-banner";
 import { useAppUpdate } from "./features/updates/use-app-update";
 import { cn } from "./lib/utils";
 import { Toaster } from "./shared/components/ui/sonner";
+import { useAppReloadShortcut } from "./use-app-reload-shortcut";
 
 export type ViewId =
   | "library"
@@ -66,6 +67,7 @@ function readStoredView(): ViewId {
 }
 
 export function App() {
+  useAppReloadShortcut();
   const [view, setView] = useState<ViewId>(readStoredView);
   const [mountedViews, setMountedViews] = useState<Set<ViewId>>(
     () => new Set([view])
