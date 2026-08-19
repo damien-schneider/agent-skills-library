@@ -60,7 +60,7 @@ dependencies = [
 
 [[package]]
 name = "another-dev-tool"
-version = "0.0.7"
+version = "0.0.8"
 dependencies = [
  "axuielement",
  "blake3",
