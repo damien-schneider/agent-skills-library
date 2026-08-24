@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@source "../node_modules/streamdown/dist/*.js";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -285,4 +286,16 @@ html.capture-overlay-window #root {
 
 .tiptap-preview {
   @apply cursor-default;
+}
+
+.tiptap-editor .skill-mention {
+  @apply rounded bg-chart-3/10 px-0.5 text-chart-3 underline decoration-chart-3/40 underline-offset-2 transition-colors hover:bg-chart-3/20 hover:decoration-chart-3 motion-reduce:transition-none;
+}
+
+.tiptap-editor code .skill-mention {
+  @apply bg-transparent px-0;
+}
+
+.tiptap-preview .skill-mention {
+  @apply cursor-pointer;
 }

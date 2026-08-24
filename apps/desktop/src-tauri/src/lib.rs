@@ -1,3 +1,4 @@
+mod agent;
 mod capture;
 mod commands;
 mod db;
@@ -74,6 +75,7 @@ pub fn run() {
             commands::files::read_file,
             commands::files::write_file,
             commands::files::list_duplicates,
+            commands::files::list_file_links,
             commands::watcher::get_watcher_status,
             commands::watcher::set_watcher_enabled,
             commands::sync::list_sync_groups,
@@ -88,6 +90,9 @@ pub fn run() {
             commands::sync::restore_backup,
             commands::sync::diff_files,
             commands::registry::install_files,
+            commands::agent::agent_status,
+            commands::agent::agent_send,
+            commands::agent::agent_cancel,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

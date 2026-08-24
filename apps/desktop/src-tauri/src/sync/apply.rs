@@ -338,6 +338,7 @@ mod tests {
                 .to_string_lossy()
                 .into_owned(),
             kind: FileKind::AgentsMd,
+            name: None,
             project_dir: None,
             size: stat.size,
             mtime_ns: stat.mtime_ns,

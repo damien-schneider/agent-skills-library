@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 
 import type {
+  AgentStatus,
   AppErrorCode,
   AppErrorPayload,
   ApplyResult,
@@ -11,6 +12,7 @@ import type {
   DuplicateGroup,
   FavoriteProject,
   FileContent,
+  FileLinks,
   FileRow,
   InstallResult,
   ListFilesArgs,
@@ -128,6 +130,16 @@ export const writeFile = (
   content: string,
   expectedHash: string
 ) => call<WriteResult>("write_file", { fileId, content, expectedHash });
+
+export const listFileLinks = (fileId: number) =>
+  call<FileLinks>("list_file_links", { fileId });
+
+export const agentStatus = () => call<AgentStatus>("agent_status");
+
+export const agentSend = (fileId: number, content: string, prompt: string) =>
+  call<number>("agent_send", { fileId, content, prompt });
+
+export const agentCancel = () => call<null>("agent_cancel");
 
 export const listDuplicates = () => call<DuplicateGroup[]>("list_duplicates");
 

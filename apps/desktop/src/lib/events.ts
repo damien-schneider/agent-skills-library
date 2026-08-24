@@ -1,6 +1,10 @@
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
 import type {
+  AgentDeltaEvent,
+  AgentDoneEvent,
+  AgentErrorEvent,
+  AgentToolEvent,
   CaptureAccessStatus,
   CaptureErrorEvent,
   CaptureShortcutProgress,
@@ -19,6 +23,10 @@ export const CAPTURE_SAVED = "capture:saved";
 export const CAPTURE_ERROR = "capture:error";
 export const CAPTURE_ACCESS_CHANGED = "capture:access-changed";
 export const CAPTURE_SHORTCUT_PROGRESS = "capture:shortcut-progress";
+export const AGENT_DELTA = "agent:delta";
+export const AGENT_TOOL = "agent:tool";
+export const AGENT_DONE = "agent:done";
+export const AGENT_ERROR = "agent:error";
 
 function on<T>(
   event: string,
@@ -53,3 +61,15 @@ export const onCaptureShortcutProgress = (
 export const onCaptureAccessChanged = (
   handler: (payload: CaptureAccessStatus) => void
 ) => on<CaptureAccessStatus>(CAPTURE_ACCESS_CHANGED, handler);
+
+export const onAgentDelta = (handler: (payload: AgentDeltaEvent) => void) =>
+  on<AgentDeltaEvent>(AGENT_DELTA, handler);
+
+export const onAgentTool = (handler: (payload: AgentToolEvent) => void) =>
+  on<AgentToolEvent>(AGENT_TOOL, handler);
+
+export const onAgentDone = (handler: (payload: AgentDoneEvent) => void) =>
+  on<AgentDoneEvent>(AGENT_DONE, handler);
+
+export const onAgentError = (handler: (payload: AgentErrorEvent) => void) =>
+  on<AgentErrorEvent>(AGENT_ERROR, handler);

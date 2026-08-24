@@ -1,14 +1,17 @@
 pub mod hash;
 pub mod incremental;
+pub mod refs;
 pub mod targets;
 pub mod walk;
 
+use std::collections::BTreeSet;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use serde::Serialize;
 
-use crate::db::files_repo::{self, FileRecord};
+use crate::db::files_repo::{self, FileRecord, IndexedFile};
+use crate::db::links_repo;
 use crate::db::roots_repo::Root;
 use crate::db::{now_ms, Db};
 use crate::error::AppResult;
@@ -68,24 +71,37 @@ pub fn finish_scan_row(db: &Db, scan_id: i64, status: &str, stats: &ScanStats) -
 struct Prepared {
     record: FileRecord,
     change: ChangeKind,
-    hashed: bool,
+    /// `None` when the file was untouched: its references are already indexed.
+    refs: Option<BTreeSet<String>>,
+}
+
+/// Reusing the stored hash also means reusing the stored references, so a row whose
+/// references were never extracted is re-read even when its bytes did not move.
+fn reusable_hash(change: ChangeKind, previous: Option<&IndexedFile>) -> Option<String> {
+    let previous = previous?;
+    let current = matches!(change, ChangeKind::Unchanged)
+        && previous.refs_hash.as_deref() == Some(previous.hash.as_str());
+    current.then(|| previous.hash.clone())
 }
 
 fn prepare(
     entry: WalkEntry,
     root: &Root,
     root_path: &Path,
-    previous: Option<&(i64, Stat, String)>,
+    previous: Option<&IndexedFile>,
 ) -> Option<Prepared> {
     let stat = Stat {
         size: entry.size,
         mtime_ns: entry.mtime_ns,
     };
-    let change = classify_change(previous.map(|(_, stat, _)| *stat), stat);
+    let change = classify_change(previous.map(|previous| previous.stat), stat);
 
-    let (hash, hashed) = match (change, previous) {
-        (ChangeKind::Unchanged, Some((_, _, hash))) => (hash.clone(), false),
-        _ => (hash::hash_file(&entry.path, entry.size as u64).ok()?, true),
+    let (hash, refs) = match reusable_hash(change, previous) {
+        Some(hash) => (hash, None),
+        None => {
+            let indexed = refs::index_file(&entry.path, entry.size as u64).ok()?;
+            (indexed.hash, Some(indexed.refs))
+        }
     };
 
     let rel_path = entry
@@ -101,6 +117,7 @@ fn prepare(
             path: entry.path.to_string_lossy().into_owned(),
             rel_path,
             kind: entry.kind,
+            name: refs::name_for(&entry.path, entry.kind),
             project_dir: project_dir_of(&entry.path, root_path),
             size: entry.size,
             mtime_ns: entry.mtime_ns,
@@ -109,7 +126,7 @@ fn prepare(
             symlink_target: entry.symlink_target,
         },
         change,
-        hashed,
+        refs,
     })
 }
 
@@ -127,6 +144,9 @@ fn flush(
     db.with_tx(|tx| {
         for prepared in batch.iter() {
             let id = files_repo::upsert(tx, &prepared.record, scan_id, now)?;
+            if let Some(refs) = &prepared.refs {
+                links_repo::replace_refs(tx, id, &prepared.record.hash, refs)?;
+            }
             match prepared.change {
                 ChangeKind::Added => {
                     stats.added += 1;
@@ -158,7 +178,7 @@ fn scan_root(
         return Ok(());
     }
 
-    let previous = db.with_conn(|conn| files_repo::stats_by_path(conn, root.id))?;
+    let previous = db.with_conn(|conn| files_repo::indexed_by_path(conn, root.id))?;
     let (sender, receiver) = crossbeam_channel::bounded::<Prepared>(2048);
 
     let result = std::thread::scope(|scope| -> AppResult<()> {
@@ -175,7 +195,7 @@ fn scan_root(
         let mut batch: Vec<Prepared> = Vec::with_capacity(BATCH_SIZE);
         for prepared in receiver.iter() {
             outcome.stats.seen += 1;
-            if prepared.hashed {
+            if prepared.refs.is_some() {
                 outcome.stats.hashed += 1;
             }
             batch.push(prepared);
@@ -242,6 +262,18 @@ mod tests {
     use std::fs;
     use tempfile::{tempdir, TempDir};
 
+    fn links_of(db: &Db, rel_path: &str) -> links_repo::FileLinks {
+        db.with_conn(|conn| {
+            let files = files_repo::list(conn, &FileFilter::default())?;
+            let file = files
+                .iter()
+                .find(|file| file.rel_path == rel_path)
+                .expect("indexed file");
+            links_repo::links_of(conn, file.id)
+        })
+        .unwrap()
+    }
+
     fn write(path: &Path, contents: &str) {
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         fs::write(path, contents).unwrap();
@@ -284,6 +316,57 @@ mod tests {
             .with_conn(|conn| files_repo::list(conn, &FileFilter::default()))
             .unwrap();
         assert_eq!(files.len(), 2);
+    }
+
+    #[test]
+    fn indexes_the_references_between_two_scanned_files() {
+        let (db, dir, root) = setup();
+        write(
+            &dir.path().join("CLAUDE.md"),
+            "check react-doctor when touching React code",
+        );
+        write(
+            &dir.path().join(".claude/skills/react-doctor/SKILL.md"),
+            "# react doctor",
+        );
+
+        scan(&db, &root);
+
+        let outgoing = links_of(&db, "CLAUDE.md").outgoing;
+
+        assert_eq!(
+            outgoing
+                .iter()
+                .map(|file| file.name.as_deref())
+                .collect::<Vec<_>>(),
+            vec![Some("react-doctor")]
+        );
+    }
+
+    #[test]
+    fn a_scan_re_reads_files_whose_references_were_never_extracted() {
+        let (db, dir, root) = setup();
+        write(&dir.path().join("CLAUDE.md"), "use `react-doctor`");
+        write(
+            &dir.path().join(".claude/skills/react-doctor/SKILL.md"),
+            "# react doctor",
+        );
+        scan(&db, &root);
+
+        db.with_conn(|conn| {
+            conn.execute_batch("DELETE FROM file_refs; UPDATE files SET refs_hash = NULL;")?;
+            Ok(())
+        })
+        .unwrap();
+
+        let second = scan(&db, &root);
+
+        assert_eq!(second.stats.changed, 0, "nothing on disk moved");
+        assert_eq!(
+            links_of(&db, "CLAUDE.md").outgoing.len(),
+            1,
+            "an index migrated in without references backfills itself"
+        );
     }
 
     #[test]

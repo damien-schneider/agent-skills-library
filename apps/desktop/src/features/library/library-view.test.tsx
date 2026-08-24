@@ -6,13 +6,13 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { UseScan } from "@/features/scan/use-scan";
 import type { FileContent, FileRow, Root } from "@/lib/ipc-types";
 
 import { LibraryView } from "./library-view";
-import { type UseFileContent, useFileContent } from "./use-file-content";
+import type { UseFileContent } from "./use-file-content";
+import { useLibraryFile } from "./use-library-file";
 
 interface FilePickerProps {
   files: FileRow[];
@@ -116,6 +116,7 @@ const selectedFile: FileRow = {
   path: `${root.path}/plugins/caveman/SKILL.md`,
   relPath: "plugins/caveman/SKILL.md",
   kind: "claude-skill",
+  name: null,
   projectDir: null,
   size: 1,
   mtimeNs: 1,
@@ -155,15 +156,11 @@ function deferred<T>() {
 }
 
 function LibraryHarness() {
-  const [selectedFileId, setSelectedFileId] = useState<number | null>(null);
-  const editor = useFileContent(selectedFileId);
   return (
     <LibraryView
-      editor={editor}
+      library={useLibraryFile()}
       onOpenSettings={vi.fn()}
-      onSelectedFileIdChange={setSelectedFileId}
       scan={scan}
-      selectedFileId={selectedFileId}
     />
   );
 }

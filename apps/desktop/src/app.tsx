@@ -10,7 +10,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { DuplicatesView } from "./features/duplicates/duplicates-view";
 import { LibraryView } from "./features/library/library-view";
-import { useFileContent } from "./features/library/use-file-content";
+import { useLibraryFile } from "./features/library/use-library-file";
 import { PromptHistoryView } from "./features/prompts/prompt-history-view";
 import { RegistryPane } from "./features/registry/registry-pane";
 import { useScan } from "./features/scan/use-scan";
@@ -72,10 +72,7 @@ export function App() {
   const [mountedViews, setMountedViews] = useState<Set<ViewId>>(
     () => new Set([view])
   );
-  const [selectedLibraryFileId, setSelectedLibraryFileId] = useState<
-    number | null
-  >(null);
-  const libraryEditor = useFileContent(selectedLibraryFileId);
+  const library = useLibraryFile();
   const scan = useScan();
   const update = useAppUpdate();
 
@@ -111,7 +108,7 @@ export function App() {
                 item={item}
                 key={item.id}
                 onSelect={selectView}
-                unsaved={item.id === "library" && libraryEditor.dirty}
+                unsaved={item.id === "library" && library.editor.dirty}
               />
             ))}
           </div>
@@ -128,11 +125,9 @@ export function App() {
           {mountedViews.has("library") ? (
             <div className="h-full" hidden={view !== "library"}>
               <LibraryView
-                editor={libraryEditor}
+                library={library}
                 onOpenSettings={() => selectView("settings")}
-                onSelectedFileIdChange={setSelectedLibraryFileId}
                 scan={scan}
-                selectedFileId={selectedLibraryFileId}
               />
             </div>
           ) : null}

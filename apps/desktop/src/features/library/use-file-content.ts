@@ -31,15 +31,16 @@ export interface UseFileContent {
   setMode: (mode: EditorMode) => void;
   setBody: (body: string) => void;
   setRaw: (raw: string) => void;
+  replaceDocument: (text: string) => void;
   save: () => Promise<boolean>;
   overwrite: () => Promise<void>;
   reload: () => Promise<void>;
   dismissConflict: () => void;
 }
 
-function toBuffer(content: FileContent): FileBuffer {
-  const split = splitFrontmatter(content.content);
-  return { content, split, body: split.body, raw: content.content };
+function toBuffer(content: FileContent, text = content.content): FileBuffer {
+  const split = splitFrontmatter(text);
+  return { content, split, body: split.body, raw: text };
 }
 
 function documentOf(buffer: FileBuffer, mode: EditorMode): string {
@@ -165,6 +166,17 @@ export function useFileContent(fileId: number | null): UseFileContent {
     [fileId]
   );
 
+  const replaceDocument = useCallback(
+    (text: string) => {
+      setBuffer((previous) =>
+        previous?.content.fileId === fileId
+          ? toBuffer(previous.content, text)
+          : previous
+      );
+    },
+    [fileId]
+  );
+
   const documentText = currentBuffer ? documentOf(currentBuffer, mode) : "";
   const dirty = currentBuffer
     ? documentText !== currentBuffer.content.content
@@ -270,6 +282,7 @@ export function useFileContent(fileId: number | null): UseFileContent {
     setMode,
     setBody,
     setRaw,
+    replaceDocument,
     save,
     overwrite,
     reload,

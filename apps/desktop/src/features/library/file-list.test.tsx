@@ -25,6 +25,7 @@ function file(id: number, relPath: string, kind: FileKind): FileRow {
     path: `${root.path}/${relPath}`,
     relPath,
     kind,
+    name: null,
     projectDir: null,
     size: 1,
     mtimeNs: 1,

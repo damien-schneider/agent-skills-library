@@ -198,6 +198,7 @@ mod tests {
                     path: path.to_string(),
                     rel_path: path.to_string(),
                     kind: FileKind::AgentsMd,
+                    name: None,
                     project_dir: None,
                     size: 1,
                     mtime_ns: 1,

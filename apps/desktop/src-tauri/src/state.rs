@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
+use crate::agent::AgentRuntime;
 use crate::db::Db;
 use crate::error::{AppError, AppResult};
 use crate::watcher::WatcherHandle;
@@ -14,6 +15,7 @@ pub struct RunningScan {
 pub struct AppState {
     pub db: Arc<Db>,
     pub prompt_attachments_dir: PathBuf,
+    pub agent: AgentRuntime,
     scan: Mutex<Option<RunningScan>>,
     watcher: Mutex<Option<WatcherHandle>>,
 }
@@ -23,6 +25,7 @@ impl AppState {
         Self {
             db: Arc::new(db),
             prompt_attachments_dir,
+            agent: AgentRuntime::default(),
             scan: Mutex::new(None),
             watcher: Mutex::new(None),
         }

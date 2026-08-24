@@ -21,6 +21,12 @@ pub enum AppError {
     #[error("a scan is already running")]
     ScanBusy,
 
+    #[error("the agent is already working on this file")]
+    AgentBusy,
+
+    #[error("the Claude Code CLI was not found")]
+    AgentMissing,
+
     #[error("{0}")]
     Io(#[from] std::io::Error),
 
@@ -40,6 +46,8 @@ impl AppError {
             Self::OutsideRoots(_) => "outside_roots",
             Self::Conflict(_) => "conflict",
             Self::ScanBusy => "scan_busy",
+            Self::AgentBusy => "agent_busy",
+            Self::AgentMissing => "agent_missing",
             Self::Io(_) => "io",
             Self::Db(_) => "db",
             Self::Internal(_) => "internal",

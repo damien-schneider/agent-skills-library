@@ -15,6 +15,8 @@ pub struct FileRow {
     pub path: String,
     pub rel_path: String,
     pub kind: FileKind,
+    /// The name other files reference this one by; `None` for CLAUDE.md-style files.
+    pub name: Option<String>,
     pub project_dir: Option<String>,
     pub size: i64,
     pub mtime_ns: i64,
@@ -32,6 +34,7 @@ pub struct FileRecord {
     pub path: String,
     pub rel_path: String,
     pub kind: FileKind,
+    pub name: Option<String>,
     pub project_dir: Option<String>,
     pub size: i64,
     pub mtime_ns: i64,
@@ -55,12 +58,12 @@ pub struct DuplicateGroup {
     pub files: Vec<FileRow>,
 }
 
-const SELECT: &str = "SELECT id, root_id, path, rel_path, kind, project_dir, size, mtime_ns,
-                             hash, is_symlink, symlink_target, first_seen_at, last_seen_scan_id,
-                             deleted_at
+pub const SELECT: &str = "SELECT id, root_id, path, rel_path, kind, name, project_dir, size,
+                             mtime_ns, hash, is_symlink, symlink_target, first_seen_at,
+                             last_seen_scan_id, deleted_at
                       FROM files";
 
-fn map_row(row: &Row) -> rusqlite::Result<FileRow> {
+pub fn map_row(row: &Row) -> rusqlite::Result<FileRow> {
     let raw_kind: String = row.get(4)?;
     let kind = FileKind::from_str(&raw_kind).ok_or_else(|| {
         rusqlite::Error::FromSqlConversionFailure(
@@ -79,15 +82,16 @@ fn map_row(row: &Row) -> rusqlite::Result<FileRow> {
         path: row.get(2)?,
         rel_path: row.get(3)?,
         kind,
-        project_dir: row.get(5)?,
-        size: row.get(6)?,
-        mtime_ns: row.get(7)?,
-        hash: row.get(8)?,
-        is_symlink: row.get::<_, i64>(9)? != 0,
-        symlink_target: row.get(10)?,
-        first_seen_at: row.get(11)?,
-        last_seen_scan_id: row.get(12)?,
-        deleted_at: row.get(13)?,
+        name: row.get(5)?,
+        project_dir: row.get(6)?,
+        size: row.get(7)?,
+        mtime_ns: row.get(8)?,
+        hash: row.get(9)?,
+        is_symlink: row.get::<_, i64>(10)? != 0,
+        symlink_target: row.get(11)?,
+        first_seen_at: row.get(12)?,
+        last_seen_scan_id: row.get(13)?,
+        deleted_at: row.get(14)?,
     })
 }
 
@@ -177,24 +181,29 @@ pub fn list(conn: &Connection, filter: &FileFilter) -> AppResult<Vec<FileRow>> {
     Ok(files)
 }
 
-/// path -> (id, stat, hash) for every live row of a root, feeding the incremental short-circuit.
-pub fn stats_by_path(
-    conn: &Connection,
-    root_id: i64,
-) -> AppResult<HashMap<String, (i64, Stat, String)>> {
+/// What the index already knows about a path, feeding the incremental short-circuit.
+#[derive(Debug, Clone)]
+pub struct IndexedFile {
+    pub stat: Stat,
+    pub hash: String,
+    /// Content hash the references were extracted from; `None` until the file is read once.
+    pub refs_hash: Option<String>,
+}
+
+pub fn indexed_by_path(conn: &Connection, root_id: i64) -> AppResult<HashMap<String, IndexedFile>> {
     let mut stmt =
-        conn.prepare("SELECT id, path, size, mtime_ns, hash FROM files WHERE root_id = ?1")?;
+        conn.prepare("SELECT path, size, mtime_ns, hash, refs_hash FROM files WHERE root_id = ?1")?;
     let rows = stmt.query_map([root_id], |row| {
         Ok((
-            row.get::<_, String>(1)?,
-            (
-                row.get::<_, i64>(0)?,
-                Stat {
-                    size: row.get(2)?,
-                    mtime_ns: row.get(3)?,
+            row.get::<_, String>(0)?,
+            IndexedFile {
+                stat: Stat {
+                    size: row.get(1)?,
+                    mtime_ns: row.get(2)?,
                 },
-                row.get::<_, String>(4)?,
-            ),
+                hash: row.get(3)?,
+                refs_hash: row.get(4)?,
+            },
         ))
     })?;
 
@@ -208,13 +217,15 @@ pub fn stats_by_path(
 
 pub fn upsert(conn: &Connection, record: &FileRecord, scan_id: i64, now_ms: i64) -> AppResult<i64> {
     conn.execute(
-        "INSERT INTO files (root_id, path, rel_path, kind, project_dir, size, mtime_ns, hash,
-                            is_symlink, symlink_target, first_seen_at, last_seen_scan_id, deleted_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, NULL)
+        "INSERT INTO files (root_id, path, rel_path, kind, name, project_dir, size, mtime_ns,
+                            hash, is_symlink, symlink_target, first_seen_at, last_seen_scan_id,
+                            deleted_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, NULL)
          ON CONFLICT(path) DO UPDATE SET
              root_id = excluded.root_id,
              rel_path = excluded.rel_path,
              kind = excluded.kind,
+             name = excluded.name,
              project_dir = excluded.project_dir,
              size = excluded.size,
              mtime_ns = excluded.mtime_ns,
@@ -228,6 +239,7 @@ pub fn upsert(conn: &Connection, record: &FileRecord, scan_id: i64, now_ms: i64)
             record.path,
             record.rel_path,
             record.kind.as_str(),
+            record.name,
             record.project_dir,
             record.size,
             record.mtime_ns,
@@ -323,6 +335,7 @@ mod tests {
             path: path.to_string(),
             rel_path: path.trim_start_matches("/repo/").to_string(),
             kind,
+            name: None,
             project_dir: Some("/repo".to_string()),
             size: 10,
             mtime_ns: 1_000,
@@ -526,26 +539,28 @@ mod tests {
     }
 
     #[test]
-    fn stats_by_path_feeds_the_incremental_check() {
+    fn indexed_by_path_feeds_the_incremental_check() {
         let (db, root_id) = seeded();
-        let id = db
-            .with_conn(|conn| {
-                upsert(
-                    conn,
-                    &record(root_id, "/repo/CLAUDE.md", FileKind::ClaudeMd, "h"),
-                    1,
-                    0,
-                )
-            })
-            .unwrap();
+        db.with_conn(|conn| {
+            upsert(
+                conn,
+                &record(root_id, "/repo/CLAUDE.md", FileKind::ClaudeMd, "h"),
+                1,
+                0,
+            )
+        })
+        .unwrap();
 
-        let stats = db.with_conn(|conn| stats_by_path(conn, root_id)).unwrap();
+        let indexed = db.with_conn(|conn| indexed_by_path(conn, root_id)).unwrap();
 
-        let (found_id, stat, hash) = stats.get("/repo/CLAUDE.md").unwrap();
-        assert_eq!(*found_id, id);
-        assert_eq!(stat.size, 10);
-        assert_eq!(stat.mtime_ns, 1_000);
-        assert_eq!(hash, "h");
+        let entry = indexed.get("/repo/CLAUDE.md").unwrap();
+        assert_eq!(entry.stat.size, 10);
+        assert_eq!(entry.stat.mtime_ns, 1_000);
+        assert_eq!(entry.hash, "h");
+        assert_eq!(
+            entry.refs_hash, None,
+            "a freshly upserted row still owes its references"
+        );
     }
 
     #[test]

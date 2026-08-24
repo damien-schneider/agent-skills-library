@@ -10,11 +10,18 @@ import {
   Link2,
   type LucideIcon,
   PencilLine,
-  Save,
+  Sparkles,
   Star,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { AgentPanel } from "@/features/agent/agent-panel";
+import { useAgentSession } from "@/features/agent/use-agent-session";
+import { LinksBar } from "@/features/links/links-bar";
+import { LocalGraph } from "@/features/links/local-graph";
+import { MentionPreview } from "@/features/links/mention-preview";
+import { useFileLinks } from "@/features/links/use-file-links";
+import { useSkillMentions } from "@/features/links/use-skill-mentions";
 import type { FileRow } from "@/lib/ipc-types";
 import { cn } from "@/lib/utils";
 import { DiffView } from "@/shared/components/diff-view";
@@ -28,6 +35,9 @@ import {
   DialogTitle,
 } from "@/shared/components/ui/dialog";
 import { MarkdownEditor } from "@/shared/components/ui/markdown-editor";
+import { Tooltip } from "@/shared/components/ui/tooltip";
+
+import { SaveBar } from "./save-bar";
 
 import type { EditorMode, UseFileContent } from "./use-file-content";
 
@@ -35,6 +45,7 @@ export interface EditorPaneProps {
   editor: UseFileContent;
   file: FileRow | null;
   favorite: boolean;
+  onOpenFile: (file: FileRow) => void;
   onToggleFavorite: (path: string) => Promise<void>;
 }
 
@@ -142,15 +153,80 @@ function ProjectFavoriteButton({
   );
 }
 
+function EditorActions({
+  agentOpen,
+  editor,
+  favorite,
+  file,
+  onToggleAgent,
+  onToggleFavorite,
+}: {
+  agentOpen: boolean;
+  editor: UseFileContent;
+  favorite: boolean;
+  file: FileRow;
+  onToggleAgent: () => void;
+  onToggleFavorite: (path: string) => Promise<void>;
+}) {
+  return (
+    <>
+      {file.projectDir ? (
+        <ProjectFavoriteButton
+          favorite={favorite}
+          onToggle={onToggleFavorite}
+          path={file.projectDir}
+        />
+      ) : null}
+
+      <EditorModeTabs mode={editor.mode} onChange={editor.setMode} />
+
+      <Tooltip label="Reveal in Finder">
+        <Button
+          aria-label="Reveal in Finder"
+          onClick={async () => {
+            try {
+              await revealItemInDir(file.path);
+            } catch (cause) {
+              toast.error(`Could not reveal file: ${String(cause)}`);
+            }
+          }}
+          size="icon-sm"
+          variant="ghost"
+        >
+          <FolderOpen />
+        </Button>
+      </Tooltip>
+      <Tooltip label="Ask AI">
+        <Button
+          aria-label="Ask AI"
+          aria-pressed={agentOpen}
+          onClick={onToggleAgent}
+          size="icon-sm"
+          variant={agentOpen ? "secondary" : "ghost"}
+        >
+          <Sparkles />
+        </Button>
+      </Tooltip>
+    </>
+  );
+}
+
 export function EditorPane({
   editor,
   file,
   favorite,
+  onOpenFile,
   onToggleFavorite,
 }: EditorPaneProps) {
   const [reviewOpen, setReviewOpen] = useState(false);
   const [frontmatterOpen, setFrontmatterOpen] = useState(false);
-
+  const [agentOpen, setAgentOpen] = useState(false);
+  const agent = useAgentSession(file?.id ?? null);
+  const links = useFileLinks(file?.id ?? null);
+  const mentions = useSkillMentions({
+    targets: links.outgoing,
+    onOpen: onOpenFile,
+  });
   useEffect(() => {
     if (!editor.dirty) {
       return;
@@ -193,7 +269,7 @@ export function EditorPane({
     return null;
   }
 
-  const handleSave = async (): Promise<void> => {
+  const save = async () => {
     const saved = await editor.save();
     if (saved) {
       toast.success(`Saved ${file.relPath}`);
@@ -201,127 +277,103 @@ export function EditorPane({
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <header className="flex min-h-14 items-center gap-3 border-border border-b px-4 py-2.5">
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-center gap-2">
+    <div className="flex h-full min-h-0">
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="flex min-h-14 items-center gap-3 px-4 py-2.5">
+          <div className="min-w-0 flex-1">
             <p className="truncate font-medium text-sm">{file.relPath}</p>
-            {editor.dirty ? (
-              <span className="shrink-0 rounded-full bg-amber-500/15 px-2 py-0.5 font-medium text-[10px] text-amber-800 dark:text-amber-300">
-                Unsaved
-              </span>
-            ) : null}
+            <p className="truncate text-muted-foreground text-xs">
+              {targetLabel(file.kind)} · {file.path}
+            </p>
           </div>
-          <p className="truncate text-muted-foreground text-xs">
-            {targetLabel(file.kind)} · {file.path}
-          </p>
-        </div>
-        {file.projectDir ? (
-          <ProjectFavoriteButton
+          <EditorActions
+            agentOpen={agentOpen}
+            editor={editor}
             favorite={favorite}
-            onToggle={onToggleFavorite}
-            path={file.projectDir}
+            file={file}
+            onToggleAgent={() => setAgentOpen((open) => !open)}
+            onToggleFavorite={onToggleFavorite}
           />
+        </header>
+
+        <LinksBar links={links} onSelect={onOpenFile} />
+
+        {buffer.content.isSymlink ? (
+          <p className="flex items-center gap-2 border-border border-b bg-chart-3/10 px-4 py-1.5 text-xs">
+            <Link2 className="size-3.5" />
+            Symlink — edits go to {buffer.content.symlinkTarget}
+          </p>
         ) : null}
 
-        <EditorModeTabs mode={editor.mode} onChange={editor.setMode} />
+        {editor.changedOnDisk ? (
+          <div className="flex items-center gap-2 border-border border-b bg-destructive/10 px-4 py-1.5 text-xs">
+            <AlertTriangle className="size-3.5" />
+            <span className="flex-1">This file changed on disk.</span>
+            <Button onClick={editor.reload} size="sm" variant="ghost">
+              Reload
+            </Button>
+          </div>
+        ) : null}
 
-        <Button
-          aria-label="Reveal in Finder"
-          onClick={async () => {
-            try {
-              await revealItemInDir(file.path);
-            } catch (cause) {
-              toast.error(`Could not reveal file: ${String(cause)}`);
-            }
-          }}
-          size="icon-sm"
-          title="Reveal in Finder"
-          variant="ghost"
-        >
-          <FolderOpen />
-        </Button>
-        <Button
-          disabled={!editor.dirty}
-          onClick={() => setReviewOpen(true)}
-          size="sm"
-          variant="outline"
-        >
-          Review changes
-        </Button>
-        <Button
-          disabled={!editor.dirty || editor.saving}
-          onClick={async () => {
-            await handleSave();
-          }}
-          size="sm"
-        >
-          <Save />
-          {editor.saving ? "Saving…" : "Save"}
-        </Button>
-        <span aria-live="polite" className="sr-only">
-          {editor.dirty ? "Unsaved changes" : "No unsaved changes"}
-        </span>
-      </header>
+        {editor.error ? (
+          <p className="border-border border-b bg-destructive/10 px-4 py-1.5 text-destructive text-xs">
+            {editor.error}
+          </p>
+        ) : null}
 
-      {buffer.content.isSymlink ? (
-        <p className="flex items-center gap-2 border-border border-b bg-chart-3/10 px-4 py-1.5 text-xs">
-          <Link2 className="size-3.5" />
-          Symlink — edits go to {buffer.content.symlinkTarget}
-        </p>
-      ) : null}
-
-      {editor.changedOnDisk ? (
-        <div className="flex items-center gap-2 border-border border-b bg-destructive/10 px-4 py-1.5 text-xs">
-          <AlertTriangle className="size-3.5" />
-          <span className="flex-1">This file changed on disk.</span>
-          <Button onClick={editor.reload} size="sm" variant="ghost">
-            Reload
-          </Button>
-        </div>
-      ) : null}
-
-      {editor.error ? (
-        <p className="border-border border-b bg-destructive/10 px-4 py-1.5 text-destructive text-xs">
-          {editor.error}
-        </p>
-      ) : null}
-
-      <FrontmatterPanel
-        frontmatter={buffer.split.frontmatter}
-        onToggle={() => setFrontmatterOpen((open) => !open)}
-        open={frontmatterOpen}
-        visible={editor.mode !== "raw"}
-      />
-
-      {editor.mode === "rich" ? (
-        <MarkdownEditor
-          className="min-h-0 flex-1"
-          key={file.id}
-          onChange={editor.setBody}
-          value={buffer.body}
+        <FrontmatterPanel
+          frontmatter={buffer.split.frontmatter}
+          onToggle={() => setFrontmatterOpen((open) => !open)}
+          open={frontmatterOpen}
+          visible={editor.mode !== "raw"}
         />
-      ) : null}
-      {editor.mode === "preview" ? (
-        <MarkdownEditor
-          className="min-h-0 flex-1"
-          editable={false}
-          key={file.id}
-          onChange={editor.setBody}
-          placeholder="Nothing to preview."
-          value={buffer.body}
-        />
-      ) : null}
-      {editor.mode === "raw" ? (
-        <div className="min-h-0 flex-1 overflow-auto bg-muted/20 p-4 sm:p-6">
-          <textarea
-            aria-label="Markdown source"
-            className="mx-auto block h-full min-h-full w-full max-w-5xl resize-none bg-background px-8 py-8 font-mono text-[13px] leading-6 shadow-sm outline-none focus:ring-2 focus:ring-ring/30 focus:ring-offset-2 focus:ring-offset-muted/20 sm:px-10 sm:py-10"
-            onChange={(event) => editor.setRaw(event.target.value)}
-            spellCheck={false}
-            value={buffer.raw}
+
+        <div className="relative flex min-h-0 flex-1 flex-col">
+          {editor.mode === "raw" ? null : (
+            <MarkdownEditor
+              className="min-h-0 flex-1"
+              editable={editor.mode === "rich"}
+              extensions={mentions.extensions}
+              key={file.id}
+              onChange={editor.setBody}
+              placeholder={
+                editor.mode === "preview" ? "Nothing to preview." : undefined
+              }
+              value={buffer.body}
+            />
+          )}
+          <MentionPreview mentions={mentions} />
+          {editor.mode === "raw" ? (
+            <div className="min-h-0 flex-1 overflow-auto bg-muted/20 p-4 sm:p-6">
+              <textarea
+                aria-label="Markdown source"
+                className="mx-auto block h-full min-h-full w-full max-w-5xl resize-none bg-background px-8 py-8 font-mono text-[13px] leading-6 shadow-sm outline-none focus:ring-2 focus:ring-ring/30 focus:ring-offset-2 focus:ring-offset-muted/20 sm:px-10 sm:py-10"
+                onChange={(event) => editor.setRaw(event.target.value)}
+                spellCheck={false}
+                value={buffer.raw}
+              />
+            </div>
+          ) : null}
+          <div className="absolute top-3 right-3 hidden lg:block">
+            <LocalGraph links={links} onOpen={onOpenFile} />
+          </div>
+
+          <SaveBar
+            dirty={editor.dirty}
+            onReview={() => setReviewOpen(true)}
+            onSave={save}
+            saving={editor.saving}
           />
         </div>
+      </div>
+
+      {agentOpen ? (
+        <AgentPanel
+          documentText={editor.documentText}
+          onApply={editor.replaceDocument}
+          onClose={() => setAgentOpen(false)}
+          session={agent}
+        />
       ) : null}
 
       <Dialog onOpenChange={setReviewOpen} open={reviewOpen}>

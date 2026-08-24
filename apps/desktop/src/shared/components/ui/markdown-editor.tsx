@@ -1,7 +1,13 @@
+import { openUrl } from "@tauri-apps/plugin-opener";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
 import { Markdown } from "@tiptap/markdown";
-import { type Editor, EditorContent, useEditor } from "@tiptap/react";
+import {
+  type Editor,
+  EditorContent,
+  type Extensions,
+  useEditor,
+} from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import {
   type KeyboardEvent,
@@ -10,6 +16,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
 
@@ -49,6 +56,8 @@ export interface MarkdownEditorProps {
   editable?: boolean;
   placeholder?: string;
   className?: string;
+  /** Extra TipTap extensions; must be referentially stable across renders. */
+  extensions?: Extensions;
 }
 
 interface SyncedSource {
@@ -60,6 +69,7 @@ export function MarkdownEditor({
   value,
   onChange,
   editable = true,
+  extensions = [],
   placeholder = "Write your content here...",
   className,
 }: MarkdownEditorProps) {
@@ -86,6 +96,7 @@ export function MarkdownEditor({
         },
       }),
       Markdown,
+      ...extensions,
     ],
     content: value,
     contentType: "markdown",
@@ -97,6 +108,22 @@ export function MarkdownEditor({
           "tiptap-editor mx-auto min-h-full w-full max-w-[72ch] px-8 py-8 outline-none sm:px-10 sm:py-10",
           !editable && "tiptap-preview"
         ),
+      },
+      handleClick: (_view, _pos, event) => {
+        if (!(event.metaKey || event.ctrlKey)) {
+          return false;
+        }
+        const { target } = event;
+        if (!(target instanceof Element)) {
+          return false;
+        }
+        const href = target.closest("a")?.getAttribute("href");
+        if (!href) {
+          return false;
+        }
+        event.preventDefault();
+        openUrl(href).catch(() => toast.error(`Could not open link: ${href}`));
+        return true;
       },
     },
     onCreate: ({ editor: instance }) => {

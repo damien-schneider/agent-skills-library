@@ -73,7 +73,8 @@ pub fn walk_root(root: &Path, cancel: &AtomicBool, on_entry: impl Fn(WalkEntry) 
         // not gitignore-driven on purpose: `.claude/` is commonly ignored yet must be indexed
         .standard_filters(false)
         .hidden(false)
-        .follow_links(false)
+        // skills are routinely symlinked into `~/.claude/skills`; the walker sees what the agent sees
+        .follow_links(true)
         .threads(threads)
         .filter_entry(|entry| !is_skipped(entry))
         .build_parallel()
@@ -185,6 +186,40 @@ mod tests {
 
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].kind, FileKind::ClaudeAgent);
+    }
+
+    #[test]
+    fn walks_into_symlinked_skill_directories() {
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+        write(&root.join("shared/humanizer/SKILL.md"), "a");
+        fs::create_dir_all(root.join(".claude/skills")).unwrap();
+        std::os::unix::fs::symlink(
+            root.join("shared/humanizer"),
+            root.join(".claude/skills/humanizer"),
+        )
+        .unwrap();
+
+        let entries = collect(&root.join(".claude"));
+
+        assert_eq!(
+            entries
+                .iter()
+                .map(|entry| entry.path.strip_prefix(root).unwrap().to_string_lossy())
+                .collect::<Vec<_>>(),
+            vec![".claude/skills/humanizer/SKILL.md"],
+            "the skill is indexed under the path the agent resolves"
+        );
+    }
+
+    #[test]
+    fn a_symlink_loop_does_not_hang_the_walk() {
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+        write(&root.join(".claude/skills/demo/SKILL.md"), "a");
+        std::os::unix::fs::symlink(root, root.join(".claude/skills/demo/self")).unwrap();
+
+        assert_eq!(collect(root).len(), 1);
     }
 
     #[test]

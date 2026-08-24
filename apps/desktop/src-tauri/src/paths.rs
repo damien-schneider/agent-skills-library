@@ -46,6 +46,19 @@ pub fn ensure_within_roots(path: &Path, roots: &[Root]) -> AppResult<()> {
     }
 }
 
+/// An indexed file answers to two paths: the walked one the index and agents use,
+/// and the canonicalized one where the bytes live. Symlinks between roots are the
+/// norm for skills, so access follows whichever identity is rooted.
+pub fn ensure_openable(path: &Path, resolved: &Path, roots: &[Root]) -> AppResult<()> {
+    match (
+        ensure_within_roots(resolved, roots),
+        ensure_within_roots(path, roots),
+    ) {
+        (Ok(()), _) | (_, Ok(())) => Ok(()),
+        (Err(err), Err(_)) => Err(err),
+    }
+}
+
 pub fn conflicts_with_existing_root(candidate: &Path, roots: &[Root]) -> Option<String> {
     roots.iter().find_map(|root| {
         let existing = Path::new(&root.path);
@@ -97,6 +110,28 @@ mod tests {
     #[test]
     fn rejects_every_path_when_no_root_is_enabled() {
         assert!(ensure_within_roots(Path::new("/Users/me/GitHub/CLAUDE.md"), &[]).is_err());
+    }
+
+    #[test]
+    fn opens_a_symlinked_file_whose_target_lies_outside_the_roots() {
+        let roots = vec![root("/Users/me/.claude")];
+
+        let stored = Path::new("/Users/me/.claude/skills/humanizer/SKILL.md");
+        let resolved = Path::new("/Users/me/.agents/skills/humanizer/SKILL.md");
+
+        assert!(ensure_openable(stored, resolved, &roots).is_ok());
+    }
+
+    #[test]
+    fn rejects_a_file_when_neither_identity_is_inside_a_root() {
+        let roots = vec![root("/Users/me/GitHub")];
+
+        let stored = Path::new("/Users/me/.claude/skills/humanizer/SKILL.md");
+        let resolved = Path::new("/Users/me/.agents/skills/humanizer/SKILL.md");
+
+        let err = ensure_openable(stored, resolved, &roots).unwrap_err();
+
+        assert_eq!(err.code(), "outside_roots");
     }
 
     #[test]

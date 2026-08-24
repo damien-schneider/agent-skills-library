@@ -1,4 +1,4 @@
-pub const SCHEMA_VERSION: i64 = 4;
+pub const SCHEMA_VERSION: i64 = 6;
 
 pub const MIGRATION_1: &str = r"
 CREATE TABLE IF NOT EXISTS roots (
@@ -106,4 +106,22 @@ CREATE TABLE IF NOT EXISTS prompt_attachments (
 
 CREATE INDEX IF NOT EXISTS prompt_attachments_prompt_idx
 ON prompt_attachments(prompt_id, id);
+";
+
+pub const MIGRATION_5: &str = r"
+ALTER TABLE files ADD COLUMN name TEXT;
+
+CREATE INDEX IF NOT EXISTS files_name_idx ON files(name);
+
+CREATE TABLE IF NOT EXISTS file_refs (
+    file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+    name    TEXT    NOT NULL,
+    PRIMARY KEY (file_id, name)
+);
+
+CREATE INDEX IF NOT EXISTS file_refs_name_idx ON file_refs(name);
+";
+
+pub const MIGRATION_6: &str = r"
+ALTER TABLE files ADD COLUMN refs_hash TEXT;
 ";

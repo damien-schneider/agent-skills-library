@@ -8,12 +8,13 @@ use notify_debouncer_full::{new_debouncer_opt, DebounceEventResult, Debouncer, N
 use tauri::AppHandle;
 
 use crate::db::files_repo::{self, FileRecord};
+use crate::db::links_repo;
 use crate::db::roots_repo::Root;
 use crate::db::{now_ms, Db};
 use crate::error::{AppError, AppResult};
 use crate::events;
 use crate::fsops;
-use crate::scanner::hash::hash_file;
+use crate::scanner::refs;
 use crate::scanner::targets::classify;
 use crate::scanner::walk::project_dir_of;
 
@@ -103,14 +104,14 @@ pub fn reindex(db: &Db, roots: &[Root], paths: &BTreeSet<PathBuf>) -> AppResult<
         let Ok(stat) = fsops::stat(path) else {
             continue;
         };
-        let Ok(hash) = hash_file(path, stat.size as u64) else {
+        let Ok(indexed) = refs::index_file(path, stat.size as u64) else {
             continue;
         };
 
         let previous = db.with_conn(|conn| files_repo::find_by_path(conn, &key))?;
         if previous
             .as_ref()
-            .is_some_and(|row| row.hash == hash && row.deleted_at.is_none())
+            .is_some_and(|row| row.hash == indexed.hash && row.deleted_at.is_none())
         {
             continue;
         }
@@ -127,10 +128,11 @@ pub fn reindex(db: &Db, roots: &[Root], paths: &BTreeSet<PathBuf>) -> AppResult<
                 .to_string_lossy()
                 .into_owned(),
             kind,
+            name: refs::name_for(path, kind),
             project_dir: project_dir_of(path, root_path),
             size: stat.size,
             mtime_ns: stat.mtime_ns,
-            hash,
+            hash: indexed.hash,
             is_symlink,
             symlink_target: is_symlink
                 .then(|| std::fs::read_link(path).ok())
@@ -138,7 +140,11 @@ pub fn reindex(db: &Db, roots: &[Root], paths: &BTreeSet<PathBuf>) -> AppResult<
                 .map(|target| target.to_string_lossy().into_owned()),
         };
 
-        let id = db.with_conn(|conn| files_repo::upsert(conn, &record, scan_id, now_ms()))?;
+        let id = db.with_tx(|tx| {
+            let id = files_repo::upsert(tx, &record, scan_id, now_ms())?;
+            links_repo::replace_refs(tx, id, &record.hash, &indexed.refs)?;
+            Ok(id)
+        })?;
         touched.push(id);
     }
 

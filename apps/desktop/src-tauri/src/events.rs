@@ -13,6 +13,10 @@ pub const CAPTURE_SAVED: &str = "capture:saved";
 pub const CAPTURE_ERROR: &str = "capture:error";
 pub const CAPTURE_ACCESS_CHANGED: &str = "capture:access-changed";
 pub const CAPTURE_SHORTCUT_PROGRESS: &str = "capture:shortcut-progress";
+pub const AGENT_DELTA: &str = "agent:delta";
+pub const AGENT_TOOL: &str = "agent:tool";
+pub const AGENT_DONE: &str = "agent:done";
+pub const AGENT_ERROR: &str = "agent:error";
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -55,6 +59,52 @@ pub struct CaptureError {
 #[serde(rename_all = "camelCase")]
 pub struct CaptureShortcutProgress {
     pub completed_taps: u8,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentDelta {
+    pub run_id: u64,
+    pub block: u32,
+    pub text: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentTool {
+    pub run_id: u64,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentDone {
+    pub run_id: u64,
+    pub proposal: Option<String>,
+    pub cancelled: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentError {
+    pub run_id: u64,
+    pub message: String,
+}
+
+pub fn emit_agent_delta(app: &AppHandle, payload: AgentDelta) {
+    let _ = app.emit(AGENT_DELTA, payload);
+}
+
+pub fn emit_agent_tool(app: &AppHandle, payload: AgentTool) {
+    let _ = app.emit(AGENT_TOOL, payload);
+}
+
+pub fn emit_agent_done(app: &AppHandle, payload: AgentDone) {
+    let _ = app.emit(AGENT_DONE, payload);
+}
+
+pub fn emit_agent_error(app: &AppHandle, payload: AgentError) {
+    let _ = app.emit(AGENT_ERROR, payload);
 }
 
 pub fn emit_scan_progress(app: &AppHandle, payload: ScanProgress) {

@@ -20,7 +20,7 @@ import { Input } from "@/shared/components/ui/input";
 import { EditorPane } from "./editor-pane";
 import { FileList } from "./file-list";
 import { FileTree } from "./file-tree";
-import type { UseFileContent } from "./use-file-content";
+import type { UseLibraryFile } from "./use-library-file";
 
 type LibraryViewMode = "simplified" | "tree";
 
@@ -106,26 +106,21 @@ function LibraryFiles({
 }
 
 export function LibraryView({
-  editor,
+  library,
   onOpenSettings,
-  onSelectedFileIdChange,
   scan,
-  selectedFileId,
 }: {
-  editor: UseFileContent;
+  library: UseLibraryFile;
   onOpenSettings: () => void;
-  onSelectedFileIdChange: (fileId: number | null) => void;
   scan: UseScan;
-  selectedFileId: number | null;
 }) {
   const [files, setFiles] = useState<FileRow[]>([]);
   const [roots, setRoots] = useState<Root[]>([]);
   const [search, setSearch] = useState("");
   const [viewMode, setViewMode] = useState<LibraryViewMode>("simplified");
-  const [selectedFile, setSelectedFile] = useState<FileRow | null>(null);
-  const [pendingFile, setPendingFile] = useState<FileRow | null>(null);
   const [error, setError] = useState<string | null>(null);
   const favoriteProjects = useFavoriteProjects();
+  const { editor, fileId: selectedFileId, pending } = library;
 
   const refresh = useCallback(async () => {
     try {
@@ -165,22 +160,7 @@ export function LibraryView({
     files.find((file) => file.id === selectedFileId) ?? null;
   const selected =
     indexedSelection ??
-    (selectedFile?.id === selectedFileId ? selectedFile : null);
-
-  const handleSelectFile = useCallback(
-    (file: FileRow) => {
-      if (file.id === selectedFileId) {
-        return;
-      }
-      if (editor.dirty) {
-        setPendingFile(file);
-        return;
-      }
-      setSelectedFile(file);
-      onSelectedFileIdChange(file.id);
-    },
-    [editor.dirty, onSelectedFileIdChange, selectedFileId]
-  );
+    (library.file?.id === selectedFileId ? library.file : null);
 
   return (
     <div className="flex h-full min-h-0">
@@ -240,7 +220,7 @@ export function LibraryView({
             indexedFileCount={files.length}
             onOpenSettings={onOpenSettings}
             onRetry={refresh}
-            onSelectFile={handleSelectFile}
+            onSelectFile={library.select}
             roots={roots}
             selectedFileId={selectedFileId}
             viewMode={viewMode}
@@ -263,6 +243,7 @@ export function LibraryView({
               : false
           }
           file={selected}
+          onOpenFile={library.select}
           onToggleFavorite={favoriteProjects.toggle}
         />
       </section>
@@ -270,33 +251,24 @@ export function LibraryView({
       <Dialog
         onOpenChange={(open) => {
           if (!open) {
-            setPendingFile(null);
+            library.cancelPending();
           }
         }}
-        open={pendingFile !== null}
+        open={pending !== null}
       >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Unsaved changes</DialogTitle>
             <DialogDescription>
               Keep editing the current file, or discard those changes before
-              opening {pendingFile?.relPath}.
+              opening {pending?.relPath}.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button onClick={() => setPendingFile(null)} variant="outline">
+            <Button onClick={library.cancelPending} variant="outline">
               Keep editing
             </Button>
-            <Button
-              onClick={() => {
-                if (pendingFile) {
-                  setSelectedFile(pendingFile);
-                  onSelectedFileIdChange(pendingFile.id);
-                  setPendingFile(null);
-                }
-              }}
-              variant="destructive"
-            >
+            <Button onClick={library.confirmPending} variant="destructive">
               Discard &amp; open
             </Button>
           </DialogFooter>

@@ -1,3 +1,4 @@
+pub mod agent;
 pub mod destinations;
 pub mod favorite_projects;
 pub mod files;

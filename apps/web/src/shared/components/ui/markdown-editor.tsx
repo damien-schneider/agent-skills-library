@@ -186,6 +186,7 @@ function EditorWithModules({
           levels: [1, 2, 3],
         },
         codeBlock: false,
+        link: false,
       }),
       Placeholder.configure({
         placeholder,
@@ -204,6 +205,22 @@ function EditorWithModules({
     editorProps: {
       attributes: {
         class: "tiptap-editor outline-none min-h-[200px] px-5 py-4",
+      },
+      handleClick: (_view, _pos, event) => {
+        if (!(event.metaKey || event.ctrlKey)) {
+          return false;
+        }
+        const { target } = event;
+        if (!(target instanceof Element)) {
+          return false;
+        }
+        const href = target.closest("a")?.getAttribute("href");
+        if (!href) {
+          return false;
+        }
+        event.preventDefault();
+        window.open(href, "_blank", "noopener,noreferrer");
+        return true;
       },
     },
     onUpdate: ({ editor }) => {

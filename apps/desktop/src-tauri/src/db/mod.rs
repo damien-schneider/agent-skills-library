@@ -3,6 +3,7 @@ pub mod destinations_repo;
 pub mod favorite_projects_repo;
 pub mod files_repo;
 pub mod groups_repo;
+pub mod links_repo;
 pub mod prompts_repo;
 pub mod roots_repo;
 pub mod schema;
@@ -107,6 +108,12 @@ impl Db {
         if version < 4 {
             conn.execute_batch(schema::MIGRATION_4)?;
         }
+        if version < 5 {
+            conn.execute_batch(schema::MIGRATION_5)?;
+        }
+        if version < 6 {
+            conn.execute_batch(schema::MIGRATION_6)?;
+        }
 
         conn.execute(
             "INSERT INTO meta (key, value) VALUES (?1, ?2)
@@ -178,6 +185,7 @@ mod tests {
             "prompt_history",
             "favorite_projects",
             "prompt_attachments",
+            "file_refs",
         ] {
             assert!(tables.iter().any(|t| t == expected), "missing {expected}");
         }
@@ -192,7 +200,7 @@ mod tests {
             .with_conn(|conn| get_meta(conn, META_SCHEMA_VERSION))
             .unwrap();
 
-        assert_eq!(version.as_deref(), Some("4"));
+        assert_eq!(version, Some(schema::SCHEMA_VERSION.to_string()));
     }
 
     #[test]
@@ -220,9 +228,8 @@ mod tests {
         assert_eq!(prompt_tables, 1);
         assert_eq!(
             db.with_conn(|conn| get_meta(conn, META_SCHEMA_VERSION))
-                .unwrap()
-                .as_deref(),
-            Some("4")
+                .unwrap(),
+            Some(schema::SCHEMA_VERSION.to_string())
         );
     }
 
@@ -252,9 +259,8 @@ mod tests {
         assert_eq!(favorite_tables, 1);
         assert_eq!(
             db.with_conn(|conn| get_meta(conn, META_SCHEMA_VERSION))
-                .unwrap()
-                .as_deref(),
-            Some("4")
+                .unwrap(),
+            Some(schema::SCHEMA_VERSION.to_string())
         );
     }
 
@@ -285,10 +291,42 @@ mod tests {
         assert_eq!(attachment_tables, 1);
         assert_eq!(
             db.with_conn(|conn| get_meta(conn, META_SCHEMA_VERSION))
-                .unwrap()
-                .as_deref(),
-            Some("4")
+                .unwrap(),
+            Some(schema::SCHEMA_VERSION.to_string())
         );
+    }
+
+    #[test]
+    fn migrating_from_version_four_adds_file_references() {
+        let conn = Connection::open_in_memory().unwrap();
+        for migration in [
+            schema::MIGRATION_1,
+            schema::MIGRATION_2,
+            schema::MIGRATION_3,
+            schema::MIGRATION_4,
+        ] {
+            conn.execute_batch(migration).unwrap();
+        }
+        conn.execute(
+            "INSERT INTO meta (key, value) VALUES (?1, '4')",
+            [META_SCHEMA_VERSION],
+        )
+        .unwrap();
+
+        let db = Db::from_connection(conn).unwrap();
+
+        let counted = db
+            .with_conn(|conn| {
+                Ok(conn.query_row(
+                    "SELECT COUNT(*) FROM file_refs
+                     JOIN files ON files.name IS NOT NULL AND files.refs_hash IS NULL",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )?)
+            })
+            .unwrap();
+
+        assert_eq!(counted, 0, "the new table and column answer queries");
     }
 
     #[test]

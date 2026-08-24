@@ -10,6 +10,8 @@ export type AppErrorCode =
   | "outside_roots"
   | "conflict"
   | "scan_busy"
+  | "agent_busy"
+  | "agent_missing"
   | "io"
   | "db"
   | "internal";
@@ -60,6 +62,39 @@ export interface PromptHistoryEntry {
   attachments: PromptAttachment[];
 }
 
+/** Mirrors agent::cli::AgentStatus */
+export interface AgentStatus {
+  available: boolean;
+  path: string | null;
+  version: string | null;
+}
+
+/** Mirrors events::AgentDelta */
+export interface AgentDeltaEvent {
+  runId: number;
+  block: number;
+  text: string;
+}
+
+/** Mirrors events::AgentTool */
+export interface AgentToolEvent {
+  runId: number;
+  name: string;
+}
+
+/** Mirrors events::AgentDone */
+export interface AgentDoneEvent {
+  runId: number;
+  proposal: string | null;
+  cancelled: boolean;
+}
+
+/** Mirrors events::AgentError */
+export interface AgentErrorEvent {
+  runId: number;
+  message: string;
+}
+
 export interface CaptureAccessStatus {
   supported: boolean;
   granted: boolean;
@@ -80,6 +115,8 @@ export interface FileRow {
   path: string;
   relPath: string;
   kind: FileKind;
+  /** The name other files reference this one by; null for CLAUDE.md-style files */
+  name: string | null;
   projectDir: string | null;
   size: number;
   mtimeNs: number;
@@ -89,6 +126,12 @@ export interface FileRow {
   firstSeenAt: number;
   lastSeenScanId: number | null;
   deletedAt: number | null;
+}
+
+/** Mirrors db::links_repo::FileLinks */
+export interface FileLinks {
+  outgoing: FileRow[];
+  incoming: FileRow[];
 }
 
 /** Mirrors db::files_repo::DuplicateGroup */
