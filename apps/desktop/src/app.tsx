@@ -202,7 +202,7 @@ export function App() {
         <SidebarRail />
       </Sidebar>
 
-      <SidebarInset>
+      <SidebarInset render={<main />}>
         <div className="h-full min-h-0" hidden={view !== "library"}>
           <EditorPane
             editor={library.editor}

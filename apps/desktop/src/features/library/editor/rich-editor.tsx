@@ -18,7 +18,6 @@ const EDITOR_STYLE = {
   "--cui-markdown-editor-background": "transparent",
   "--cui-markdown-editor-border-width": "0px",
   "--cui-markdown-editor-radius": "0px",
-  "--cui-markdown-editor-padding": "0px",
   "--cui-markdown-editor-max-height": "100%",
   "--cui-markdown-editor-min-height": "40dvh",
 } as const;

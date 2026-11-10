@@ -36,7 +36,15 @@ pub fn run() {
     }
 
     builder
-        .plugin(tauri_plugin_log::Builder::default().build())
+        // Without a level the watcher logs a TRACE line for every file event
+        // under every watched project.
+        .plugin(
+            tauri_plugin_log::Builder::default()
+                .level(log::LevelFilter::Info)
+                .level_for("notify", log::LevelFilter::Warn)
+                .level_for("notify_debouncer_full", log::LevelFilter::Warn)
+                .build(),
+        )
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
