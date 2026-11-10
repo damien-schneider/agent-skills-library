@@ -47,7 +47,8 @@ describe("buildLibraryModel", () => {
           aliases: [`${HOME}/.claude/skills/humanizer/SKILL.md`],
         }),
       ],
-      roots
+      roots,
+      HOME
     );
 
     const [personal] = model.personal;
@@ -76,7 +77,8 @@ describe("buildLibraryModel", () => {
           aliases: [`${repo}/.agents/skills/deploy/SKILL.md`],
         }),
       ],
-      roots
+      roots,
+      HOME
     );
 
     expect(model.personal).toEqual([]);
@@ -91,13 +93,29 @@ describe("buildLibraryModel", () => {
           projectDir: `${HOME}/.claude`,
         }),
       ],
-      roots
+      roots,
+      HOME
     );
 
     expect(model.personal.map((scope) => scope.path)).toEqual([
       `${HOME}/.claude`,
     ]);
     expect(model.projects).toEqual([]);
+  });
+
+  it("keeps a repository named like an agent folder under Projects", () => {
+    const repo = `${HOME}/GitHub/opencode`;
+    const model = buildLibraryModel(
+      [
+        skill(1, `${repo}/skills/review/SKILL.md`, { projectDir: repo }),
+        skill(2, `${HOME}/.config/opencode/skills/plan/SKILL.md`),
+      ],
+      roots,
+      HOME
+    );
+
+    expect(model.projects.map((scope) => scope.path)).toEqual([repo]);
+    expect(model.personal.map((scope) => scope.label)).toEqual(["OpenCode"]);
   });
 
   it("names a worktree after its repository and branch folder", () => {
@@ -110,7 +128,8 @@ describe("buildLibraryModel", () => {
           projectDir: worktree,
         }),
       ],
-      roots
+      roots,
+      HOME
     );
 
     expect(model.personal).toEqual([]);

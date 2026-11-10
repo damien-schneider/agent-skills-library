@@ -58,16 +58,15 @@ const WHITESPACE_PATTERN = /\s+/;
 /** Claude Code's worktrees, and the conventional `.worktrees` folder. */
 const WORKTREE_PATTERN = /^(.+)\/(?:\.claude\/worktrees|\.worktrees)\/([^/]+)$/;
 
-/** Folders an agent reads per-user files from, with the agent's name. */
-const AGENT_HOMES: ReadonlyMap<string, string> = new Map([
+/** Folders in the user's home that an agent reads per-user files from, in display order. */
+const AGENT_HOMES: readonly (readonly [string, string])[] = [
   [".claude", "Claude Code"],
   [".agents", "Shared agents"],
   [".codex", "Codex"],
   [".cursor", "Cursor"],
   [".gemini", "Gemini"],
-  ["opencode", "OpenCode"],
-]);
-const AGENT_HOME_ORDER = [...AGENT_HOMES.keys()];
+  [".config/opencode", "OpenCode"],
+];
 
 function normalizePath(path: string): string {
   return path.replaceAll("\\", "/").replace(TRAILING_SLASH_PATTERN, "");
@@ -119,11 +118,25 @@ function collectionPath(kind: FileKind, path: string): string {
   return kind === "skill" ? parentPath(immediateParent) : immediateParent;
 }
 
-/** The outermost agent home folder a path sits in, e.g. `~/.claude`. */
-function agentHomeOf(path: string): string | null {
-  const segments = normalizePath(path).split("/");
-  const index = segments.findIndex((segment) => AGENT_HOMES.has(segment));
-  return index === -1 ? null : segments.slice(0, index + 1).join("/");
+/** An agent's per-user folder, e.g. `~/.claude`. */
+interface AgentHome {
+  path: string;
+  label: string;
+  rank: number;
+}
+
+/** The agent home folder in `home` that a path sits in. */
+function agentHomeOf(path: string, home: string | null): AgentHome | null {
+  if (home === null) {
+    return null;
+  }
+  for (const [rank, [relative, label]] of AGENT_HOMES.entries()) {
+    const homePath = `${normalizePath(home)}/${relative}`;
+    if (isWithin(normalizePath(path), homePath)) {
+      return { path: homePath, label, rank };
+    }
+  }
+  return null;
 }
 
 function projectScope(path: string): Omit<LibraryScope, "collections" | "id"> {
@@ -139,12 +152,13 @@ function projectScope(path: string): Omit<LibraryScope, "collections" | "id"> {
   return { kind: "project", label: pathName(path), path, entryCount: 0 };
 }
 
-function personalScope(path: string): Omit<LibraryScope, "collections" | "id"> {
-  const name = pathName(path);
+function personalScope(
+  agentHome: AgentHome
+): Omit<LibraryScope, "collections" | "id"> {
   return {
     kind: "personal",
-    label: AGENT_HOMES.get(name) ?? name,
-    path,
+    label: agentHome.label,
+    path: agentHome.path,
     entryCount: 0,
   };
 }
@@ -206,21 +220,13 @@ function sortScope(scope: LibraryScope): void {
 export function buildLibraryModel(
   files: readonly FileRow[],
   roots: readonly Root[],
+  /** The user's home folder; `null` lists everything under Projects. */
+  home: string | null,
   favoritePaths: ReadonlySet<string> = new Set()
 ): LibraryModel {
   const rootsById = new Map(roots.map((root) => [root.id, root]));
-  const projectDirs = new Set(
-    files.flatMap((file) => (file.projectDir ? [file.projectDir] : []))
-  );
-  const insideProject = (path: string) =>
-    [...projectDirs].some((dir) => isWithin(path, dir));
-  // A repository's own `.claude` folder belongs to that repository; only an agent
-  // home outside every project (`~/.claude`, even when it is a git repo) is personal.
-  const personalHomeOf = (path: string) => {
-    const home = agentHomeOf(path);
-    return home && !insideProject(parentPath(home)) ? home : null;
-  };
   const builder = new ModelBuilder();
+  const ranks = new Map<string, number>();
 
   for (const file of files) {
     const root = rootsById.get(file.rootId);
@@ -228,15 +234,21 @@ export function buildLibraryModel(
       continue;
     }
     const id = fileNodeId(file.id);
-    const home = personalHomeOf(file.path);
+    const agentHome = agentHomeOf(file.path, home);
+    if (agentHome) {
+      ranks.set(agentHome.path, agentHome.rank);
+    }
     builder.add(
-      home ? personalScope(home) : projectScope(file.projectDir ?? root.path),
+      agentHome
+        ? personalScope(agentHome)
+        : projectScope(file.projectDir ?? root.path),
       { id, file, path: file.path, linked: false }
     );
 
     for (const alias of file.aliases) {
-      const aliasHome = personalHomeOf(alias);
+      const aliasHome = agentHomeOf(alias, home);
       if (aliasHome) {
+        ranks.set(aliasHome.path, aliasHome.rank);
         builder.add(personalScope(aliasHome), {
           id: `${id}@${alias}`,
           file,
@@ -251,8 +263,7 @@ export function buildLibraryModel(
   for (const scope of scopes) {
     sortScope(scope);
   }
-  const homeRank = (scope: LibraryScope) =>
-    AGENT_HOME_ORDER.indexOf(pathName(scope.path));
+  const homeRank = (scope: LibraryScope) => ranks.get(scope.path) ?? 0;
 
   return {
     personal: scopes

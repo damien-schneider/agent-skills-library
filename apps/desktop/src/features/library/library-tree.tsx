@@ -16,6 +16,7 @@ import { targetLabel } from "@skills-agent-library/skills-core/scan-targets";
 import { FolderGit2, GitBranch, Link2, Star, UserRound } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 
+import { useHomeDirectory } from "@/lib/home-dir";
 import type { FileRow, Root } from "@/lib/ipc-types";
 import {
   buildTree,
@@ -229,9 +230,10 @@ export function LibraryTree({
 }: LibraryTreeProps) {
   const personalHeadingId = useId();
   const projectsHeadingId = useId();
+  const home = useHomeDirectory();
   const model = useMemo(
-    () => buildLibraryModel(files, roots, favoritePaths),
-    [files, roots, favoritePaths]
+    () => buildLibraryModel(files, roots, home, favoritePaths),
+    [files, roots, home, favoritePaths]
   );
   const folders = useMemo(
     () => (mode === "folders" ? buildTree(files, roots) : null),
