@@ -22,7 +22,9 @@ vi.mock("@tauri-apps/api/path", () => ({
   homeDir: () => Promise.resolve("/Users/me"),
 }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
-vi.mock("@tauri-apps/plugin-log", () => ({ warn: vi.fn() }));
+vi.mock("@tauri-apps/plugin-log", () => ({
+  error: vi.fn(() => Promise.resolve()),
+}));
 vi.mock("@/lib/convex", () => ({
   convexClient: null,
   convexSiteUrl: () => null,

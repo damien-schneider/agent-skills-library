@@ -211,7 +211,6 @@ export function LibraryPanel({
               <ListFilter />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Arrange by</DropdownMenuLabel>
               <DropdownMenuRadioGroup
                 onValueChange={(next: LibraryTreeMode) => {
                   setMode(next);
@@ -219,6 +218,8 @@ export function LibraryPanel({
                 }}
                 value={mode}
               >
+                {/* Base UI requires group labels inside their group. */}
+                <DropdownMenuLabel>Arrange by</DropdownMenuLabel>
                 <DropdownMenuRadioItem value="grouped">
                   Project
                 </DropdownMenuRadioItem>

@@ -13,6 +13,7 @@ import { Search, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import type { LibraryIndex } from "@/features/library/use-library-index";
+import { ErrorBoundary } from "@/shared/components/error-boundary";
 import { IconButton } from "@/shared/components/icon-button";
 import { ErrorState, ViewLayout } from "@/shared/components/view-layout";
 
@@ -20,7 +21,6 @@ import {
   type InstallableSkill,
   InstallSkillDialog,
 } from "./install-skill-dialog";
-import { QueryErrorBoundary } from "./query-error-boundary";
 import { RegistryResults } from "./registry-results";
 
 const ALL_CATEGORIES = "__all__";
@@ -137,13 +137,14 @@ export function RegistryView({
             </InputGroupAddon>
           ) : null}
         </InputGroup>
-        <QueryErrorBoundary fallback={() => null}>
+        {/* Convex reports a failed query by throwing while the component renders. */}
+        <ErrorBoundary fallback={() => null} label="registry categories">
           <CategoryFilter onChange={setCategory} value={category} />
-        </QueryErrorBoundary>
+        </ErrorBoundary>
       </div>
 
       {/* Keyed by the query, so a new search is a fresh attempt after a failure. */}
-      <QueryErrorBoundary
+      <ErrorBoundary
         fallback={(retry) => (
           <ErrorState
             message="The registry could not load these skills."
@@ -151,6 +152,7 @@ export function RegistryView({
           />
         )}
         key={`${category}\n${query}`}
+        label="registry search"
       >
         <RegistryResults
           category={category === ALL_CATEGORIES ? undefined : category}
@@ -165,7 +167,7 @@ export function RegistryView({
           }}
           search={query}
         />
-      </QueryErrorBoundary>
+      </ErrorBoundary>
 
       <InstallSkillDialog
         index={index}

@@ -100,6 +100,8 @@ pub const SKIP_DIRS: &[&str] = &[
     ".next",
     ".turbo",
     ".cache",
+    // Scratch copies, e.g. Codex's plugin marketplace checkout in `~/.codex/.tmp`.
+    ".tmp",
     ".venv",
     "venv",
     "__pycache__",
@@ -289,6 +291,7 @@ mod tests {
     #[test]
     fn never_skips_agent_config_directories() {
         assert!(is_skipped_dir("node_modules"));
+        assert!(is_skipped_dir(".tmp"));
         assert!(is_skipped_dir(".git"));
         assert!(!is_skipped_dir("src"));
         assert!(!is_skipped_dir(".claude"));

@@ -34,6 +34,7 @@ import { GroupsView } from "./features/sync/groups-view";
 import { UpdateButton } from "./features/updates/update-button";
 import { useAppUpdate } from "./features/updates/use-app-update";
 import type { FileRow } from "./lib/ipc-types";
+import { ViewBoundary } from "./shared/components/error-boundary";
 import { useAppReloadShortcut } from "./use-app-reload-shortcut";
 import { useAppShortcuts } from "./use-app-shortcuts";
 
@@ -189,66 +190,80 @@ export function App() {
           </SidebarFooter>
         </SidebarIconRail>
         <SidebarPanel layer="sidebar">
-          <LibraryPanel
-            favoritePaths={favoriteProjects.favoritePaths}
-            index={index}
-            onNewSkill={openNewSkill}
-            onOpenSettings={() => selectView("settings")}
-            onSelectFile={library.select}
-            scan={scan}
-            selectedFileId={library.fileId}
-          />
+          <ViewBoundary label="library list">
+            <LibraryPanel
+              favoritePaths={favoriteProjects.favoritePaths}
+              index={index}
+              onNewSkill={openNewSkill}
+              onOpenSettings={() => selectView("settings")}
+              onSelectFile={library.select}
+              scan={scan}
+              selectedFileId={library.fileId}
+            />
+          </ViewBoundary>
         </SidebarPanel>
         <SidebarRail />
       </Sidebar>
 
       <SidebarInset render={<main />}>
         <div className="h-full min-h-0" hidden={view !== "library"}>
-          <EditorPane
-            editor={library.editor}
-            favorite={
-              selected?.projectDir
-                ? favoriteProjects.favoritePaths.has(selected.projectDir)
-                : false
-            }
-            file={selected}
-            hasFiles={index.files.length > 0}
-            onClose={library.close}
-            onNewSkill={openNewSkill}
-            onOpenFile={library.select}
-            onToggleFavorite={favoriteProjects.toggle}
-          />
+          <ViewBoundary label="editor">
+            <EditorPane
+              editor={library.editor}
+              favorite={
+                selected?.projectDir
+                  ? favoriteProjects.favoritePaths.has(selected.projectDir)
+                  : false
+              }
+              file={selected}
+              hasFiles={index.files.length > 0}
+              onClose={library.close}
+              onNewSkill={openNewSkill}
+              onOpenFile={library.select}
+              onToggleFavorite={favoriteProjects.toggle}
+            />
+          </ViewBoundary>
         </div>
         {mountedViews.has("prompts") ? (
           <div className="h-full min-h-0" hidden={view !== "prompts"}>
-            <PromptHistoryView />
+            <ViewBoundary label="prompts">
+              <PromptHistoryView />
+            </ViewBoundary>
           </div>
         ) : null}
         {mountedViews.has("duplicates") ? (
           <div className="h-full min-h-0" hidden={view !== "duplicates"}>
-            <DuplicatesView
-              onGroupCreated={() => selectView("sync")}
-              onOpenFile={openFile}
-            />
+            <ViewBoundary label="duplicates">
+              <DuplicatesView
+                onGroupCreated={() => selectView("sync")}
+                onOpenFile={openFile}
+              />
+            </ViewBoundary>
           </div>
         ) : null}
         {mountedViews.has("sync") ? (
           <div className="h-full min-h-0" hidden={view !== "sync"}>
-            <GroupsView onOpenFile={openFile} />
+            <ViewBoundary label="sync">
+              <GroupsView onOpenFile={openFile} />
+            </ViewBoundary>
           </div>
         ) : null}
         {mountedViews.has("registry") ? (
           <div className="h-full min-h-0" hidden={view !== "registry"}>
-            <RegistryPane index={index} onInstalled={setAwaitedFileId} />
+            <ViewBoundary label="registry">
+              <RegistryPane index={index} onInstalled={setAwaitedFileId} />
+            </ViewBoundary>
           </div>
         ) : null}
         {mountedViews.has("settings") ? (
           <div className="h-full min-h-0" hidden={view !== "settings"}>
-            <SettingsView
-              onFoldersChanged={index.refresh}
-              scan={scan}
-              update={update}
-            />
+            <ViewBoundary label="settings">
+              <SettingsView
+                onFoldersChanged={index.refresh}
+                scan={scan}
+                update={update}
+              />
+            </ViewBoundary>
           </div>
         ) : null}
       </SidebarInset>

@@ -9,6 +9,7 @@ import { createRoot } from "react-dom/client";
 
 import { App } from "./app";
 import { CaptureOverlay } from "./features/prompts/capture-overlay";
+import { ViewBoundary } from "./shared/components/error-boundary";
 import "./index.css";
 
 const DARK_QUERY = "(prefers-color-scheme: dark)";
@@ -45,10 +46,14 @@ createRoot(container).render(
   <StrictMode>
     <SkinProvider skin={skin}>
       {captureOverlay ? (
-        <CaptureOverlay />
+        <ViewBoundary label="capture overlay">
+          <CaptureOverlay />
+        </ViewBoundary>
       ) : (
         <TooltipProvider>
-          <App />
+          <ViewBoundary label="app">
+            <App />
+          </ViewBoundary>
           <Toaster />
         </TooltipProvider>
       )}

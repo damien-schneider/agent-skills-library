@@ -55,6 +55,8 @@ export const SKIP_DIRS: readonly string[] = [
   ".next",
   ".turbo",
   ".cache",
+  // Scratch copies, e.g. Codex's plugin marketplace checkout in `~/.codex/.tmp`.
+  ".tmp",
   ".venv",
   "venv",
   "__pycache__",
