@@ -18,6 +18,8 @@ function file(id: number, relPath: string, rootId = 1): FileRow {
     relPath,
     kind: "claude-md",
     name: null,
+    description: null,
+    aliases: [],
     projectDir: null,
     size: 1,
     mtimeNs: 1,

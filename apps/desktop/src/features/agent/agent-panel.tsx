@@ -1,12 +1,42 @@
-import { ArrowUp, Square, Undo2, X } from "lucide-react";
-import { type KeyboardEvent, useState } from "react";
-import { Streamdown } from "streamdown";
+import {
+  Activity,
+  ActivityIcon,
+  ActivityRow,
+  ActivityTitle,
+} from "@ctrl-ui/react/activity";
+import {
+  ChatComposer,
+  ChatComposerShell,
+  ChatComposerSubmit,
+  ChatComposerTextarea,
+  ChatComposerToolbar,
+} from "@ctrl-ui/react/chat-composer";
+import {
+  ChatLayout,
+  ChatLayoutActions,
+  ChatLayoutHeader,
+  ChatLayoutTitle,
+  ChatThread,
+  ChatThreadScrollButton,
+} from "@ctrl-ui/react/chat-layout";
+import { Button } from "@ctrl-ui/react/ui/button";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@ctrl-ui/react/ui/empty";
+import { Text } from "@ctrl-ui/react/ui/typography";
+import { ArrowUp, SquareTerminal, X } from "lucide-react";
+import { type RefObject, useEffect, useRef, useState } from "react";
 
-import { DiffView } from "@/shared/components/diff-view";
-import { Button } from "@/shared/components/ui/button";
-import { Tooltip } from "@/shared/components/ui/tooltip";
+import { IconButton } from "@/shared/components/icon-button";
 
-import type { AgentMessage, UseAgentSession } from "./use-agent-session";
+import { AgentProposal } from "./agent-proposal";
+import { AgentTranscript } from "./agent-transcript";
+import type { UseAgentSession } from "./use-agent-session";
 
 export interface AgentPanelProps {
   session: UseAgentSession;
@@ -15,52 +45,214 @@ export interface AgentPanelProps {
   onClose: () => void;
 }
 
-function Bubble({ message }: { message: AgentMessage }) {
-  if (message.role === "you") {
-    return (
-      <p className="max-w-[85%] self-end rounded-2xl bg-muted px-3 py-2 text-sm">
-        {message.text}
-      </p>
-    );
-  }
+const EXAMPLES = [
+  {
+    label: "Tighten the description",
+    prompt:
+      "Tighten the description: one or two sentences that say what this does and when to use it.",
+  },
+  {
+    label: "Restructure into steps",
+    prompt:
+      "Restructure the instructions into clear, numbered steps without changing their meaning.",
+  },
+  {
+    label: "Add a “When to use” section",
+    prompt:
+      "Add a short “When to use” section listing the situations this applies to.",
+  },
+] as const;
 
+const INSTALL_COMMAND = "npm install -g @anthropic-ai/claude-code";
+
+function AgentUnavailable() {
   return (
-    <Streamdown className="w-full text-sm leading-relaxed [&_pre]:text-xs">
-      {message.text}
-    </Streamdown>
+    <Empty>
+      <EmptyHeader>
+        <EmptyMedia>
+          <SquareTerminal />
+        </EmptyMedia>
+        <EmptyTitle>Claude Code isn’t installed</EmptyTitle>
+        <EmptyDescription>
+          Edits here are made by the Claude Code command-line tool, which wasn’t
+          found on this Mac. Install it from a terminal, then restart Another
+          Dev Tool.
+        </EmptyDescription>
+      </EmptyHeader>
+      <EmptyContent>
+        <Text as="code" className="select-all" mono size="label">
+          {INSTALL_COMMAND}
+        </Text>
+      </EmptyContent>
+    </Empty>
   );
 }
 
-function Proposal({
-  after,
-  before,
-  onApply,
-  onDiscard,
-}: {
-  after: string;
-  before: string;
-  onApply: () => void;
-  onDiscard: () => void;
-}) {
+function AgentIntro({ onPick }: { onPick: (prompt: string) => void }) {
   return (
-    <div className="mx-3 mb-2 flex min-h-0 flex-col gap-2 rounded-2xl bg-background/70 p-2 shadow-sm">
-      <DiffView after={after} before={before} className="max-h-56" />
-      <div className="flex items-center justify-end gap-1">
-        <Tooltip label="Discard">
+    <Empty>
+      <EmptyHeader>
+        <EmptyDescription>
+          Describe the change you want. You review it as a diff before it
+          touches the file.
+        </EmptyDescription>
+      </EmptyHeader>
+      <EmptyContent className="gap-2">
+        {EXAMPLES.map((example) => (
           <Button
-            aria-label="Discard"
-            onClick={onDiscard}
-            size="icon-sm"
-            variant="ghost"
+            key={example.label}
+            onClick={() => onPick(example.prompt)}
+            size="sm"
+            variant="surface"
           >
-            <Undo2 />
+            {example.label}
           </Button>
-        </Tooltip>
-        <Button onClick={onApply} size="sm">
-          Apply
-        </Button>
-      </div>
-    </div>
+        ))}
+      </EmptyContent>
+    </Empty>
+  );
+}
+
+function AgentComposer({
+  value,
+  onValueChange,
+  running,
+  onSend,
+  onStop,
+  textareaRef,
+}: {
+  value: string;
+  onValueChange: (value: string) => void;
+  running: boolean;
+  onSend: (prompt: string) => Promise<void>;
+  onStop: () => void;
+  textareaRef: RefObject<HTMLTextAreaElement | null>;
+}) {
+  // The panel was opened to type a request, so the caret starts there.
+  useEffect(() => {
+    textareaRef.current?.focus();
+  }, [textareaRef]);
+
+  return (
+    <ChatComposer
+      density="compact"
+      onSubmit={({ value: asked, clear }) => {
+        clear();
+        return onSend(asked);
+      }}
+      onValueChange={onValueChange}
+      state={running ? "submitting" : "idle"}
+      value={value}
+    >
+      <ChatComposerShell>
+        <ChatComposerTextarea
+          aria-label="Ask for a change to this file"
+          placeholder="Ask for a change…"
+          ref={textareaRef}
+        />
+        <ChatComposerToolbar className="justify-end">
+          <ChatComposerSubmit
+            aria-label="Send"
+            iconOnly
+            onStop={onStop}
+            size="sm"
+            stopLabel="Stop"
+          >
+            <ArrowUp />
+          </ChatComposerSubmit>
+        </ChatComposerToolbar>
+      </ChatComposerShell>
+    </ChatComposer>
+  );
+}
+
+function AgentConversation({
+  session,
+  documentText,
+  onApply,
+}: Omit<AgentPanelProps, "onClose">) {
+  const [prompt, setPrompt] = useState("");
+  const [applied, setApplied] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const proposed =
+    session.proposal !== null && session.proposal !== documentText
+      ? session.proposal
+      : null;
+  const lastAsked = session.messages.findLast(
+    (message) => message.role === "you"
+  )?.text;
+  const hasTranscript = session.messages.length > 0;
+  const untouched =
+    !(hasTranscript || session.running) &&
+    session.error === null &&
+    proposed === null;
+
+  const ask = async (asked: string) => {
+    setApplied(false);
+    await session.send(asked, documentText);
+  };
+
+  const fillComposer = (example: string) => {
+    setPrompt(example);
+    textareaRef.current?.focus();
+  };
+
+  return (
+    <ChatThread
+      composer={
+        <>
+          <ChatThreadScrollButton />
+          <div className="px-3 pb-3">
+            <AgentComposer
+              onSend={ask}
+              onStop={async () => {
+                await session.cancel();
+              }}
+              onValueChange={setPrompt}
+              running={session.running}
+              textareaRef={textareaRef}
+              value={prompt}
+            />
+          </div>
+        </>
+      }
+    >
+      {untouched ? <AgentIntro onPick={fillComposer} /> : null}
+      <AgentTranscript
+        activity={session.activity}
+        error={session.error}
+        messages={session.messages}
+        onRetry={
+          lastAsked === undefined
+            ? undefined
+            : async () => {
+                await ask(lastAsked);
+              }
+        }
+        running={session.running}
+      />
+      {proposed === null ? null : (
+        <AgentProposal
+          after={proposed}
+          before={documentText}
+          onApply={() => {
+            onApply(proposed);
+            session.dismissProposal();
+            setApplied(true);
+          }}
+          onDismiss={session.dismissProposal}
+        />
+      )}
+      {applied && hasTranscript && !session.running ? (
+        <Activity state="success">
+          <ActivityRow>
+            <ActivityIcon />
+            <ActivityTitle>Applied to the editor</ActivityTitle>
+          </ActivityRow>
+        </Activity>
+      ) : null}
+    </ChatThread>
   );
 }
 
@@ -70,112 +262,31 @@ export function AgentPanel({
   onApply,
   onClose,
 }: AgentPanelProps) {
-  const [prompt, setPrompt] = useState("");
-  const proposed =
-    session.proposal !== null && session.proposal !== documentText
-      ? session.proposal
-      : null;
-
-  const submit = async () => {
-    const asked = prompt.trim();
-    if (asked.length === 0) {
-      return;
-    }
-    setPrompt("");
-    await session.send(asked, documentText);
-  };
-
-  const submitOnEnter = async (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      await submit();
-    }
-  };
-
   return (
-    <aside className="flex w-96 shrink-0 flex-col bg-muted/20">
-      <div className="flex justify-end px-2 pt-2">
-        <Tooltip label="Close">
-          <Button
-            aria-label="Close the AI panel"
-            onClick={onClose}
-            size="icon-sm"
-            variant="ghost"
-          >
-            <X />
-          </Button>
-        </Tooltip>
-      </div>
-
-      <div className="flex min-h-0 flex-1 flex-col items-start gap-3 overflow-auto px-3 pb-3">
-        {session.messages.map((message) => (
-          <Bubble key={message.key} message={message} />
-        ))}
-        {session.activity ? (
-          <p className="animate-pulse text-muted-foreground text-xs">
-            {session.activity}…
-          </p>
-        ) : null}
-        {session.error ? (
-          <p className="text-destructive text-xs">{session.error}</p>
-        ) : null}
-      </div>
-
-      {proposed === null ? null : (
-        <Proposal
-          after={proposed}
-          before={documentText}
-          onApply={() => {
-            onApply(proposed);
-            session.dismissProposal();
-          }}
-          onDiscard={session.dismissProposal}
-        />
-      )}
-
-      <div className="p-3">
-        <div className="flex items-end gap-1 rounded-2xl bg-background/70 py-1.5 pr-1.5 pl-3 shadow-sm">
-          <textarea
-            aria-label="Ask the agent to change this file"
-            className="max-h-40 min-h-8 flex-1 resize-none bg-transparent py-1 text-sm outline-none placeholder:text-muted-foreground"
-            disabled={!session.available}
-            onChange={(event) => setPrompt(event.target.value)}
-            onKeyDown={submitOnEnter}
-            placeholder={
-              session.available
-                ? "Tighten the rules, rewrite the intro…"
-                : "Claude Code CLI not found"
-            }
-            rows={1}
-            value={prompt}
+    <aside
+      aria-label="Ask Claude"
+      className="flex w-96 shrink-0 border-border border-l"
+    >
+      <ChatLayout chrome="embedded">
+        <ChatLayoutHeader className="h-(--titlebar-height) shrink-0">
+          {/* biome-ignore lint/a11y/useHeadingContent: the title's children become the heading's content */}
+          <ChatLayoutTitle render={<h2 />}>Ask Claude</ChatLayoutTitle>
+          <ChatLayoutActions>
+            <IconButton label="Close" onClick={onClose}>
+              <X />
+            </IconButton>
+          </ChatLayoutActions>
+        </ChatLayoutHeader>
+        {session.available ? (
+          <AgentConversation
+            documentText={documentText}
+            onApply={onApply}
+            session={session}
           />
-          {session.running ? (
-            <Tooltip label="Stop">
-              <Button
-                aria-label="Stop the agent"
-                onClick={async () => {
-                  await session.cancel();
-                }}
-                size="icon-sm"
-                variant="ghost"
-              >
-                <Square />
-              </Button>
-            </Tooltip>
-          ) : (
-            <Button
-              aria-label="Send"
-              disabled={!session.available || prompt.trim().length === 0}
-              onClick={async () => {
-                await submit();
-              }}
-              size="icon-sm"
-            >
-              <ArrowUp />
-            </Button>
-          )}
-        </div>
-      </div>
+        ) : (
+          <AgentUnavailable />
+        )}
+      </ChatLayout>
     </aside>
   );
 }

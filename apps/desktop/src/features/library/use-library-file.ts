@@ -5,14 +5,16 @@ import type { FileRow } from "@/lib/ipc-types";
 import { type UseFileContent, useFileContent } from "./use-file-content";
 
 export interface UseLibraryFile {
+  cancelPending: () => void;
+  /** Closes the open file without asking: only for a file that no longer exists. */
+  close: () => void;
+  confirmPending: () => void;
   editor: UseFileContent;
-  fileId: number | null;
   /** Kept so the editor survives its file leaving the index mid-edit. */
   file: FileRow | null;
+  fileId: number | null;
   pending: FileRow | null;
   select: (file: FileRow) => void;
-  confirmPending: () => void;
-  cancelPending: () => void;
 }
 
 /** The one place a file becomes the edited one, so no caller can skip the unsaved guard. */
@@ -48,6 +50,12 @@ export function useLibraryFile(): UseLibraryFile {
     }
   }, [open, pending]);
 
+  const close = useCallback(() => {
+    setFile(null);
+    setFileId(null);
+    setPending(null);
+  }, []);
+
   return {
     editor,
     fileId,
@@ -56,5 +64,6 @@ export function useLibraryFile(): UseLibraryFile {
     select,
     confirmPending,
     cancelPending: useCallback(() => setPending(null), []),
+    close,
   };
 }

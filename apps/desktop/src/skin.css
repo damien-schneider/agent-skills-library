@@ -1,0 +1,101 @@
+/*
+ * Another Dev Tool skin: Control UI tokens re-valued for a calm, native-feeling
+ * desktop surface. Components read these; never paint them at call sites.
+ */
+:root,
+[data-skin="adt"] {
+  --scale-neutral-seed: oklch(0.5 0.012 258);
+  --canvas: var(--scale-neutral-2);
+  --background: var(--scale-neutral-1);
+  --card: var(--scale-neutral-1);
+  --popover: var(--scale-neutral-1);
+  --primary: oklch(0.24 0.008 258);
+  --primary-foreground: oklch(0.985 0 0);
+  --muted-foreground: oklch(0.47 0.012 258);
+  --ring: oklch(0.6 0.17 255);
+  --focus-ring: var(--ring);
+  --info: oklch(0.58 0.17 255);
+  --border: oklch(from var(--scale-neutral-6) l c h / 0.75);
+  --panel-shadow:
+    0 0 0 1px oklch(0.2 0.01 258 / 0.06), 0 1px 2px oklch(0.2 0.01 258 / 0.04),
+    0 8px 24px -14px oklch(0.2 0.01 258 / 0.12);
+
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui,
+    sans-serif;
+  --font-mono:
+    ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+
+  --radius: 5px;
+  --radius-control: 7px;
+  --radius-panel: 10px;
+  --radius-popover: 10px;
+  --control-h: 32px;
+  --sidebar-width-icon: 3rem;
+  --shadow-size: 0.6;
+  --shadow-opacity: 0.4;
+  --duration-fast: 110ms;
+  --duration-base: 160ms;
+  --duration-slow: 220ms;
+
+  /* Height of the strip at the top of the main panel, which doubles as the window's drag region. */
+  --titlebar-height: 44px;
+  /*
+   * The sidebar starts 8px lower than the main panel, so its top strip is shorter
+   * to share a centre line with the titlebar and the macOS traffic lights.
+   */
+  --sidebar-strip-height: 28px;
+}
+
+.dark,
+.dark [data-skin="adt"],
+[data-skin="adt"].dark {
+  --canvas: oklch(0.165 0.006 258);
+  --background: oklch(0.205 0.006 258);
+  --card: oklch(0.205 0.006 258);
+  --popover: oklch(0.235 0.007 258);
+  --primary: oklch(0.96 0.003 258);
+  --primary-foreground: oklch(0.2 0.006 258);
+  --muted-foreground: oklch(0.74 0.01 258);
+  --ring: oklch(0.7 0.15 255);
+  --info: oklch(0.72 0.14 255);
+  --border: oklch(1 0 0 / 0.09);
+  --panel-shadow: 0 0 0 1px oklch(1 0 0 / 0.07);
+}
+
+[data-skin="adt"] :where([data-control-family="sidebar"][data-slot="wrapper"]) {
+  --cui-sidebar-inset-background: var(--card);
+  --cui-sidebar-inset-radius: var(--radius-panel);
+  --cui-sidebar-inset-shadow: var(--panel-shadow);
+}
+
+[data-skin="adt"] :where([data-control-family="sidebar"][data-slot="root"]) {
+  --cui-sidebar-header-border-width: 0px;
+  --cui-sidebar-menu-button-radius: var(--radius-control);
+  --cui-sidebar-menu-button-font-size: 13px;
+  --cui-sidebar-menu-button-foreground: var(--muted-foreground);
+  --cui-sidebar-menu-button-active-foreground: var(--foreground);
+}
+
+/*
+ * Views sit on the same surface as the editor. Their title stays opaque, so
+ * scrolled content never shows through it.
+ */
+[data-skin="adt"]
+  :where([data-control-family="page-layout"][data-slot="root"]) {
+  --cui-page-layout-background: var(--card);
+  --cui-page-layout-sticky-header-background: var(--card);
+  --cui-page-layout-sticky-header-backdrop-filter: none;
+}
+
+/* A desktop window resizes instantly; animating the sidebar makes it lag behind. */
+[data-skin="adt"]
+  :where(
+    [data-control-family="sidebar"]:is(
+        [data-slot="container"],
+        [data-slot="gap"],
+        [data-slot="inner"]
+      )
+  ) {
+  transition: none;
+}

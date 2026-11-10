@@ -22,7 +22,10 @@
         "minHeight": 600,
         "resizable": true,
         "maximizable": true,
-        "dragDropEnabled": false
+        "dragDropEnabled": false,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "trafficLightPosition": { "x": 16, "y": 24 }
       },
       {
         "label": "capture-overlay",
@@ -59,8 +62,7 @@
     ],
     "macOS": {
       "minimumSystemVersion": "10.15",
-      "hardenedRuntime": true,
-      "entitlements": "Entitlements.plist"
+      "hardenedRuntime": true
     }
   },
   "plugins": {

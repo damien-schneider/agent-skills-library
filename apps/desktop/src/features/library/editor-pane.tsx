@@ -1,225 +1,171 @@
-import { targetLabel } from "@skills-agent-library/skills-core/scan-targets";
-import { revealItemInDir } from "@tauri-apps/plugin-opener";
-import {
-  AlertTriangle,
-  ChevronDown,
-  ChevronRight,
-  Code2,
-  Eye,
-  FolderOpen,
-  Link2,
-  type LucideIcon,
-  PencilLine,
-  Sparkles,
-  Star,
-} from "lucide-react";
+import { Button } from "@ctrl-ui/react/ui/button";
+import { Kbd } from "@ctrl-ui/react/ui/kbd";
+import { ScrollArea } from "@ctrl-ui/react/ui/scroll-area";
+import { Skeleton } from "@ctrl-ui/react/ui/skeleton";
+import { FileText } from "lucide-react";
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
+
 import { AgentPanel } from "@/features/agent/agent-panel";
 import { useAgentSession } from "@/features/agent/use-agent-session";
 import { LinksBar } from "@/features/links/links-bar";
-import { LocalGraph } from "@/features/links/local-graph";
 import { MentionPreview } from "@/features/links/mention-preview";
 import { useFileLinks } from "@/features/links/use-file-links";
-import { useSkillMentions } from "@/features/links/use-skill-mentions";
-import type { FileRow } from "@/lib/ipc-types";
-import { cn } from "@/lib/utils";
-import { DiffView } from "@/shared/components/diff-view";
-import { Button } from "@/shared/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/shared/components/ui/dialog";
-import { MarkdownEditor } from "@/shared/components/ui/markdown-editor";
-import { Tooltip } from "@/shared/components/ui/tooltip";
+  type SkillMentions,
+  useSkillMentions,
+} from "@/features/links/use-skill-mentions";
+import type { FileLinks, FileRow } from "@/lib/ipc-types";
+import { EmptyState, ErrorState } from "@/shared/components/view-layout";
 
-import { SaveBar } from "./save-bar";
-
-import type { EditorMode, UseFileContent } from "./use-file-content";
+import {
+  ConflictDialog,
+  ReviewChangesDialog,
+  TrashDialog,
+} from "./editor/editor-dialogs";
+import { EditorHeader } from "./editor/editor-header";
+import { EditorNotices } from "./editor/editor-notices";
+import { MetadataFields } from "./editor/metadata-fields";
+import { RichEditor } from "./editor/rich-editor";
+import { SourceEditor } from "./editor/source-editor";
+import { fileTitle } from "./library-model";
+import type { UseFileContent } from "./use-file-content";
 
 export interface EditorPaneProps {
   editor: UseFileContent;
-  file: FileRow | null;
   favorite: boolean;
+  file: FileRow | null;
+  /** False while the library holds nothing to open, which changes what the empty pane suggests. */
+  hasFiles: boolean;
+  /** Called once the open file no longer exists, after it went to the Trash. */
+  onClose: () => void;
+  onNewSkill: () => void;
   onOpenFile: (file: FileRow) => void;
   onToggleFavorite: (path: string) => Promise<void>;
 }
 
-const EDITOR_MODES: {
-  id: EditorMode;
-  label: string;
-  icon: LucideIcon;
-}[] = [
-  { id: "rich", label: "Edit", icon: PencilLine },
-  { id: "preview", label: "Preview", icon: Eye },
-  { id: "raw", label: "Source", icon: Code2 },
-];
+const DOCUMENT_COLUMN =
+  "mx-auto flex w-full max-w-3xl flex-col gap-8 px-10 py-8";
 
-function EditorModeTabs({
-  mode,
-  onChange,
+function NothingOpen({
+  hasFiles,
+  onNewSkill,
 }: {
-  mode: EditorMode;
-  onChange: (mode: EditorMode) => void;
+  hasFiles: boolean;
+  onNewSkill: () => void;
 }) {
   return (
-    <fieldset className="flex shrink-0 items-center rounded-lg bg-muted p-0.5">
-      <legend className="sr-only">Editor view</legend>
-      {EDITOR_MODES.map(({ id, label, icon: Icon }) => (
-        <button
-          aria-pressed={mode === id}
-          className={cn(
-            "flex h-7 items-center gap-1.5 rounded-md px-2.5 font-medium text-xs transition-colors motion-reduce:transition-none",
-            mode === id
-              ? "bg-background text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground"
-          )}
-          key={id}
-          onClick={() => onChange(id)}
-          type="button"
-        >
-          <Icon className="size-3.5" />
-          {label}
-        </button>
-      ))}
-    </fieldset>
-  );
-}
-
-function FrontmatterPanel({
-  frontmatter,
-  open,
-  visible,
-  onToggle,
-}: {
-  frontmatter: string | null;
-  open: boolean;
-  visible: boolean;
-  onToggle: () => void;
-}) {
-  if (!visible || frontmatter === null) {
-    return null;
-  }
-
-  return (
-    <div className="border-border border-b">
-      <button
-        className="flex w-full items-center gap-1.5 px-4 py-1.5 text-left text-muted-foreground text-xs hover:text-foreground"
-        onClick={onToggle}
-        type="button"
-      >
-        {open ? (
-          <ChevronDown className="size-3.5" />
-        ) : (
-          <ChevronRight className="size-3.5" />
-        )}
-        Frontmatter (read-only)
-      </button>
-      {open ? (
-        <pre className="max-h-48 overflow-auto bg-muted/30 px-4 py-3 font-mono text-xs leading-5">
-          {frontmatter}
-        </pre>
-      ) : null}
+    <div className="flex h-full flex-col">
+      <div className="h-(--titlebar-height) shrink-0" data-tauri-drag-region />
+      <div className="flex min-h-0 flex-1 items-center justify-center pb-(--titlebar-height)">
+        <EmptyState
+          action={
+            <Button onClick={onNewSkill} size="sm" variant="surface">
+              New skill
+              <Kbd>⌘N</Kbd>
+            </Button>
+          }
+          description={
+            hasFiles
+              ? "Pick a file in the library, or press ⌘K to search everything."
+              : "Add the folders that hold your skills from the library, or write your first skill."
+          }
+          icon={FileText}
+          title={hasFiles ? "Nothing open" : "No files yet"}
+        />
+      </div>
     </div>
   );
 }
 
-function ProjectFavoriteButton({
-  path,
-  favorite,
-  onToggle,
-}: {
-  path: string;
-  favorite: boolean;
-  onToggle: (path: string) => Promise<void>;
-}) {
+function DocumentSkeleton() {
   return (
-    <Button
-      aria-label={`${favorite ? "Remove" : "Add"} project ${favorite ? "from" : "to"} favorites`}
-      aria-pressed={favorite}
-      onClick={async () => {
-        await onToggle(path);
-      }}
-      size="icon-sm"
-      title={favorite ? "Remove project from favorites" : "Favorite project"}
-      variant="ghost"
-    >
-      <Star className={favorite ? "fill-current" : undefined} />
-    </Button>
+    <output aria-label="Loading the file" className={DOCUMENT_COLUMN}>
+      <Skeleton className="h-9 w-2/5" />
+      <div className="flex flex-col gap-3">
+        <Skeleton className="h-4" />
+        <Skeleton className="h-4" />
+        <Skeleton className="h-4 w-3/4" />
+      </div>
+    </output>
   );
 }
 
-function EditorActions({
-  agentOpen,
+function DocumentBody({
   editor,
-  favorite,
   file,
-  onToggleAgent,
-  onToggleFavorite,
+  links,
+  mentions,
+  onOpenFile,
 }: {
-  agentOpen: boolean;
   editor: UseFileContent;
-  favorite: boolean;
   file: FileRow;
-  onToggleAgent: () => void;
-  onToggleFavorite: (path: string) => Promise<void>;
+  links: FileLinks;
+  mentions: SkillMentions;
+  onOpenFile: (file: FileRow) => void;
 }) {
-  return (
-    <>
-      {file.projectDir ? (
-        <ProjectFavoriteButton
-          favorite={favorite}
-          onToggle={onToggleFavorite}
-          path={file.projectDir}
+  const { buffer } = editor;
+  if (editor.loading) {
+    return <DocumentSkeleton />;
+  }
+  if (!buffer) {
+    return (
+      <div className="flex min-h-0 flex-1 items-center justify-center">
+        <ErrorState
+          message={editor.error ?? "The file could not be read."}
+          onRetry={editor.reload}
         />
-      ) : null}
+      </div>
+    );
+  }
 
-      <EditorModeTabs mode={editor.mode} onChange={editor.setMode} />
+  const label = `${fileTitle(file)} content`;
+  if (editor.mode === "raw" || !buffer.rich) {
+    return (
+      <div className="min-h-0 flex-1">
+        <SourceEditor
+          label={`${label}, as source`}
+          onChange={editor.setRaw}
+          value={buffer.raw}
+        />
+      </div>
+    );
+  }
 
-      <Tooltip label="Reveal in Finder">
-        <Button
-          aria-label="Reveal in Finder"
-          onClick={async () => {
-            try {
-              await revealItemInDir(file.path);
-            } catch (cause) {
-              toast.error(`Could not reveal file: ${String(cause)}`);
-            }
-          }}
-          size="icon-sm"
-          variant="ghost"
-        >
-          <FolderOpen />
-        </Button>
-      </Tooltip>
-      <Tooltip label="Ask AI">
-        <Button
-          aria-label="Ask AI"
-          aria-pressed={agentOpen}
-          onClick={onToggleAgent}
-          size="icon-sm"
-          variant={agentOpen ? "secondary" : "ghost"}
-        >
-          <Sparkles />
-        </Button>
-      </Tooltip>
-    </>
+  return (
+    <ScrollArea className="min-h-0 flex-1">
+      <div className={DOCUMENT_COLUMN}>
+        <MetadataFields
+          file={file}
+          frontmatter={buffer.split.frontmatter}
+          onChange={editor.setFrontmatterField}
+          onEditSource={() => editor.setMode("raw")}
+        />
+        <LinksBar links={links} onSelect={onOpenFile} />
+        <RichEditor
+          document={buffer.rich}
+          extensions={mentions.extensions}
+          key={`${file.id}:${editor.revision}`}
+          label={label}
+          onChange={editor.setBody}
+          onUnsupported={editor.abandonRich}
+        />
+      </div>
+    </ScrollArea>
   );
 }
 
 export function EditorPane({
   editor,
-  file,
   favorite,
+  file,
+  hasFiles,
+  onClose,
+  onNewSkill,
   onOpenFile,
   onToggleFavorite,
 }: EditorPaneProps) {
   const [reviewOpen, setReviewOpen] = useState(false);
-  const [frontmatterOpen, setFrontmatterOpen] = useState(false);
+  const [trashOpen, setTrashOpen] = useState(false);
   const [agentOpen, setAgentOpen] = useState(false);
   const agent = useAgentSession(file?.id ?? null);
   const links = useFileLinks(file?.id ?? null);
@@ -227,6 +173,8 @@ export function EditorPane({
     targets: links.outgoing,
     onOpen: onOpenFile,
   });
+
+  // Closing or reloading the window is the one way to lose edits without being asked.
   useEffect(() => {
     if (!editor.dirty) {
       return;
@@ -241,131 +189,35 @@ export function EditorPane({
   }, [editor.dirty]);
 
   if (!file) {
-    return (
-      <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
-        Select a file to edit.
-      </div>
-    );
+    return <NothingOpen hasFiles={hasFiles} onNewSkill={onNewSkill} />;
   }
-
-  if (editor.loading) {
-    return (
-      <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
-        Loading…
-      </div>
-    );
-  }
-
-  if (editor.error && !editor.buffer) {
-    return (
-      <div className="flex h-full items-center justify-center px-6 text-destructive text-sm">
-        {editor.error}
-      </div>
-    );
-  }
-
-  const buffer = editor.buffer;
-  if (!buffer) {
-    return null;
-  }
-
-  const save = async () => {
-    const saved = await editor.save();
-    if (saved) {
-      toast.success(`Saved ${file.relPath}`);
-    }
-  };
 
   return (
     <div className="flex h-full min-h-0">
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex min-h-14 items-center gap-3 px-4 py-2.5">
-          <div className="min-w-0 flex-1">
-            <p className="truncate font-medium text-sm">{file.relPath}</p>
-            <p className="truncate text-muted-foreground text-xs">
-              {targetLabel(file.kind)} · {file.path}
-            </p>
-          </div>
-          <EditorActions
-            agentOpen={agentOpen}
-            editor={editor}
-            favorite={favorite}
-            file={file}
-            onToggleAgent={() => setAgentOpen((open) => !open)}
-            onToggleFavorite={onToggleFavorite}
-          />
-        </header>
-
-        <LinksBar links={links} onSelect={onOpenFile} />
-
-        {buffer.content.isSymlink ? (
-          <p className="flex items-center gap-2 border-border border-b bg-chart-3/10 px-4 py-1.5 text-xs">
-            <Link2 className="size-3.5" />
-            Symlink — edits go to {buffer.content.symlinkTarget}
-          </p>
-        ) : null}
-
-        {editor.changedOnDisk ? (
-          <div className="flex items-center gap-2 border-border border-b bg-destructive/10 px-4 py-1.5 text-xs">
-            <AlertTriangle className="size-3.5" />
-            <span className="flex-1">This file changed on disk.</span>
-            <Button onClick={editor.reload} size="sm" variant="ghost">
-              Reload
-            </Button>
-          </div>
-        ) : null}
-
-        {editor.error ? (
-          <p className="border-border border-b bg-destructive/10 px-4 py-1.5 text-destructive text-xs">
-            {editor.error}
-          </p>
-        ) : null}
-
-        <FrontmatterPanel
-          frontmatter={buffer.split.frontmatter}
-          onToggle={() => setFrontmatterOpen((open) => !open)}
-          open={frontmatterOpen}
-          visible={editor.mode !== "raw"}
+      <section
+        aria-label={fileTitle(file)}
+        className="flex min-w-0 flex-1 flex-col"
+      >
+        <EditorHeader
+          agentOpen={agentOpen}
+          editor={editor}
+          favorite={favorite}
+          file={file}
+          onReview={() => setReviewOpen(true)}
+          onToggleAgent={() => setAgentOpen((open) => !open)}
+          onToggleFavorite={onToggleFavorite}
+          onTrash={() => setTrashOpen(true)}
         />
-
-        <div className="relative flex min-h-0 flex-1 flex-col">
-          {editor.mode === "raw" ? null : (
-            <MarkdownEditor
-              className="min-h-0 flex-1"
-              editable={editor.mode === "rich"}
-              extensions={mentions.extensions}
-              key={file.id}
-              onChange={editor.setBody}
-              placeholder={
-                editor.mode === "preview" ? "Nothing to preview." : undefined
-              }
-              value={buffer.body}
-            />
-          )}
-          <MentionPreview mentions={mentions} />
-          {editor.mode === "raw" ? (
-            <div className="min-h-0 flex-1 overflow-auto bg-muted/20 p-4 sm:p-6">
-              <textarea
-                aria-label="Markdown source"
-                className="mx-auto block h-full min-h-full w-full max-w-5xl resize-none bg-background px-8 py-8 font-mono text-[13px] leading-6 shadow-sm outline-none focus:ring-2 focus:ring-ring/30 focus:ring-offset-2 focus:ring-offset-muted/20 sm:px-10 sm:py-10"
-                onChange={(event) => editor.setRaw(event.target.value)}
-                spellCheck={false}
-                value={buffer.raw}
-              />
-            </div>
-          ) : null}
-          <div className="absolute top-3 right-3 hidden lg:block">
-            <LocalGraph links={links} onOpen={onOpenFile} />
-          </div>
-
-          <SaveBar
-            dirty={editor.dirty}
-            onReview={() => setReviewOpen(true)}
-            onSave={save}
-            saving={editor.saving}
-          />
-        </div>
-      </div>
+        <EditorNotices editor={editor} />
+        <DocumentBody
+          editor={editor}
+          file={file}
+          links={links}
+          mentions={mentions}
+          onOpenFile={onOpenFile}
+        />
+        <MentionPreview mentions={mentions} />
+      </section>
 
       {agentOpen ? (
         <AgentPanel
@@ -376,47 +228,19 @@ export function EditorPane({
         />
       ) : null}
 
-      <Dialog onOpenChange={setReviewOpen} open={reviewOpen}>
-        <DialogContent className="sm:max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Review changes</DialogTitle>
-            <DialogDescription>
-              Compare the current document with the saved file before writing it
-              to disk.
-            </DialogDescription>
-          </DialogHeader>
-          <DiffView
-            after={editor.documentText}
-            before={buffer.content.content}
-            className="max-h-[60vh]"
-          />
-        </DialogContent>
-      </Dialog>
-
-      <Dialog onOpenChange={editor.dismissConflict} open={editor.conflict}>
-        <DialogContent className="sm:max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>File changed on disk</DialogTitle>
-            <DialogDescription>
-              {file.relPath} was modified since it was opened. Reload to discard
-              your edits, or overwrite to keep them.
-            </DialogDescription>
-          </DialogHeader>
-          <DiffView
-            after={editor.documentText}
-            before={buffer.content.content}
-            className="max-h-[50vh]"
-          />
-          <DialogFooter>
-            <Button onClick={editor.reload} variant="outline">
-              Reload from disk
-            </Button>
-            <Button onClick={editor.overwrite} variant="destructive">
-              Overwrite
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ReviewChangesDialog
+        editor={editor}
+        onOpenChange={setReviewOpen}
+        open={reviewOpen}
+      />
+      <ConflictDialog editor={editor} file={file} />
+      <TrashDialog
+        dirty={editor.dirty}
+        file={file}
+        onOpenChange={setTrashOpen}
+        onTrashed={onClose}
+        open={trashOpen}
+      />
     </div>
   );
 }

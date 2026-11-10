@@ -1,41 +1,46 @@
-import { History, Link2, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Button } from "@ctrl-ui/react/ui/button";
+import { History, Plus, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { toast } from "sonner";
+
 import { onIndexUpdated } from "@/lib/events";
-import {
-  deleteSyncGroup,
-  listSyncGroups,
-  removeMember,
-  setCanonical,
-  toIpcError,
-} from "@/lib/ipc";
-import type { MemberStatus, SyncGroupView } from "@/lib/ipc-types";
-import { Button } from "@/shared/components/ui/button";
+import { useHomeDirectory } from "@/lib/home-dir";
+import { listSyncGroups, toIpcError } from "@/lib/ipc";
+import type { FileRow, SyncGroupView } from "@/lib/ipc-types";
 import {
   EmptyState,
   ErrorState,
   ListSkeleton,
-  ViewHeader,
   ViewLayout,
 } from "@/shared/components/view-layout";
+
 import { ApplySyncDialog } from "./apply-sync-dialog";
 import { BackupsDialog } from "./backups-dialog";
 import { CreateGroupDialog } from "./create-group-dialog";
+import { RemoveGroupDialog } from "./remove-group-dialog";
+import { notifySyncGroupsChanged, useSyncGroupsChanged } from "./sync-events";
+import { SyncGroupCard } from "./sync-group-card";
 
-const STATUS_STYLES: Record<MemberStatus, string> = {
-  "in-sync": "text-muted-foreground",
-  drifted: "text-destructive",
-  missing: "text-destructive",
-  symlinked: "text-chart-3",
-};
+/** A dialog keeps showing its group while it closes, so the two are tracked apart. */
+interface GroupDialog {
+  group: SyncGroupView | null;
+  open: boolean;
+}
 
-export function GroupsView() {
+const NO_DIALOG: GroupDialog = { group: null, open: false };
+
+export function GroupsView({
+  onOpenFile,
+}: {
+  onOpenFile: (file: FileRow) => void;
+}) {
+  const home = useHomeDirectory();
   const [groups, setGroups] = useState<SyncGroupView[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
   const [backupsOpen, setBackupsOpen] = useState(false);
-  const [applyGroupId, setApplyGroupId] = useState<number | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [review, setReview] = useState(NO_DIALOG);
+  const [removal, setRemoval] = useState(NO_DIALOG);
 
   const refresh = useCallback(async () => {
     try {
@@ -61,47 +66,48 @@ export function GroupsView() {
     };
   }, [refresh]);
 
-  const run = async (action: Promise<unknown>, message: string) => {
-    try {
-      await action;
-      toast.success(message);
-      await refresh();
-    } catch (cause) {
-      toast.error(toIpcError(cause).message);
-    }
-  };
+  useSyncGroupsChanged(refresh);
+
+  const isEmpty = !(loading || error) && groups.length === 0;
 
   return (
-    <ViewLayout>
-      <ViewHeader
-        actions={
-          <>
-            <Button
-              onClick={() => setBackupsOpen(true)}
-              size="sm"
-              variant="outline"
-            >
-              <History />
-              Backups
-            </Button>
-            <Button onClick={() => setCreateOpen(true)} size="sm">
-              <Plus />
-              New group
-            </Button>
-          </>
-        }
-        description="Keep related files aligned from one deliberate source of truth."
-        title="Sync groups"
-      />
-
+    <ViewLayout
+      actions={
+        <>
+          <Button
+            onClick={() => setBackupsOpen(true)}
+            size="sm"
+            variant="ghost"
+          >
+            <History />
+            Backups
+          </Button>
+          <Button
+            onClick={() => setCreateOpen(true)}
+            size="sm"
+            variant="surface"
+          >
+            <Plus />
+            New group
+          </Button>
+        </>
+      }
+      description="Files in a group follow one source. Applying a sync overwrites them with it and keeps a backup of what they contained."
+      title="Sync"
+    >
       {loading ? <ListSkeleton rows={3} /> : null}
 
       {error ? <ErrorState message={error} onRetry={refresh} /> : null}
 
-      {!loading && groups.length === 0 && !error ? (
+      {isEmpty ? (
         <EmptyState
           action={
-            <Button onClick={() => setCreateOpen(true)} size="sm">
+            <Button
+              onClick={() => setCreateOpen(true)}
+              size="sm"
+              tone="primary"
+              variant="solid"
+            >
               <Plus />
               New group
             </Button>
@@ -112,110 +118,38 @@ export function GroupsView() {
         />
       ) : null}
 
-      {loading
-        ? null
-        : groups.map((group) => (
-            <section className="rounded-xl border border-border" key={group.id}>
-              <header className="flex items-center gap-2 border-border border-b px-4 py-2">
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium text-sm">{group.name}</p>
-                  <p className="truncate text-muted-foreground text-xs">
-                    Source: {group.canonical?.path ?? "missing"}
-                  </p>
-                </div>
-                <Button
-                  disabled={group.members.length === 0}
-                  onClick={() => setApplyGroupId(group.id)}
-                  size="sm"
-                  variant="outline"
-                >
-                  Preview & apply
-                </Button>
-                <Button
-                  aria-label={`Delete sync group ${group.name}`}
-                  onClick={() => {
-                    run(deleteSyncGroup(group.id), `Deleted ${group.name}`);
-                  }}
-                  size="icon-sm"
-                  title="Delete group"
-                  variant="ghost"
-                >
-                  <Trash2 />
-                </Button>
-              </header>
-
-              <ul>
-                {group.members.map((member) => (
-                  <li
-                    className="flex items-center gap-3 border-border border-b px-4 py-2 last:border-b-0"
-                    key={member.file.id}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm">{member.file.relPath}</p>
-                      <p className="truncate text-muted-foreground text-xs">
-                        {member.file.path}
-                      </p>
-                    </div>
-                    {member.strategy === "symlink" ? (
-                      <Link2 className="size-3.5 shrink-0 text-chart-3" />
-                    ) : null}
-                    <span
-                      className={`shrink-0 text-xs ${STATUS_STYLES[member.status]}`}
-                    >
-                      {member.status}
-                    </span>
-                    <Button
-                      aria-label={`Promote ${member.file.relPath} to source`}
-                      onClick={() => {
-                        run(
-                          setCanonical(group.id, member.file.id),
-                          `${member.file.relPath} is now the source`
-                        );
-                      }}
-                      size="sm"
-                      variant="ghost"
-                    >
-                      Promote
-                    </Button>
-                    <Button
-                      aria-label={`Remove ${member.file.relPath} from ${group.name}`}
-                      onClick={() => {
-                        run(
-                          removeMember(group.id, member.file.id),
-                          `Removed ${member.file.relPath}`
-                        );
-                      }}
-                      size="icon-sm"
-                      title="Remove from group"
-                      variant="ghost"
-                    >
-                      <Trash2 />
-                    </Button>
-                  </li>
-                ))}
-                {group.members.length === 0 ? (
-                  <li className="px-4 py-2 text-muted-foreground text-sm">
-                    No members yet.
-                  </li>
-                ) : null}
-              </ul>
-            </section>
-          ))}
+      {groups.map((group) => (
+        <SyncGroupCard
+          group={group}
+          home={home}
+          key={group.id}
+          onOpenFile={onOpenFile}
+          onRemove={() => setRemoval({ group, open: true })}
+          onReview={() => setReview({ group, open: true })}
+        />
+      ))}
 
       <CreateGroupDialog
-        onCreated={refresh}
+        onCreated={notifySyncGroupsChanged}
         onOpenChange={setCreateOpen}
         open={createOpen}
       />
       <ApplySyncDialog
-        groupId={applyGroupId}
-        onApplied={refresh}
-        onOpenChange={(open) => setApplyGroupId(open ? applyGroupId : null)}
-        open={applyGroupId !== null}
+        group={review.group}
+        onApplied={notifySyncGroupsChanged}
+        onOpenBackups={() => setBackupsOpen(true)}
+        onOpenChange={(open) => setReview((current) => ({ ...current, open }))}
+        open={review.open}
+      />
+      <RemoveGroupDialog
+        group={removal.group}
+        onOpenChange={(open) => setRemoval((current) => ({ ...current, open }))}
+        onRemoved={notifySyncGroupsChanged}
+        open={removal.open}
       />
       <BackupsDialog
         onOpenChange={setBackupsOpen}
-        onRestored={refresh}
+        onRestored={notifySyncGroupsChanged}
         open={backupsOpen}
       />
     </ViewLayout>

@@ -1,4 +1,4 @@
-pub const SCHEMA_VERSION: i64 = 6;
+pub const SCHEMA_VERSION: i64 = 7;
 
 pub const MIGRATION_1: &str = r"
 CREATE TABLE IF NOT EXISTS roots (
@@ -124,4 +124,26 @@ CREATE INDEX IF NOT EXISTS file_refs_name_idx ON file_refs(name);
 
 pub const MIGRATION_6: &str = r"
 ALTER TABLE files ADD COLUMN refs_hash TEXT;
+";
+
+/// `description_hash` plays the role `refs_hash` plays for references: NULL until the
+/// file is read once, which is what lets the next scan backfill existing rows.
+pub const MIGRATION_7: &str = r"
+UPDATE files SET kind = 'skill' WHERE kind = 'claude-skill';
+
+ALTER TABLE files ADD COLUMN real_path TEXT;
+ALTER TABLE files ADD COLUMN description TEXT;
+ALTER TABLE files ADD COLUMN description_hash TEXT;
+
+CREATE INDEX IF NOT EXISTS files_real_path_idx ON files(real_path);
+
+CREATE TABLE IF NOT EXISTS file_aliases (
+    path              TEXT    PRIMARY KEY,
+    file_id           INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+    root_id           INTEGER NOT NULL REFERENCES roots(id) ON DELETE CASCADE,
+    last_seen_scan_id INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS file_aliases_file_idx ON file_aliases(file_id);
+CREATE INDEX IF NOT EXISTS file_aliases_root_idx ON file_aliases(root_id);
 ";

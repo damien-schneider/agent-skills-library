@@ -19,7 +19,6 @@ export function MentionPreview({ mentions }: { mentions: SkillMentions }) {
           mentions.close();
         }
       }}
-      open
       popupProps={mentions.popupProps}
     />
   );

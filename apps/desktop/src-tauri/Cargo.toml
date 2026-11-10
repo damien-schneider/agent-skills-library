@@ -38,6 +38,8 @@ tauri-plugin-clipboard-manager = "2.3.2"
 png = "0.18.1"
 tempfile = "3"
 uuid = { version = "1", features = ["v4"] }
+yaml-rust2 = { version = "0.13", default-features = false }
+trash = "5"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-single-instance = "2"

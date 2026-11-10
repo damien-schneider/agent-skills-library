@@ -2,6 +2,7 @@ use std::collections::BTreeSet;
 use std::io;
 use std::path::Path;
 
+use super::frontmatter;
 use super::hash::{hash_bytes, hash_file};
 use super::targets::FileKind;
 
@@ -10,34 +11,48 @@ const MAX_READ_BYTES: u64 = 1024 * 1024;
 const MIN_NAME_LEN: usize = 3;
 const MAX_NAME_LEN: usize = 64;
 
-pub struct Indexed {
-    pub hash: String,
+/// Everything the index derives from a file's text.
+#[derive(Debug, Clone, Default)]
+pub struct Content {
     pub refs: BTreeSet<String>,
+    pub description: Option<String>,
 }
 
-/// One read serves both the hash and the reference extraction.
-pub fn index_file(path: &Path, size: u64) -> io::Result<Indexed> {
+pub struct Indexed {
+    pub hash: String,
+    pub content: Content,
+}
+
+pub fn read_content(kind: FileKind, text: &str) -> Content {
+    Content {
+        refs: extract(text),
+        description: frontmatter::description_for(kind, text),
+    }
+}
+
+/// One read serves the hash, the reference extraction and the description.
+pub fn index_file(path: &Path, size: u64, kind: FileKind) -> io::Result<Indexed> {
     if size > MAX_READ_BYTES {
         return Ok(Indexed {
             hash: hash_file(path, size)?,
-            refs: BTreeSet::new(),
+            content: Content::default(),
         });
     }
     let bytes = std::fs::read(path)?;
-    let refs = match std::str::from_utf8(&bytes) {
-        Ok(text) => extract(text),
-        Err(_) => BTreeSet::new(),
+    let content = match std::str::from_utf8(&bytes) {
+        Ok(text) => read_content(kind, text),
+        Err(_) => Content::default(),
     };
     Ok(Indexed {
         hash: hash_bytes(&bytes),
-        refs,
+        content,
     })
 }
 
 /// The name this file answers to when another file mentions it.
 pub fn name_for(path: &Path, kind: FileKind) -> Option<String> {
     let raw = match kind {
-        FileKind::ClaudeSkill => path.parent()?.file_name()?,
+        FileKind::Skill => path.parent()?.file_name()?,
         FileKind::ClaudeAgent | FileKind::CursorRule => path.file_stem()?,
         FileKind::AgentsMd | FileKind::ClaudeMd | FileKind::GeminiMd => return None,
     };
@@ -152,7 +167,7 @@ mod tests {
         let claude_md = PathBuf::from("/repo/CLAUDE.md");
 
         assert_eq!(
-            name_for(&skill, FileKind::ClaudeSkill).as_deref(),
+            name_for(&skill, FileKind::Skill).as_deref(),
             Some("design-explore")
         );
         assert_eq!(
@@ -168,12 +183,30 @@ mod tests {
         let path = dir.path().join("CLAUDE.md");
         std::fs::write(&path, "use `agent-browser`").unwrap();
 
-        let indexed = index_file(&path, 19).unwrap();
+        let indexed = index_file(&path, 19, FileKind::ClaudeMd).unwrap();
 
         assert_eq!(indexed.hash, hash_bytes(b"use `agent-browser`"));
         assert_eq!(
-            indexed.refs.into_iter().collect::<Vec<_>>(),
+            indexed.content.refs.into_iter().collect::<Vec<_>>(),
             ["agent-browser"]
         );
+        assert_eq!(indexed.content.description, None);
+    }
+
+    #[test]
+    fn the_same_read_yields_the_description_of_a_skill() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("SKILL.md");
+        let text = "---\ndescription: Use for reviews\n---\nsee `agent-browser`";
+        std::fs::write(&path, text).unwrap();
+
+        let indexed = index_file(&path, text.len() as u64, FileKind::Skill).unwrap();
+
+        assert_eq!(indexed.hash, hash_bytes(text.as_bytes()));
+        assert_eq!(
+            indexed.content.description.as_deref(),
+            Some("Use for reviews")
+        );
+        assert!(indexed.content.refs.contains("agent-browser"));
     }
 }

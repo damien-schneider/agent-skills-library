@@ -9,6 +9,7 @@ mod paths;
 mod scanner;
 mod state;
 mod sync;
+mod trash;
 mod watcher;
 
 use tauri::Manager as _;
@@ -74,6 +75,7 @@ pub fn run() {
             commands::files::list_files,
             commands::files::read_file,
             commands::files::write_file,
+            commands::files::trash_file,
             commands::files::list_duplicates,
             commands::files::list_file_links,
             commands::watcher::get_watcher_status,

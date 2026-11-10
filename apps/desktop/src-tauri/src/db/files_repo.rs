@@ -17,6 +17,8 @@ pub struct FileRow {
     pub kind: FileKind,
     /// The name other files reference this one by; `None` for CLAUDE.md-style files.
     pub name: Option<String>,
+    /// Frontmatter `description` of a skill, agent or rule; `None` for every other kind.
+    pub description: Option<String>,
     pub project_dir: Option<String>,
     pub size: i64,
     pub mtime_ns: i64,
@@ -26,12 +28,17 @@ pub struct FileRow {
     pub first_seen_at: i64,
     pub last_seen_scan_id: Option<i64>,
     pub deleted_at: Option<i64>,
+    /// Every other absolute path that reaches this same file through a symlink, sorted.
+    pub aliases: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
 pub struct FileRecord {
     pub root_id: i64,
+    /// Indexed path: the real one when it is itself indexable, else the smallest alias.
     pub path: String,
+    /// Canonical location of the bytes — the identity that keeps one row per file.
+    pub real_path: String,
     pub rel_path: String,
     pub kind: FileKind,
     pub name: Option<String>,
@@ -60,8 +67,19 @@ pub struct DuplicateGroup {
 
 pub const SELECT: &str = "SELECT id, root_id, path, rel_path, kind, name, project_dir, size,
                              mtime_ns, hash, is_symlink, symlink_target, first_seen_at,
-                             last_seen_scan_id, deleted_at
+                             last_seen_scan_id, deleted_at, description,
+                             (SELECT json_group_array(file_aliases.path) FROM file_aliases
+                              WHERE file_aliases.file_id = files.id)
                       FROM files";
+
+fn aliases_of(row: &Row) -> rusqlite::Result<Vec<String>> {
+    let raw: String = row.get(16)?;
+    let mut aliases: Vec<String> = serde_json::from_str(&raw).map_err(|error| {
+        rusqlite::Error::FromSqlConversionFailure(16, rusqlite::types::Type::Text, Box::new(error))
+    })?;
+    aliases.sort_unstable();
+    Ok(aliases)
+}
 
 pub fn map_row(row: &Row) -> rusqlite::Result<FileRow> {
     let raw_kind: String = row.get(4)?;
@@ -83,6 +101,7 @@ pub fn map_row(row: &Row) -> rusqlite::Result<FileRow> {
         rel_path: row.get(3)?,
         kind,
         name: row.get(5)?,
+        description: row.get(15)?,
         project_dir: row.get(6)?,
         size: row.get(7)?,
         mtime_ns: row.get(8)?,
@@ -92,6 +111,7 @@ pub fn map_row(row: &Row) -> rusqlite::Result<FileRow> {
         first_seen_at: row.get(12)?,
         last_seen_scan_id: row.get(13)?,
         deleted_at: row.get(14)?,
+        aliases: aliases_of(row)?,
     })
 }
 
@@ -113,18 +133,15 @@ pub fn find_by_path(conn: &Connection, path: &str) -> AppResult<Option<FileRow>>
     Ok(file)
 }
 
+/// Soft-deletes the live row stored at `path`; `None` when there is none.
 pub fn mark_deleted_by_path(conn: &Connection, path: &str, now_ms: i64) -> AppResult<Option<i64>> {
-    let Some(row) = find_by_path(conn, path)? else {
-        return Ok(None);
-    };
-    if row.deleted_at.is_some() {
-        return Ok(None);
-    }
-    conn.execute(
-        "UPDATE files SET deleted_at = ?2 WHERE id = ?1",
-        (row.id, now_ms),
-    )?;
-    Ok(Some(row.id))
+    let id = conn
+        .prepare_cached(
+            "UPDATE files SET deleted_at = ?2 WHERE path = ?1 AND deleted_at IS NULL RETURNING id",
+        )?
+        .query_row((path, now_ms), |row| row.get(0))
+        .optional()?;
+    Ok(id)
 }
 
 pub fn latest_scan_id(conn: &Connection) -> AppResult<i64> {
@@ -188,12 +205,26 @@ pub struct IndexedFile {
     pub hash: String,
     /// Content hash the references were extracted from; `None` until the file is read once.
     pub refs_hash: Option<String>,
+    /// Same stamp for the frontmatter description.
+    pub description_hash: Option<String>,
+    pub deleted: bool,
 }
 
-pub fn indexed_by_path(conn: &Connection, root_id: i64) -> AppResult<HashMap<String, IndexedFile>> {
-    let mut stmt =
-        conn.prepare("SELECT path, size, mtime_ns, hash, refs_hash FROM files WHERE root_id = ?1")?;
-    let rows = stmt.query_map([root_id], |row| {
+impl IndexedFile {
+    /// Everything derived from the bytes was derived from the bytes `hash` names.
+    pub fn is_fully_read(&self) -> bool {
+        let current = Some(self.hash.as_str());
+        self.refs_hash.as_deref() == current && self.description_hash.as_deref() == current
+    }
+}
+
+/// Not scoped to the scanned roots: a file reached through a symlink is indexed
+/// under its real path, which may sit in a root this scan does not walk.
+pub fn indexed_by_path(conn: &Connection) -> AppResult<HashMap<String, IndexedFile>> {
+    let mut stmt = conn.prepare(
+        "SELECT path, size, mtime_ns, hash, refs_hash, description_hash, deleted_at FROM files",
+    )?;
+    let rows = stmt.query_map([], |row| {
         Ok((
             row.get::<_, String>(0)?,
             IndexedFile {
@@ -203,6 +234,8 @@ pub fn indexed_by_path(conn: &Connection, root_id: i64) -> AppResult<HashMap<Str
                 },
                 hash: row.get(3)?,
                 refs_hash: row.get(4)?,
+                description_hash: row.get(5)?,
+                deleted: row.get::<_, Option<i64>>(6)?.is_some(),
             },
         ))
     })?;
@@ -219,8 +252,8 @@ pub fn upsert(conn: &Connection, record: &FileRecord, scan_id: i64, now_ms: i64)
     conn.execute(
         "INSERT INTO files (root_id, path, rel_path, kind, name, project_dir, size, mtime_ns,
                             hash, is_symlink, symlink_target, first_seen_at, last_seen_scan_id,
-                            deleted_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, NULL)
+                            deleted_at, real_path)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, NULL, ?14)
          ON CONFLICT(path) DO UPDATE SET
              root_id = excluded.root_id,
              rel_path = excluded.rel_path,
@@ -233,7 +266,8 @@ pub fn upsert(conn: &Connection, record: &FileRecord, scan_id: i64, now_ms: i64)
              is_symlink = excluded.is_symlink,
              symlink_target = excluded.symlink_target,
              last_seen_scan_id = excluded.last_seen_scan_id,
-             deleted_at = NULL",
+             deleted_at = NULL,
+             real_path = excluded.real_path",
         rusqlite::params![
             record.root_id,
             record.path,
@@ -248,6 +282,7 @@ pub fn upsert(conn: &Connection, record: &FileRecord, scan_id: i64, now_ms: i64)
             record.symlink_target,
             now_ms,
             scan_id,
+            record.real_path,
         ],
     )?;
 
@@ -257,6 +292,62 @@ pub fn upsert(conn: &Connection, record: &FileRecord, scan_id: i64, now_ms: i64)
         |row| row.get(0),
     )?;
     Ok(id)
+}
+
+/// Stamping `description_hash` is what makes `description_hash == hash` mean "the
+/// description is current", exactly as `links_repo::replace_refs` does for references.
+pub fn set_description(
+    conn: &Connection,
+    id: i64,
+    hash: &str,
+    description: Option<&str>,
+) -> AppResult<()> {
+    conn.prepare_cached("UPDATE files SET description = ?2, description_hash = ?3 WHERE id = ?1")?
+        .execute(rusqlite::params![id, description, hash])?;
+    Ok(())
+}
+
+/// One live row per real file: any other row still claiming these bytes steps aside.
+pub fn retire_twins(
+    conn: &Connection,
+    id: i64,
+    real_path: &str,
+    now_ms: i64,
+) -> AppResult<Vec<i64>> {
+    let mut stmt = conn.prepare_cached(
+        "UPDATE files SET deleted_at = ?3
+         WHERE real_path = ?2 AND id != ?1 AND deleted_at IS NULL
+         RETURNING id",
+    )?;
+    let ids = stmt
+        .query_map(rusqlite::params![id, real_path, now_ms], |row| row.get(0))?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(ids)
+}
+
+/// Live rows stored at `location` or below it, by either of their two paths.
+pub fn live_ids_at_or_under(conn: &Connection, location: &str) -> AppResult<Vec<i64>> {
+    let mut stmt = conn.prepare(
+        "SELECT id FROM files
+         WHERE deleted_at IS NULL
+           AND (path = ?1 OR real_path = ?1
+                OR substr(path, 1, length(?2)) = ?2
+                OR substr(real_path, 1, length(?2)) = ?2)
+         ORDER BY id",
+    )?;
+    let below = format!("{location}{}", std::path::MAIN_SEPARATOR);
+    let ids = stmt
+        .query_map((location, below), |row| row.get(0))?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(ids)
+}
+
+pub fn mark_deleted(conn: &Connection, id: i64, now_ms: i64) -> AppResult<()> {
+    conn.execute(
+        "UPDATE files SET deleted_at = ?2 WHERE id = ?1 AND deleted_at IS NULL",
+        (id, now_ms),
+    )?;
+    Ok(())
 }
 
 /// Marks rows the scan did not walk over; ids are returned so the UI can refresh them.
@@ -333,6 +424,7 @@ mod tests {
         FileRecord {
             root_id,
             path: path.to_string(),
+            real_path: path.to_string(),
             rel_path: path.trim_start_matches("/repo/").to_string(),
             kind,
             name: None,
@@ -551,16 +643,149 @@ mod tests {
         })
         .unwrap();
 
-        let indexed = db.with_conn(|conn| indexed_by_path(conn, root_id)).unwrap();
+        let indexed = db.with_conn(indexed_by_path).unwrap();
 
         let entry = indexed.get("/repo/CLAUDE.md").unwrap();
         assert_eq!(entry.stat.size, 10);
         assert_eq!(entry.stat.mtime_ns, 1_000);
         assert_eq!(entry.hash, "h");
+        assert!(!entry.deleted);
         assert_eq!(
             entry.refs_hash, None,
             "a freshly upserted row still owes its references"
         );
+        assert!(!entry.is_fully_read(), "and its description");
+    }
+
+    #[test]
+    fn a_file_is_fully_read_once_references_and_description_carry_its_hash() {
+        let (db, root_id) = seeded();
+        let id = db
+            .with_conn(|conn| {
+                upsert(
+                    conn,
+                    &record(root_id, "/repo/skills/a/SKILL.md", FileKind::Skill, "h"),
+                    1,
+                    0,
+                )
+            })
+            .unwrap();
+
+        db.with_conn(|conn| {
+            conn.execute("UPDATE files SET refs_hash = 'h' WHERE id = ?1", [id])?;
+            set_description(conn, id, "h", Some("Use for reviews"))
+        })
+        .unwrap();
+
+        let indexed = db.with_conn(indexed_by_path).unwrap();
+        assert!(indexed["/repo/skills/a/SKILL.md"].is_fully_read());
+        assert_eq!(
+            db.with_conn(|conn| require(conn, id))
+                .unwrap()
+                .description
+                .as_deref(),
+            Some("Use for reviews")
+        );
+    }
+
+    #[test]
+    fn a_second_row_for_the_same_real_file_is_retired() {
+        let (db, root_id) = seeded();
+        let mut alias = record(root_id, "/repo/b/AGENTS.md", FileKind::AgentsMd, "h");
+        alias.real_path = "/repo/a/AGENTS.md".to_string();
+        let (kept, twin) = db
+            .with_conn(|conn| {
+                let kept = upsert(
+                    conn,
+                    &record(root_id, "/repo/a/AGENTS.md", FileKind::AgentsMd, "h"),
+                    1,
+                    0,
+                )?;
+                Ok((kept, upsert(conn, &alias, 1, 0)?))
+            })
+            .unwrap();
+
+        let retired = db
+            .with_conn(|conn| retire_twins(conn, kept, "/repo/a/AGENTS.md", 7))
+            .unwrap();
+
+        assert_eq!(retired, [twin]);
+        let live = db
+            .with_conn(|conn| list(conn, &FileFilter::default()))
+            .unwrap();
+        assert_eq!(live.len(), 1);
+        assert_eq!(live[0].id, kept);
+    }
+
+    #[test]
+    fn finds_the_live_rows_at_or_under_a_location() {
+        let (db, root_id) = seeded();
+        let mut linked = record(root_id, "/repo/CLAUDE.md", FileKind::ClaudeMd, "h4");
+        linked.real_path = "/repo/skills/a/notes/CLAUDE.md".to_string();
+        let ids = db
+            .with_conn(|conn| {
+                let skill = upsert(
+                    conn,
+                    &record(root_id, "/repo/skills/a/SKILL.md", FileKind::Skill, "h1"),
+                    1,
+                    0,
+                )?;
+                upsert(
+                    conn,
+                    &record(root_id, "/repo/skills/ab/SKILL.md", FileKind::Skill, "h2"),
+                    1,
+                    0,
+                )?;
+                let gone = upsert(
+                    conn,
+                    &record(
+                        root_id,
+                        "/repo/skills/a/AGENTS.md",
+                        FileKind::AgentsMd,
+                        "h3",
+                    ),
+                    1,
+                    0,
+                )?;
+                mark_deleted(conn, gone, 5)?;
+                Ok(vec![skill, upsert(conn, &linked, 1, 0)?])
+            })
+            .unwrap();
+
+        let under = db
+            .with_conn(|conn| live_ids_at_or_under(conn, "/repo/skills/a"))
+            .unwrap();
+        let exact = db
+            .with_conn(|conn| live_ids_at_or_under(conn, "/repo/skills/a/SKILL.md"))
+            .unwrap();
+
+        assert_eq!(under, ids, "a sibling sharing the prefix is not inside");
+        assert_eq!(exact, [ids[0]]);
+    }
+
+    #[test]
+    fn marking_a_path_deleted_reports_the_row_only_once() {
+        let (db, root_id) = seeded();
+        let id = db
+            .with_conn(|conn| {
+                upsert(
+                    conn,
+                    &record(root_id, "/repo/CLAUDE.md", FileKind::ClaudeMd, "h"),
+                    1,
+                    0,
+                )
+            })
+            .unwrap();
+
+        let first = db
+            .with_conn(|conn| mark_deleted_by_path(conn, "/repo/CLAUDE.md", 3))
+            .unwrap();
+        let again = db
+            .with_conn(|conn| mark_deleted_by_path(conn, "/repo/CLAUDE.md", 4))
+            .unwrap();
+
+        assert_eq!(first, Some(id));
+        assert_eq!(again, None);
     }
 
     #[test]

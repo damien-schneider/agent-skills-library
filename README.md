@@ -8,7 +8,9 @@ A modern platform for discovering, sharing, and managing high-quality skills for
 
 [![Download for macOS](https://img.shields.io/github/v/release/damien-schneider/agent-skills-library?label=Download%20for%20macOS&style=for-the-badge&logo=apple&color=black)](https://github.com/damien-schneider/agent-skills-library/releases/latest/download/another-dev-tool_universal.dmg)
 
-Browse, deduplicate and sync the skills scattered across your machine — Claude skills and agents, Cursor rules, `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`. Universal binary for Apple Silicon and Intel, signed and notarized by Apple, with built-in automatic updates.
+Browse, edit, deduplicate and sync the skills scattered across your machine — skills (any `SKILL.md`), Claude agents, Cursor rules, `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`. Universal binary for Apple Silicon and Intel, signed and notarized by Apple, with built-in automatic updates.
+
+It indexes `~/.claude`, `~/.agents`, `~/.codex`, `~/.cursor`, `~/.gemini` and your usual project folders on first launch, with nothing to set up. Skills open in a visual editor that writes back only the lines you changed; name and description are edited as fields and checked against the skill rules. `⌘K` finds any file, `⌘N` starts a new skill, `⌘S` saves.
 
 Grant Accessibility access once, then select text in any macOS app—including Claude Code, Codex, and terminal sessions—and tap Shift twice to save it to local Prompt history. When direct selection access is unavailable, Another Dev Tool briefly invokes Copy and restores the previous clipboard afterward.
 

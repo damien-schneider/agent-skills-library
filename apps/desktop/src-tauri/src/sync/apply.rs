@@ -332,6 +332,7 @@ mod tests {
         let record = FileRecord {
             root_id,
             path: path.to_string_lossy().into_owned(),
+            real_path: path.to_string_lossy().into_owned(),
             rel_path: path
                 .strip_prefix(root)
                 .unwrap()

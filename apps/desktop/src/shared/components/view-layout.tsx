@@ -1,37 +1,52 @@
+import { Button } from "@ctrl-ui/react/ui/button";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@ctrl-ui/react/ui/empty";
+import {
+  PageActions,
+  PageBody,
+  PageDescription,
+  PageHeader,
+  PageLayout,
+  PageTitle,
+  type PageWidth,
+} from "@ctrl-ui/react/ui/page-layout";
+import { Skeleton } from "@ctrl-ui/react/ui/skeleton";
 import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { Button } from "@/shared/components/ui/button";
-
-export function ViewLayout({ children }: { children: ReactNode }) {
-  return (
-    <div className="h-full overflow-y-auto">
-      <div className="mx-auto flex w-full max-w-4xl flex-col gap-5 px-8 py-8">
-        {children}
-      </div>
-    </div>
-  );
-}
-
-export function ViewHeader({
-  actions,
-  description,
+/** A full view of the app: a titled page whose header doubles as the window's drag strip. */
+export function ViewLayout({
   title,
+  description,
+  actions,
+  width = "content",
+  children,
 }: {
-  actions?: ReactNode;
-  description: string;
   title: string;
+  description?: string;
+  actions?: ReactNode;
+  width?: PageWidth;
+  children: ReactNode;
 }) {
   return (
-    <header className="flex min-h-12 items-start justify-between gap-6">
-      <div className="min-w-0">
-        <h1 className="font-semibold text-lg">{title}</h1>
-        <p className="mt-0.5 max-w-2xl text-muted-foreground text-sm">
-          {description}
-        </p>
-      </div>
-      {actions ? <div className="flex shrink-0 gap-2">{actions}</div> : null}
-    </header>
+    <PageLayout className="h-full" scroll="inset" width={width}>
+      <PageHeader data-tauri-drag-region variant="sticky">
+        <PageTitle data-tauri-drag-region>{title}</PageTitle>
+        {description ? (
+          <PageDescription data-tauri-drag-region>
+            {description}
+          </PageDescription>
+        ) : null}
+        {actions ? <PageActions>{actions}</PageActions> : null}
+      </PageHeader>
+      <PageBody contentClassName="flex flex-col gap-5">{children}</PageBody>
+    </PageLayout>
   );
 }
 
@@ -47,16 +62,16 @@ export function EmptyState({
   title: string;
 }) {
   return (
-    <div className="flex min-h-64 flex-col items-center justify-center px-6 text-center">
-      <div className="mb-4 flex size-10 items-center justify-center rounded-full bg-muted">
-        <Icon className="size-4 text-muted-foreground" />
-      </div>
-      <p className="font-medium text-sm">{title}</p>
-      <p className="mt-1 max-w-sm text-muted-foreground text-sm">
-        {description}
-      </p>
-      {action ? <div className="mt-4">{action}</div> : null}
-    </div>
+    <Empty>
+      <EmptyHeader>
+        <EmptyMedia>
+          <Icon aria-hidden="true" />
+        </EmptyMedia>
+        <EmptyTitle>{title}</EmptyTitle>
+        <EmptyDescription>{description}</EmptyDescription>
+      </EmptyHeader>
+      {action ? <EmptyContent>{action}</EmptyContent> : null}
+    </Empty>
   );
 }
 
@@ -68,23 +83,27 @@ export function ErrorState({
   onRetry: () => void;
 }) {
   return (
-    <div className="flex min-h-48 flex-col items-center justify-center px-6 text-center">
-      <p className="max-w-md text-destructive text-sm">{message}</p>
-      <Button className="mt-4" onClick={onRetry} size="sm" variant="outline">
-        Try again
-      </Button>
-    </div>
+    <Empty role="alert">
+      <EmptyHeader>
+        <EmptyTitle>Something went wrong</EmptyTitle>
+        <EmptyDescription>{message}</EmptyDescription>
+      </EmptyHeader>
+      <EmptyContent>
+        <Button onClick={onRetry} size="sm" variant="surface">
+          Try again
+        </Button>
+      </EmptyContent>
+    </Empty>
   );
 }
 
+const SKELETON_ROW_KEYS = ["a", "b", "c", "d", "e", "f", "g", "h"] as const;
+
 export function ListSkeleton({ rows = 4 }: { rows?: number }) {
   return (
-    <output aria-label="Loading" className="block space-y-2">
-      {Array.from({ length: rows }, (_, index) => (
-        <div
-          className="h-14 animate-pulse rounded-lg bg-muted motion-reduce:animate-none"
-          key={`skeleton-${index + 1}`}
-        />
+    <output aria-label="Loading" className="flex flex-col gap-2">
+      {SKELETON_ROW_KEYS.slice(0, rows).map((key) => (
+        <Skeleton className="h-14" key={key} />
       ))}
     </output>
   );

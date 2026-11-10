@@ -196,6 +196,7 @@ mod tests {
                 let record = |path: &str| FileRecord {
                     root_id,
                     path: path.to_string(),
+                    real_path: path.to_string(),
                     rel_path: path.to_string(),
                     kind: FileKind::AgentsMd,
                     name: None,

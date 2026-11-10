@@ -1,5 +1,5 @@
+import { toast } from "@ctrl-ui/react/ui/toast";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
 
 import {
   listFavoriteProjects,

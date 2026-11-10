@@ -1,28 +1,39 @@
+pub mod frontmatter;
 pub mod hash;
 pub mod incremental;
+pub mod placement;
 pub mod refs;
+pub mod store;
 pub mod targets;
 pub mod walk;
 
-use std::collections::BTreeSet;
-use std::path::Path;
+#[cfg(test)]
+mod alias_tests;
+
+use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use serde::Serialize;
 
-use crate::db::files_repo::{self, FileRecord, IndexedFile};
-use crate::db::links_repo;
-use crate::db::roots_repo::Root;
+use crate::db::aliases_repo::{self, AliasRecord};
+use crate::db::files_repo::{self, IndexedFile};
+use crate::db::roots_repo::{self, Root};
 use crate::db::{now_ms, Db};
 use crate::error::AppResult;
 use incremental::{classify_change, ChangeKind, Stat};
-use walk::{project_dir_of, walk_root, WalkEntry};
+use placement::{home_of, place, Reach};
+use store::{record_for, store, Indexable};
+use walk::{describe, walk_root, worker_threads, WalkEntry};
 
 const BATCH_SIZE: usize = 500;
+/// The walk is the slow part of a big tree: the counter has to move while it runs.
+const PROGRESS_EVERY: i64 = 100;
 
 #[derive(Debug, Clone, Copy, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ScanStats {
+    /// Real files found — a file reached through three paths counts once.
     pub seen: i64,
     pub hashed: i64,
     pub added: i64,
@@ -68,65 +79,169 @@ pub fn finish_scan_row(db: &Db, scan_id: i64, status: &str, stats: &ScanStats) -
     })
 }
 
-struct Prepared {
-    record: FileRecord,
-    change: ChangeKind,
-    /// `None` when the file was untouched: its references are already indexed.
-    refs: Option<BTreeSet<String>>,
-}
-
-/// Reusing the stored hash also means reusing the stored references, so a row whose
-/// references were never extracted is re-read even when its bytes did not move.
-fn reusable_hash(change: ChangeKind, previous: Option<&IndexedFile>) -> Option<String> {
-    let previous = previous?;
-    let current = matches!(change, ChangeKind::Unchanged)
-        && previous.refs_hash.as_deref() == Some(previous.hash.as_str());
-    current.then(|| previous.hash.clone())
-}
-
-fn prepare(
+struct Walked {
     entry: WalkEntry,
-    root: &Root,
-    root_path: &Path,
-    previous: Option<&IndexedFile>,
-) -> Option<Prepared> {
-    let stat = Stat {
-        size: entry.size,
-        mtime_ns: entry.mtime_ns,
-    };
-    let change = classify_change(previous.map(|previous| previous.stat), stat);
+    root_id: i64,
+}
 
-    let (hash, refs) = match reusable_hash(change, previous) {
+/// Every walked path, grouped by the real file it reaches. Nothing is indexed until
+/// all roots are walked: a file's row depends on every path leading to it, and
+/// those can sit in different roots.
+type Found = HashMap<PathBuf, Vec<Walked>>;
+
+struct Job<'a> {
+    entry: WalkEntry,
+    root: &'a Root,
+    aliases: Vec<AliasRecord>,
+}
+
+struct Prepared {
+    item: Indexable,
+    change: ChangeKind,
+}
+
+fn walk_into(
+    root: &Root,
+    cancel: &AtomicBool,
+    found: &mut Found,
+    stats: &mut ScanStats,
+    on_progress: &mut dyn FnMut(ScanStats),
+) {
+    let (sender, receiver) = crossbeam_channel::bounded::<WalkEntry>(2048);
+
+    std::thread::scope(|scope| {
+        scope.spawn(move || {
+            walk_root(Path::new(&root.path), cancel, |entry| {
+                let _ = sender.send(entry);
+            });
+        });
+
+        for entry in receiver.iter() {
+            let reached = found.entry(entry.real_path.clone()).or_default();
+            if reached.is_empty() {
+                stats.seen += 1;
+                if stats.seen % PROGRESS_EVERY == 0 {
+                    on_progress(*stats);
+                }
+            }
+            reached.push(Walked {
+                entry,
+                root_id: root.id,
+            });
+        }
+    });
+}
+
+/// Paths the index already holds for `real` in enabled roots this scan leaves alone.
+/// Without them a partial scan would index a second row for a file whose row lives
+/// at an alias over there.
+fn known_elsewhere(db: &Db, real: &Path, unscanned: &HashSet<i64>) -> AppResult<Vec<Reach>> {
+    let known = db.with_conn(|conn| aliases_repo::paths_reaching(conn, &real.to_string_lossy()))?;
+
+    Ok(known
+        .into_iter()
+        .filter(|known| unscanned.contains(&known.root_id))
+        .map(|known| Reach {
+            path: PathBuf::from(known.path),
+            root_id: known.root_id,
+        })
+        .filter(|reach| {
+            reach
+                .path
+                .canonicalize()
+                .is_ok_and(|resolved| resolved == real)
+        })
+        .collect())
+}
+
+fn resolve<'a>(
+    db: &Db,
+    found: Found,
+    enabled: &'a [Root],
+    scanned: &[&'a Root],
+) -> AppResult<Vec<Job<'a>>> {
+    let unscanned: HashSet<i64> = enabled
+        .iter()
+        .map(|root| root.id)
+        .filter(|id| scanned.iter().all(|root| root.id != *id))
+        .collect();
+    let root_by_id = |id: i64| {
+        enabled
+            .iter()
+            .chain(scanned.iter().copied())
+            .find(|root| root.id == id)
+    };
+
+    let mut jobs = Vec::with_capacity(found.len());
+    for (real, walked) in found {
+        let mut reaches: Vec<Reach> = walked
+            .iter()
+            .map(|walked| Reach {
+                path: walked.entry.path.clone(),
+                root_id: walked.root_id,
+            })
+            .collect();
+        if !unscanned.is_empty() && home_of(&real, enabled).is_none() {
+            reaches.extend(known_elsewhere(db, &real, &unscanned)?);
+        }
+
+        let Some(placement) = place(&real, &reaches, enabled) else {
+            continue;
+        };
+        let Some(root) = root_by_id(placement.root_id) else {
+            continue;
+        };
+        // the row's path was walked, unless it sits in a root this scan left alone
+        let entry = walked
+            .into_iter()
+            .map(|walked| walked.entry)
+            .find(|entry| entry.path == placement.path)
+            .or_else(|| describe(&placement.path, placement.kind));
+        let Some(entry) = entry else {
+            continue;
+        };
+
+        jobs.push(Job {
+            entry,
+            root,
+            aliases: placement.aliases,
+        });
+    }
+    Ok(jobs)
+}
+
+/// Reusing the stored hash also means reusing what was read from the file, so a row
+/// whose references or description were never extracted is re-read even when its
+/// bytes did not move.
+fn reusable_hash(previous: Option<&IndexedFile>, stat: Stat) -> Option<String> {
+    let previous = previous?;
+    (previous.stat == stat && previous.is_fully_read()).then(|| previous.hash.clone())
+}
+
+fn prepare(job: Job, previous: Option<&IndexedFile>) -> Option<Prepared> {
+    let stat = Stat {
+        size: job.entry.size,
+        mtime_ns: job.entry.mtime_ns,
+    };
+    let live = previous.filter(|previous| !previous.deleted);
+    let change = classify_change(live.map(|previous| previous.stat), stat);
+
+    let (hash, content) = match reusable_hash(previous, stat) {
         Some(hash) => (hash, None),
         None => {
-            let indexed = refs::index_file(&entry.path, entry.size as u64).ok()?;
-            (indexed.hash, Some(indexed.refs))
+            let size = job.entry.size as u64;
+            let indexed = refs::index_file(&job.entry.path, size, job.entry.kind).ok()?;
+            (indexed.hash, Some(indexed.content))
         }
     };
 
-    let rel_path = entry
-        .path
-        .strip_prefix(root_path)
-        .unwrap_or(&entry.path)
-        .to_string_lossy()
-        .into_owned();
-
     Some(Prepared {
-        record: FileRecord {
-            root_id: root.id,
-            path: entry.path.to_string_lossy().into_owned(),
-            rel_path,
-            kind: entry.kind,
-            name: refs::name_for(&entry.path, entry.kind),
-            project_dir: project_dir_of(&entry.path, root_path),
-            size: entry.size,
-            mtime_ns: entry.mtime_ns,
-            hash,
-            is_symlink: entry.is_symlink,
-            symlink_target: entry.symlink_target,
+        item: Indexable {
+            record: record_for(&job.entry, job.root, hash),
+            content,
+            aliases: job.aliases,
         },
         change,
-        refs,
     })
 }
 
@@ -134,8 +249,7 @@ fn flush(
     db: &Db,
     batch: &mut Vec<Prepared>,
     scan_id: i64,
-    stats: &mut ScanStats,
-    touched: &mut Vec<i64>,
+    outcome: &mut ScanOutcome,
 ) -> AppResult<()> {
     if batch.is_empty() {
         return Ok(());
@@ -143,21 +257,18 @@ fn flush(
     let now = now_ms();
     db.with_tx(|tx| {
         for prepared in batch.iter() {
-            let id = files_repo::upsert(tx, &prepared.record, scan_id, now)?;
-            if let Some(refs) = &prepared.refs {
-                links_repo::replace_refs(tx, id, &prepared.record.hash, refs)?;
-            }
+            let stored = store(tx, &prepared.item, scan_id, now)?;
             match prepared.change {
-                ChangeKind::Added => {
-                    stats.added += 1;
-                    touched.push(id);
-                }
-                ChangeKind::Changed => {
-                    stats.changed += 1;
-                    touched.push(id);
-                }
+                ChangeKind::Added => outcome.stats.added += 1,
+                ChangeKind::Changed => outcome.stats.changed += 1,
                 ChangeKind::Unchanged => {}
             }
+            if prepared.change != ChangeKind::Unchanged || stored.aliases_changed {
+                outcome.touched_ids.push(stored.id);
+            }
+            outcome.stats.removed += stored.retired.len() as i64;
+            outcome.touched_ids.extend(stored.retired);
+            outcome.touched_ids.extend(stored.relinked);
         }
         Ok(())
     })?;
@@ -165,72 +276,72 @@ fn flush(
     Ok(())
 }
 
-fn scan_root(
+fn index(
     db: &Db,
-    root: &Root,
+    jobs: Vec<Job>,
     scan_id: i64,
     cancel: &AtomicBool,
     outcome: &mut ScanOutcome,
     on_progress: &mut dyn FnMut(ScanStats),
 ) -> AppResult<()> {
-    let root_path = Path::new(&root.path);
-    if !root_path.is_dir() {
-        return Ok(());
-    }
+    let previous = db.with_conn(files_repo::indexed_by_path)?;
 
-    let previous = db.with_conn(|conn| files_repo::indexed_by_path(conn, root.id))?;
+    let (queue, jobs_left) = crossbeam_channel::unbounded::<Job>();
+    for job in jobs {
+        let _ = queue.send(job);
+    }
+    drop(queue);
     let (sender, receiver) = crossbeam_channel::bounded::<Prepared>(2048);
 
-    let result = std::thread::scope(|scope| -> AppResult<()> {
-        scope.spawn(|| {
-            let sender = sender;
-            walk_root(root_path, cancel, |entry| {
-                let key = entry.path.to_string_lossy().into_owned();
-                if let Some(prepared) = prepare(entry, root, root_path, previous.get(&key)) {
-                    let _ = sender.send(prepared);
+    std::thread::scope(|scope| -> AppResult<()> {
+        // owned by this closure so an early return drops it and unblocks the workers
+        let receiver = receiver;
+        for _ in 0..worker_threads() {
+            let (jobs_left, sender, previous) = (jobs_left.clone(), sender.clone(), &previous);
+            scope.spawn(move || {
+                for job in jobs_left.iter() {
+                    if cancel.load(Ordering::Relaxed) {
+                        break;
+                    }
+                    let key = job.entry.path.to_string_lossy().into_owned();
+                    let Some(prepared) = prepare(job, previous.get(&key)) else {
+                        continue;
+                    };
+                    if sender.send(prepared).is_err() {
+                        break;
+                    }
                 }
             });
-        });
+        }
+        drop(sender);
 
         let mut batch: Vec<Prepared> = Vec::with_capacity(BATCH_SIZE);
         for prepared in receiver.iter() {
-            outcome.stats.seen += 1;
-            if prepared.refs.is_some() {
+            if prepared.item.content.is_some() {
                 outcome.stats.hashed += 1;
             }
             batch.push(prepared);
 
             if batch.len() >= BATCH_SIZE {
-                flush(
-                    db,
-                    &mut batch,
-                    scan_id,
-                    &mut outcome.stats,
-                    &mut outcome.touched_ids,
-                )?;
+                flush(db, &mut batch, scan_id, outcome)?;
                 on_progress(outcome.stats);
             }
         }
-        flush(
-            db,
-            &mut batch,
-            scan_id,
-            &mut outcome.stats,
-            &mut outcome.touched_ids,
-        )
-    });
-    result?;
+        flush(db, &mut batch, scan_id, outcome)
+    })
+}
 
-    if cancel.load(Ordering::Relaxed) {
-        outcome.cancelled = true;
-        return Ok(());
-    }
-
-    let removed =
-        db.with_conn(|conn| files_repo::mark_missing_deleted(conn, root.id, scan_id, now_ms()))?;
+/// Rows and aliases the walk of a root did not come across are gone from the disk.
+fn retire_unseen(db: &Db, root: &Root, scan_id: i64, outcome: &mut ScanOutcome) -> AppResult<()> {
+    let (removed, unlinked) = db.with_conn(|conn| {
+        Ok((
+            files_repo::mark_missing_deleted(conn, root.id, scan_id, now_ms())?,
+            aliases_repo::prune_unseen(conn, root.id, scan_id)?,
+        ))
+    })?;
     outcome.stats.removed += removed.len() as i64;
     outcome.touched_ids.extend(removed);
-    on_progress(outcome.stats);
+    outcome.touched_ids.extend(unlinked);
     Ok(())
 }
 
@@ -242,15 +353,44 @@ pub fn run_scan(
     mut on_progress: impl FnMut(ScanStats),
 ) -> AppResult<ScanOutcome> {
     let mut outcome = ScanOutcome::default();
+    // a real path only carries its row inside an enabled root, scanned now or not
+    let enabled = db.with_conn(roots_repo::list_enabled)?;
 
+    let mut found = Found::new();
+    let mut scanned: Vec<&Root> = Vec::with_capacity(roots.len());
     for root in roots {
         if cancel.load(Ordering::Relaxed) {
-            outcome.cancelled = true;
             break;
         }
-        scan_root(db, root, scan_id, cancel, &mut outcome, &mut on_progress)?;
+        if !Path::new(&root.path).is_dir() {
+            continue;
+        }
+        walk_into(
+            root,
+            cancel,
+            &mut found,
+            &mut outcome.stats,
+            &mut on_progress,
+        );
+        scanned.push(root);
     }
 
+    if !cancel.load(Ordering::Relaxed) {
+        let jobs = resolve(db, found, &enabled, &scanned)?;
+        index(db, jobs, scan_id, cancel, &mut outcome, &mut on_progress)?;
+    }
+    // a scan cut short has not seen everything: nothing may be retired on its word
+    if cancel.load(Ordering::Relaxed) {
+        outcome.cancelled = true;
+        return Ok(outcome);
+    }
+
+    for root in scanned {
+        retire_unseen(db, root, scan_id, &mut outcome)?;
+    }
+    outcome.touched_ids.sort_unstable();
+    outcome.touched_ids.dedup();
+    on_progress(outcome.stats);
     Ok(outcome)
 }
 
@@ -258,7 +398,7 @@ pub fn run_scan(
 mod tests {
     use super::*;
     use crate::db::files_repo::FileFilter;
-    use crate::db::roots_repo;
+    use crate::db::links_repo;
     use std::fs;
     use tempfile::{tempdir, TempDir};
 
@@ -370,6 +510,86 @@ mod tests {
     }
 
     #[test]
+    fn indexes_the_frontmatter_description_of_skills_agents_and_rules() {
+        let (db, dir, root) = setup();
+        write(
+            &dir.path().join("skills/review/SKILL.md"),
+            "---\nname: review\ndescription: >\n  Use when the user\n  asks for a review.\n---\n# Review",
+        );
+        write(
+            &dir.path().join(".claude/agents/planner.md"),
+            "---\ndescription: \"Plans: always first\"\n---\n",
+        );
+        write(
+            &dir.path().join(".cursor/rules/style.mdc"),
+            "---\ndescription: Style rules\nglobs: '*.ts'\n---\n",
+        );
+        write(
+            &dir.path().join("skills/broken/SKILL.md"),
+            "---\ndescription: Use when: unquoted colon\n---\n",
+        );
+        write(
+            &dir.path().join("CLAUDE.md"),
+            "---\ndescription: not a described kind\n---\n",
+        );
+
+        scan(&db, &root);
+
+        let files = db
+            .with_conn(|conn| files_repo::list(conn, &FileFilter::default()))
+            .unwrap();
+        let description = |rel_path: &str| {
+            files
+                .iter()
+                .find(|file| file.rel_path == rel_path)
+                .expect("indexed file")
+                .description
+                .as_deref()
+        };
+        assert_eq!(
+            description("skills/review/SKILL.md"),
+            Some("Use when the user asks for a review.")
+        );
+        assert_eq!(
+            description(".claude/agents/planner.md"),
+            Some("Plans: always first")
+        );
+        assert_eq!(description(".cursor/rules/style.mdc"), Some("Style rules"));
+        assert_eq!(description("skills/broken/SKILL.md"), None);
+        assert_eq!(description("CLAUDE.md"), None);
+    }
+
+    #[test]
+    fn a_scan_re_reads_files_whose_description_was_never_computed() {
+        let (db, dir, root) = setup();
+        write(
+            &dir.path().join("skills/review/SKILL.md"),
+            "---\ndescription: Use for reviews\n---\n",
+        );
+        scan(&db, &root);
+
+        db.with_conn(|conn| {
+            conn.execute_batch("UPDATE files SET description = NULL, description_hash = NULL;")?;
+            Ok(())
+        })
+        .unwrap();
+
+        let second = scan(&db, &root);
+
+        assert_eq!(second.stats.changed, 0, "nothing on disk moved");
+        assert_eq!(second.stats.hashed, 1);
+        let files = db
+            .with_conn(|conn| files_repo::list(conn, &FileFilter::default()))
+            .unwrap();
+        assert_eq!(
+            files[0].description.as_deref(),
+            Some("Use for reviews"),
+            "an index migrated in without descriptions backfills itself"
+        );
+        assert_eq!(scan(&db, &root).stats.hashed, 0, "and only once");
+    }
+
+    #[test]
     fn a_second_scan_rehashes_nothing() {
         let (db, dir, root) = setup();
         write(&dir.path().join("CLAUDE.md"), "# claude");
@@ -418,6 +638,23 @@ mod tests {
             .with_conn(|conn| files_repo::list(conn, &FileFilter::default()))
             .unwrap()
             .is_empty());
+    }
+
+    #[test]
+    fn a_file_that_comes_back_is_reported_again() {
+        let (db, dir, root) = setup();
+        let path = dir.path().join("CLAUDE.md");
+        write(&path, "# claude");
+        let first = scan(&db, &root);
+        let saved = dir.path().join("saved");
+        fs::rename(&path, &saved).unwrap();
+        scan(&db, &root);
+
+        fs::rename(&saved, &path).unwrap();
+        let third = scan(&db, &root);
+
+        assert_eq!(third.stats.added, 1);
+        assert_eq!(third.touched_ids, first.touched_ids, "the same row revives");
     }
 
     #[test]

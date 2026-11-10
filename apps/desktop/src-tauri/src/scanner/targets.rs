@@ -10,7 +10,7 @@ pub enum FileKind {
     ClaudeMd,
     GeminiMd,
     CursorRule,
-    ClaudeSkill,
+    Skill,
     ClaudeAgent,
 }
 
@@ -21,7 +21,7 @@ impl FileKind {
             Self::ClaudeMd => "claude-md",
             Self::GeminiMd => "gemini-md",
             Self::CursorRule => "cursor-rule",
-            Self::ClaudeSkill => "claude-skill",
+            Self::Skill => "skill",
             Self::ClaudeAgent => "claude-agent",
         }
     }
@@ -32,7 +32,7 @@ impl FileKind {
             "claude-md" => Some(Self::ClaudeMd),
             "gemini-md" => Some(Self::GeminiMd),
             "cursor-rule" => Some(Self::CursorRule),
-            "claude-skill" => Some(Self::ClaudeSkill),
+            "skill" => Some(Self::Skill),
             "claude-agent" => Some(Self::ClaudeAgent),
             _ => None,
         }
@@ -47,11 +47,12 @@ pub struct ScanTarget {
 }
 
 pub const SCAN_TARGETS: &[ScanTarget] = &[
+    // no ancestor: skills live in `.agents/skills`, `~/.codex/skills`, a repo's `skills/`, …
     ScanTarget {
-        kind: FileKind::ClaudeSkill,
+        kind: FileKind::Skill,
         file_names: &["SKILL.md"],
         extension: None,
-        ancestor_dir: &[".claude", "skills"],
+        ancestor_dir: &[],
     },
     ScanTarget {
         kind: FileKind::ClaudeAgent,
@@ -109,8 +110,35 @@ pub const SKIP_DIRS: &[&str] = &[
     "coverage",
 ];
 
+/// Agent homes whose `plugins` directory holds read-only marketplace copies the user
+/// does not maintain; indexing them would bury the library under vendor skills.
+pub const VENDOR_PLUGIN_PARENTS: &[&str] = &[".claude", ".codex", ".cursor", ".gemini", ".agents"];
+
+const VENDOR_PLUGIN_DIR: &str = "plugins";
+
 pub fn is_skipped_dir(name: &str) -> bool {
     SKIP_DIRS.contains(&name)
+}
+
+fn dir_name(dir: &Path) -> Option<&str> {
+    dir.file_name().and_then(|name| name.to_str())
+}
+
+pub fn is_vendor_plugin_dir(dir: &Path) -> bool {
+    dir_name(dir) == Some(VENDOR_PLUGIN_DIR)
+        && dir
+            .parent()
+            .and_then(dir_name)
+            .is_some_and(|parent| VENDOR_PLUGIN_PARENTS.contains(&parent))
+}
+
+/// True when the walker never descends below `root` far enough to reach `path`,
+/// so paths arriving from anywhere else (watcher events, installs) get the same answer.
+pub fn is_skipped_below(root: &Path, path: &Path) -> bool {
+    path.ancestors()
+        .skip(1)
+        .take_while(|dir| *dir != root && dir.starts_with(root))
+        .any(|dir| is_vendor_plugin_dir(dir) || dir_name(dir).is_some_and(is_skipped_dir))
 }
 
 fn has_ancestor_dir(parent_segments: &[&str], needle: &[&str]) -> bool {
@@ -177,11 +205,11 @@ mod tests {
         );
         assert_eq!(
             kind_of("/repo/.claude/skills/my-skill/SKILL.md"),
-            Some(FileKind::ClaudeSkill)
+            Some(FileKind::Skill)
         );
         assert_eq!(
             kind_of("/Users/me/.claude/skills/deep/nested/SKILL.md"),
-            Some(FileKind::ClaudeSkill)
+            Some(FileKind::Skill)
         );
         assert_eq!(
             kind_of("/repo/.claude/agents/reviewer.md"),
@@ -190,10 +218,25 @@ mod tests {
     }
 
     #[test]
+    fn a_skill_is_any_skill_md_whatever_its_ancestors() {
+        for path in [
+            "/repo/.agents/skills/my-skill/SKILL.md",
+            "/Users/me/.codex/skills/my-skill/SKILL.md",
+            "/repo/skills/my-skill/SKILL.md",
+            "/repo/my-skill/SKILL.md",
+            "/repo/SKILL.md",
+            "/repo/.claude/agents/SKILL.md",
+        ] {
+            assert_eq!(kind_of(path), Some(FileKind::Skill), "{path}");
+        }
+    }
+
+    #[test]
     fn rejects_non_targets() {
         assert_eq!(kind_of("/repo/README.md"), None);
         assert_eq!(kind_of("/repo/agents.md"), None);
-        assert_eq!(kind_of("/repo/skills/my-skill/SKILL.md"), None);
+        assert_eq!(kind_of("/repo/skills/my-skill/skill.md"), None);
+        assert_eq!(kind_of("/repo/skills/my-skill/SKILL.mdx"), None);
         assert_eq!(kind_of("/repo/.cursor/rules/style.md"), None);
         assert_eq!(kind_of("/repo/rules/style.mdc"), None);
         assert_eq!(kind_of("/repo/.claude/settings.json"), None);
@@ -202,7 +245,8 @@ mod tests {
 
     #[test]
     fn requires_consecutive_ancestor_segments() {
-        assert_eq!(kind_of("/repo/.claude/other/skills/x/SKILL.md"), None);
+        assert_eq!(kind_of("/repo/.claude/other/agents/reviewer.md"), None);
+        assert_eq!(kind_of("/repo/.cursor/other/rules/style.mdc"), None);
     }
 
     type FrozenTarget<'a> = (&'a str, &'a [&'a str], Option<&'a str>, &'a [&'a str]);
@@ -217,12 +261,7 @@ mod tests {
         assert_eq!(
             frozen,
             vec![
-                (
-                    "claude-skill",
-                    &["SKILL.md"][..],
-                    None,
-                    &[".claude", "skills"][..]
-                ),
+                ("skill", &["SKILL.md"][..], None, &[][..]),
                 (
                     "claude-agent",
                     &[][..],
@@ -254,6 +293,64 @@ mod tests {
         assert!(!is_skipped_dir("src"));
         assert!(!is_skipped_dir(".claude"));
         assert!(!is_skipped_dir(".cursor"));
+        assert!(!is_skipped_dir("plugins"));
+    }
+
+    #[test]
+    fn freezes_the_vendor_plugin_parents() {
+        assert_eq!(
+            VENDOR_PLUGIN_PARENTS,
+            [".claude", ".codex", ".cursor", ".gemini", ".agents"]
+        );
+    }
+
+    #[test]
+    fn a_plugins_directory_is_vendor_only_inside_an_agent_home() {
+        for home in VENDOR_PLUGIN_PARENTS {
+            let dir = PathBuf::from(format!("/Users/me/{home}/plugins"));
+            assert!(is_vendor_plugin_dir(&dir), "{home}");
+        }
+        assert!(!is_vendor_plugin_dir(Path::new("/repo/plugins")));
+        assert!(!is_vendor_plugin_dir(Path::new("/repo/src/plugins")));
+        assert!(!is_vendor_plugin_dir(Path::new("/Users/me/.claude/skills")));
+        assert!(!is_vendor_plugin_dir(Path::new(
+            "/Users/me/.claude/plugins/cache"
+        )));
+        assert!(!is_vendor_plugin_dir(Path::new("plugins")));
+    }
+
+    #[test]
+    fn skips_whatever_the_walker_would_not_reach_below_a_root() {
+        let root = Path::new("/Users/me");
+        let skipped = |path: &str| is_skipped_below(root, Path::new(path));
+
+        assert!(skipped(
+            "/Users/me/.claude/plugins/marketplaces/x/skills/c/SKILL.md"
+        ));
+        assert!(skipped("/Users/me/.codex/plugins/cache/x/SKILL.md"));
+        assert!(skipped("/Users/me/repo/node_modules/pkg/CLAUDE.md"));
+        assert!(!skipped("/Users/me/.claude/skills/c/SKILL.md"));
+        assert!(!skipped("/Users/me/repo/plugins/c/SKILL.md"));
+    }
+
+    #[test]
+    fn a_root_is_walked_even_when_its_own_path_looks_skipped() {
+        let vendor = Path::new("/Users/me/.claude/plugins");
+        let build = Path::new("/Users/me/build");
+
+        assert!(!is_skipped_below(vendor, &vendor.join("x/SKILL.md")));
+        assert!(!is_skipped_below(build, &build.join("repo/CLAUDE.md")));
+        assert!(is_skipped_below(build, &build.join("repo/dist/CLAUDE.md")));
+    }
+
+    #[test]
+    fn the_agent_home_may_be_the_root_itself() {
+        let root = Path::new("/Users/me/.claude");
+
+        assert!(is_skipped_below(
+            root,
+            Path::new("/Users/me/.claude/plugins/cache/x/SKILL.md")
+        ));
     }
 
     #[test]
@@ -265,8 +362,8 @@ mod tests {
 
     #[test]
     fn kind_serializes_as_the_typescript_literal() {
-        let json = serde_json::to_string(&FileKind::ClaudeSkill).unwrap();
+        let json = serde_json::to_string(&FileKind::Skill).unwrap();
 
-        assert_eq!(json, "\"claude-skill\"");
+        assert_eq!(json, "\"skill\"");
     }
 }

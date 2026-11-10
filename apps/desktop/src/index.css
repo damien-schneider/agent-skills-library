@@ -1,121 +1,13 @@
 @import "tailwindcss";
+@import "@ctrl-ui/react/styles/index.css";
+@import "./skin.css";
+
+@source "../node_modules/@ctrl-ui/react/dist";
 @source "../node_modules/streamdown/dist/*.js";
 
-@custom-variant dark (&:is(.dark *));
-
-:root {
-  --background: var(--color-neutral-50);
-  --foreground: var(--color-neutral-900);
-  --card: var(--color-white);
-  --card-foreground: var(--color-neutral-900);
-  --popover: var(--color-neutral-50);
-  --popover-foreground: var(--color-neutral-900);
-  --primary: var(--color-neutral-900);
-  --primary-foreground: var(--color-neutral-50);
-  --secondary: var(--color-neutral-100);
-  --secondary-foreground: var(--color-neutral-900);
-  --muted: var(--color-neutral-100);
-  --muted-foreground: var(--color-neutral-500);
-  --accent: var(--color-neutral-100);
-  --accent-foreground: var(--color-neutral-900);
-  --destructive: var(--color-red-500);
-  --border: var(--color-neutral-200);
-  --input: var(--color-neutral-200);
-  --ring: var(--color-neutral-900);
-  --chart-1: oklch(0.809 0.105 251.813);
-  --chart-2: oklch(0.623 0.214 259.815);
-  --chart-3: oklch(0.546 0.245 262.881);
-  --chart-4: oklch(0.488 0.243 264.376);
-  --chart-5: oklch(0.424 0.199 265.638);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-}
-
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.87 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.371 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.809 0.105 251.813);
-  --chart-2: oklch(0.623 0.214 259.815);
-  --chart-3: oklch(0.546 0.245 262.881);
-  --chart-4: oklch(0.488 0.243 264.376);
-  --chart-5: oklch(0.424 0.199 265.638);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
-}
-
-@theme inline {
-  --font-sans: "DM Sans", "Inter Variable", system-ui, sans-serif;
-  --font-display: "Instrument Serif", Georgia, serif;
-  --font-mono: "Geist Mono", ui-monospace, monospace;
-
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
-  --color-ring: var(--ring);
-  --color-input: var(--input);
-  --color-border: var(--border);
-  --color-destructive: var(--destructive);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-primary: var(--primary);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
-  --color-card-foreground: var(--card-foreground);
-  --color-card: var(--card);
-  --color-foreground: var(--foreground);
-  --color-background: var(--background);
-
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --radius-2xl: calc(var(--radius) + 8px);
-  --radius-3xl: calc(var(--radius) + 12px);
-  --radius-4xl: calc(var(--radius) + 16px);
+/* The window never gets narrower than 900px, so the sidebar never needs its mobile sheet. */
+@theme {
+  --breakpoint-sidebar: 40rem;
 }
 
 @layer base {
@@ -128,7 +20,12 @@
     @apply h-full;
   }
   body {
-    @apply font-sans bg-background text-foreground overflow-hidden;
+    @apply overflow-hidden bg-canvas font-body text-foreground antialiased;
+  }
+
+  /* The window has no native titlebar; Tauri moves it from these regions. */
+  [data-tauri-drag-region] {
+    @apply cursor-default select-none;
   }
 }
 
@@ -176,126 +73,28 @@ html.capture-overlay-window #root {
   }
 }
 
-.tiptap-editor {
-  @apply font-sans text-foreground caret-foreground;
-  text-wrap: pretty;
+/*
+ * The visual editor pads its text and reserves a gutter for the block handle.
+ * Pulling both back out lines the text up with the fields above it.
+ */
+.document-editor {
+  margin: calc(var(--cui-markdown-editor-padding) * -1);
+  margin-inline-start: calc(
+    (
+      var(--cui-markdown-editor-padding) +
+      var(--cui-markdown-editor-gutter-size)
+    ) *
+    -1
+  );
 }
 
-.tiptap-editor:focus {
-  @apply outline-none;
+/* A name that points at another indexed skill. */
+.document-editor .skill-mention {
+  @apply cursor-pointer rounded-sm underline decoration-primary/50 underline-offset-2 transition-colors hover:bg-primary/10 hover:decoration-primary motion-reduce:transition-none;
 }
 
-.tiptap-editor > :first-child {
-  @apply mt-0;
-}
-
-.tiptap-editor h1 {
-  @apply mt-2 mb-6 text-balance font-sans font-semibold text-3xl leading-tight tracking-tight text-foreground;
-}
-
-.tiptap-editor h2 {
-  @apply mt-9 mb-4 text-balance font-sans font-semibold text-2xl leading-snug tracking-tight text-foreground;
-}
-
-.tiptap-editor h3 {
-  @apply mt-7 mb-3 text-balance font-sans font-semibold text-xl leading-snug text-foreground;
-}
-
-.tiptap-editor h4 {
-  @apply mt-6 mb-2 font-sans font-semibold text-base leading-6 text-foreground;
-}
-
-.tiptap-editor h5,
-.tiptap-editor h6 {
-  @apply mt-5 mb-2 font-sans font-semibold text-sm leading-6 text-foreground;
-}
-
-.tiptap-editor p {
-  @apply my-3 text-[15px] leading-7 text-foreground/85;
-}
-
-.tiptap-editor p.is-editor-empty:first-child::before {
-  @apply pointer-events-none float-left h-0 text-muted-foreground;
-  content: attr(data-placeholder);
-}
-
-.tiptap-editor ul {
-  @apply my-4 list-disc space-y-1 pl-6;
-}
-
-.tiptap-editor ol {
-  @apply my-4 list-decimal space-y-1 pl-6;
-}
-
-.tiptap-editor li {
-  @apply text-[15px] leading-7 text-foreground/85;
-}
-
-.tiptap-editor li p {
-  @apply my-0;
-}
-
-.tiptap-editor li > ul,
-.tiptap-editor li > ol {
-  @apply my-1;
-}
-
-.tiptap-editor blockquote {
-  @apply my-5 rounded-lg bg-muted/60 px-5 py-4 text-foreground/75;
-}
-
-.tiptap-editor blockquote p {
-  @apply my-0 text-inherit;
-}
-
-.tiptap-editor code {
-  @apply rounded-md bg-muted px-1.5 py-0.5 font-mono text-[0.875em] text-foreground;
-}
-
-.tiptap-editor pre {
-  @apply my-5 overflow-x-auto rounded-lg border border-border bg-muted/50 p-5 font-mono text-[13px] leading-6 text-foreground;
-}
-
-.tiptap-editor pre code {
-  @apply rounded-none bg-transparent p-0 text-inherit;
-}
-
-.tiptap-editor a {
-  @apply text-foreground underline decoration-foreground/40 underline-offset-3 transition-colors hover:decoration-foreground;
-}
-
-.tiptap-editor strong {
-  @apply font-semibold text-foreground;
-}
-
-.tiptap-editor em {
-  @apply italic;
-}
-
-.tiptap-editor s {
-  @apply text-foreground/60 line-through;
-}
-
-.tiptap-editor hr {
-  @apply my-8 border-border border-t;
-}
-
-.tiptap-editor ::selection {
-  @apply bg-chart-3/20;
-}
-
-.tiptap-preview {
-  @apply cursor-default;
-}
-
-.tiptap-editor .skill-mention {
-  @apply rounded bg-chart-3/10 px-0.5 text-chart-3 underline decoration-chart-3/40 underline-offset-2 transition-colors hover:bg-chart-3/20 hover:decoration-chart-3 motion-reduce:transition-none;
-}
-
-.tiptap-editor code .skill-mention {
-  @apply bg-transparent px-0;
-}
-
-.tiptap-preview .skill-mention {
-  @apply cursor-pointer;
+/* A block the visual editor cannot represent, kept as its Markdown text. */
+.document-editor pre:has(> code.language-markdown-source)::before {
+  @apply mb-2 block font-body text-caption text-muted-foreground;
+  content: "Kept as written";
 }

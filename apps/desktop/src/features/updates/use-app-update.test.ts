@@ -54,4 +54,53 @@ describe("useAppUpdate", () => {
       expect(result.current.pending?.version).toBe("0.0.7");
     });
   });
+
+  it("checks on demand inside the ten minutes and reports the new version", async () => {
+    const { result } = renderHook(() => useAppUpdate());
+    await waitFor(() => expect(result.current.lastCheckedAt).toBe(1_000_000));
+
+    now += 1000;
+    let outcome: unknown;
+    await act(async () => {
+      outcome = await result.current.check();
+    });
+
+    expect(outcome).toEqual({ status: "available", version: "0.0.7" });
+    expect(result.current.pending?.version).toBe("0.0.7");
+    expect(result.current.lastCheckedAt).toBe(1_001_000);
+    expect(result.current.checking).toBe(false);
+  });
+
+  it("reports that the app is up to date", async () => {
+    mocks.check.mockReset().mockResolvedValue(null);
+    const { result } = renderHook(() => useAppUpdate());
+    await waitFor(() => expect(result.current.lastCheckedAt).toBe(1_000_000));
+
+    let outcome: unknown;
+    await act(async () => {
+      outcome = await result.current.check();
+    });
+
+    expect(outcome).toEqual({ status: "up-to-date" });
+    expect(result.current.pending).toBeNull();
+  });
+
+  it("reports a failed check and keeps the time of the last answer", async () => {
+    mocks.check
+      .mockReset()
+      .mockResolvedValueOnce(null)
+      .mockRejectedValueOnce(new Error("offline"));
+    const { result } = renderHook(() => useAppUpdate());
+    await waitFor(() => expect(result.current.lastCheckedAt).toBe(1_000_000));
+
+    now += 1000;
+    let outcome: unknown;
+    await act(async () => {
+      outcome = await result.current.check();
+    });
+
+    expect(outcome).toEqual({ status: "failed", message: "offline" });
+    expect(result.current.lastCheckedAt).toBe(1_000_000);
+    expect(result.current.checking).toBe(false);
+  });
 });

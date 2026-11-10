@@ -1,61 +1,39 @@
-import { countChanges, diffLines } from "@/lib/diff";
-import { cn } from "@/lib/utils";
+import { cn } from "@ctrl-ui/react/lib/cn";
+import { CodeDiff } from "@ctrl-ui/react/ui/code-diff";
+import { ScrollArea } from "@ctrl-ui/react/ui/scroll-area";
+import { Text } from "@ctrl-ui/react/ui/typography";
 
 export interface DiffViewProps {
   before: string;
   after: string;
+  /** Layout only: where the diff sits and how tall it may grow before it scrolls. */
   className?: string;
 }
 
-const OP_STYLES = {
-  equal: "text-muted-foreground",
-  added: "bg-chart-1/15 text-foreground",
-  removed: "bg-destructive/15 text-foreground",
-} as const;
-
-const OP_MARKERS = { equal: " ", added: "+", removed: "-" } as const;
-
 export function DiffView({ before, after, className }: DiffViewProps) {
-  const lines = diffLines(before, after);
-  const { added, removed } = countChanges(lines);
-
-  if (added + removed === 0) {
+  if (before === after) {
     return (
-      <p className={cn("text-muted-foreground text-sm", className)}>
+      <Text as="p" className={className} tone="muted">
         No changes.
-      </p>
+      </Text>
     );
   }
 
+  // The caller caps the height through `className`, which only this outer
+  // scroller can honour: the diff's own scroller takes a fixed CSS length.
   return (
-    <div className={cn("flex min-h-0 flex-col gap-2", className)}>
-      <p className="text-muted-foreground text-xs">
-        <span className="text-chart-1">+{added}</span>{" "}
-        <span className="text-destructive">-{removed}</span> lines
-      </p>
-      <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-border bg-muted/20">
-        <table className="w-full border-collapse font-mono text-xs">
-          <tbody>
-            {lines.map((line, position) => (
-              <tr
-                className={OP_STYLES[line.op]}
-                key={`${line.op}-${line.leftNumber}-${line.rightNumber}-${position}`}
-              >
-                <td className="w-10 select-none px-2 text-right text-muted-foreground/60">
-                  {line.leftNumber ?? ""}
-                </td>
-                <td className="w-10 select-none px-2 text-right text-muted-foreground/60">
-                  {line.rightNumber ?? ""}
-                </td>
-                <td className="w-4 select-none text-center">
-                  {OP_MARKERS[line.op]}
-                </td>
-                <td className="whitespace-pre-wrap px-2 py-px">{line.text}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <ScrollArea
+      className={cn("flex flex-col", className)}
+      lockAxis="x"
+      viewportClassName="min-h-0 flex-1"
+    >
+      <CodeDiff
+        maxHeight="none"
+        name="Changes"
+        newText={after}
+        oldText={before}
+        overflow="wrap"
+      />
+    </ScrollArea>
   );
 }

@@ -1,80 +1,172 @@
-import { AlertTriangle } from "lucide-react";
-import { useEffect, useState } from "react";
-import { toast } from "sonner";
-import { applySync, previewSync, toIpcError } from "@/lib/ipc";
-import type { MemberPlan, SyncPreview, SyncWarning } from "@/lib/ipc-types";
-import { Button } from "@/shared/components/ui/button";
+import {
+  Alert,
+  AlertAction,
+  AlertDescription,
+  AlertTitle,
+} from "@ctrl-ui/react/ui/alert";
+import { Badge, type BadgeColor } from "@ctrl-ui/react/ui/badge";
+import { Button } from "@ctrl-ui/react/ui/button";
 import {
   Dialog,
+  DialogBody,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/shared/components/ui/dialog";
+} from "@ctrl-ui/react/ui/dialog";
+import { ScrollArea } from "@ctrl-ui/react/ui/scroll-area";
+import { Spinner } from "@ctrl-ui/react/ui/spinner";
+import { toast } from "@ctrl-ui/react/ui/toast";
+import { Text } from "@ctrl-ui/react/ui/typography";
+import { CircleAlert, TriangleAlert } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+
+import { displayPath } from "@/features/destinations/destination-path";
+import { useHomeDirectory } from "@/lib/home-dir";
+import { applySync, previewSync, toIpcError } from "@/lib/ipc";
+import type {
+  ApplyResult,
+  MemberPlan,
+  SyncAction,
+  SyncGroupView,
+  SyncPreview,
+  SyncWarning,
+} from "@/lib/ipc-types";
+
 import { DiffLines } from "./diff-lines";
+
+const DIALOG_STYLE = { "--cui-popup-dialog-max-inline-size": "48rem" } as const;
+
+const BACKUP_TOAST_MS = 10_000;
 
 const WARNING_TEXT: Record<SyncWarning, string> = {
   "git-tracked":
-    "tracked by git — a committed symlink breaks CI and collaborators",
-  "windows-symlink": "Windows needs Developer Mode to create symlinks",
-  "cloud-folder": "cloud-synced folder — symlinks are often replaced by copies",
-  "existing-symlink": "already a symlink; it will be replaced",
+    "Tracked by git: a committed symlink breaks CI and collaborators.",
+  "windows-symlink": "Windows needs Developer Mode to create symlinks.",
+  "cloud-folder":
+    "In a cloud-synced folder, where symlinks are often replaced by copies.",
+  "existing-symlink": "Already a symlink; it will be replaced.",
 };
 
-const ACTION_TEXT = {
-  skip: "already in sync",
-  copy: "overwrite with a copy",
-  symlink: "replace with a symlink",
-  create: "create the missing file",
-} as const;
+const ACTIONS: Record<SyncAction, { label: string; color: BadgeColor }> = {
+  skip: { label: "No change", color: "neutral" },
+  copy: { label: "Overwrite", color: "orange" },
+  symlink: { label: "Replace with symlink", color: "orange" },
+  create: { label: "Create file", color: "blue" },
+};
+
+type PreviewState =
+  | { status: "loading" }
+  | { status: "error"; message: string }
+  | { status: "ready"; preview: SyncPreview };
+
+function fileCount(count: number): string {
+  return count === 1 ? "1 file" : `${count} files`;
+}
 
 export function ApplySyncDialog({
-  groupId,
+  group,
   open,
   onOpenChange,
   onApplied,
+  onOpenBackups,
 }: {
-  groupId: number | null;
+  group: SyncGroupView | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onApplied: () => void;
+  onOpenBackups: () => void;
 }) {
-  const [preview, setPreview] = useState<SyncPreview | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  return (
+    <Dialog onOpenChange={onOpenChange} open={open}>
+      <DialogContent style={DIALOG_STYLE}>
+        {group ? (
+          <SyncPlan
+            group={group}
+            onApplied={onApplied}
+            onClose={() => onOpenChange(false)}
+            onOpenBackups={onOpenBackups}
+          />
+        ) : null}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function announceApplied(result: ApplyResult, onOpenBackups: () => void) {
+  const title = `Synced ${fileCount(result.updatedFileIds.length)}`;
+  if (result.backupIds.length === 0) {
+    toast.success(title);
+    return;
+  }
+  const id = toast.success(title, {
+    description: "What they contained before is kept in Backups.",
+    timeout: BACKUP_TOAST_MS,
+    actionProps: {
+      children: "Open backups",
+      onClick: () => {
+        toast.dismiss(id);
+        onOpenBackups();
+      },
+    },
+  });
+}
+
+/** Mounted with the dialog, so every opening builds the plan from disk afresh. */
+function SyncPlan({
+  group,
+  onApplied,
+  onClose,
+  onOpenBackups,
+}: {
+  group: SyncGroupView;
+  onApplied: () => void;
+  onClose: () => void;
+  onOpenBackups: () => void;
+}) {
+  const home = useHomeDirectory();
+  const groupId = group.id;
+  const [state, setState] = useState<PreviewState>({ status: "loading" });
   const [applying, setApplying] = useState(false);
+  const [applyError, setApplyError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setState({ status: "loading" });
+    setApplyError(null);
+    try {
+      setState({ status: "ready", preview: await previewSync(groupId) });
+    } catch (cause) {
+      setState({ status: "error", message: toIpcError(cause).message });
+    }
+  }, [groupId]);
 
   useEffect(() => {
-    if (!(open && groupId !== null)) {
-      setPreview(null);
-      setError(null);
-      return;
-    }
-    previewSync(groupId)
-      .then((result) => {
-        setPreview(result);
-        setError(null);
-      })
-      .catch((cause) => setError(toIpcError(cause).message));
-  }, [groupId, open]);
+    load();
+  }, [load]);
+
+  const preview = state.status === "ready" ? state.preview : null;
+  const pendingCount =
+    preview?.members.filter((member) => member.action !== "skip").length ?? 0;
+  const nothingPending = preview !== null && pendingCount === 0;
 
   const handleApply = async () => {
     if (!preview) {
       return;
     }
     setApplying(true);
+    setApplyError(null);
     try {
       const result = await applySync(preview.groupId, preview.token);
-      toast.success(
-        `${result.updatedFileIds.length} updated · ${result.skipped} skipped · ${result.backupIds.length} backed up`
-      );
       onApplied();
-      onOpenChange(false);
+      onClose();
+      announceApplied(result, onOpenBackups);
     } catch (cause) {
       const ipcError = toIpcError(cause);
-      setError(
+      setApplyError(
         ipcError.code === "conflict"
-          ? "A file changed since this preview. Close and preview again."
+          ? "A file changed after this preview was built. Nothing was written."
           : ipcError.message
       );
     } finally {
@@ -82,82 +174,180 @@ export function ApplySyncDialog({
     }
   };
 
-  const pending =
-    preview?.members.filter((member) => member.action !== "skip") ?? [];
-
   return (
-    <Dialog onOpenChange={onOpenChange} open={open}>
-      <DialogContent className="sm:max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>
-            Apply sync{preview ? `: ${preview.groupName}` : ""}
-          </DialogTitle>
-          <DialogDescription>
-            {preview
-              ? `Source of truth: ${preview.canonicalPath}. Every overwritten file is backed up first.`
-              : "Building the plan…"}
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <DialogHeader>
+        <DialogTitle>Sync “{group.name}”</DialogTitle>
+        <DialogDescription>
+          The files marked below are replaced with the source. What each one
+          contains now is kept in Backups first.
+        </DialogDescription>
+      </DialogHeader>
 
-        {error ? <p className="text-destructive text-sm">{error}</p> : null}
+      <DialogBody>
+        {applyError ? (
+          <Alert variant="destructive">
+            <CircleAlert />
+            <AlertTitle>The sync was not applied</AlertTitle>
+            <AlertDescription>{applyError}</AlertDescription>
+            <AlertAction>
+              <Button
+                onClick={() => {
+                  load();
+                }}
+                size="sm"
+                variant="surface"
+              >
+                Refresh preview
+              </Button>
+            </AlertAction>
+          </Alert>
+        ) : null}
 
-        <div className="max-h-[55vh] overflow-auto">
-          {preview?.members.map((member) => (
-            <MemberRow key={member.fileId} member={member} />
-          ))}
-          {preview && preview.members.length === 0 ? (
-            <p className="text-muted-foreground text-sm">
-              This group has no members yet.
-            </p>
-          ) : null}
-        </div>
+        {state.status === "loading" ? (
+          <div className="flex items-center gap-2">
+            <Spinner label="Building the preview" />
+            <Text tone="muted">Comparing each file with the source…</Text>
+          </div>
+        ) : null}
 
-        <DialogFooter>
-          <Button onClick={() => onOpenChange(false)} variant="outline">
-            Cancel
-          </Button>
+        {state.status === "error" ? (
+          <Alert variant="destructive">
+            <CircleAlert />
+            <AlertTitle>The preview could not be built</AlertTitle>
+            <AlertDescription>{state.message}</AlertDescription>
+            <AlertAction>
+              <Button
+                onClick={() => {
+                  load();
+                }}
+                size="sm"
+                variant="surface"
+              >
+                Try again
+              </Button>
+            </AlertAction>
+          </Alert>
+        ) : null}
+
+        {preview ? <PlanDetails home={home} preview={preview} /> : null}
+      </DialogBody>
+
+      <DialogFooter>
+        <DialogClose disabled={applying}>
+          {nothingPending ? "Close" : "Cancel"}
+        </DialogClose>
+        {nothingPending ? null : (
           <Button
-            disabled={applying || pending.length === 0}
+            disabled={!preview || applying}
             onClick={() => {
               handleApply();
             }}
+            tone="primary"
+            variant="solid"
           >
-            {applying ? "Applying…" : `Apply to ${pending.length} files`}
+            {applying ? <Spinner /> : null}
+            {preview ? `Apply to ${fileCount(pendingCount)}` : "Apply"}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        )}
+      </DialogFooter>
+    </>
   );
 }
 
-function MemberRow({ member }: { member: MemberPlan }) {
+function PlanDetails({
+  preview,
+  home,
+}: {
+  preview: SyncPreview;
+  home: string | null;
+}) {
+  const pending = preview.members.filter((member) => member.action !== "skip");
+  const unchanged = preview.members.filter(
+    (member) => member.action === "skip"
+  );
+  // The files that change come first: those are the decision.
+  const members = [...pending, ...unchanged];
+  const nothingToApply = pending.length === 0;
+
   return (
-    <div className="border-border border-b py-3 last:border-b-0">
-      <div className="flex items-center gap-2">
-        <span className="min-w-0 flex-1 truncate text-sm">
-          {member.relPath}
-        </span>
-        <span className="shrink-0 text-muted-foreground text-xs">
-          {ACTION_TEXT[member.action]}
-        </span>
+    <>
+      <div className="flex min-w-0 items-center gap-2">
+        <Badge color="primary">Source</Badge>
+        <Text
+          className="truncate"
+          mono
+          size="label"
+          title={preview.canonicalPath}
+        >
+          {displayPath(preview.canonicalPath, home)}
+        </Text>
       </div>
-      <p className="truncate text-muted-foreground text-xs">{member.path}</p>
+
+      {members.length === 0 ? (
+        <Text as="p" tone="muted">
+          This group has no other file to keep in sync yet.
+        </Text>
+      ) : null}
+
+      {members.length > 0 && nothingToApply ? (
+        <Text as="p" tone="muted">
+          Every file already matches the source.
+        </Text>
+      ) : null}
+
+      {members.length > 0 ? (
+        <ScrollArea maxHeight="50vh">
+          <ul className="flex flex-col gap-4 pr-3">
+            {members.map((member) => (
+              <MemberPlanItem home={home} key={member.fileId} member={member} />
+            ))}
+          </ul>
+        </ScrollArea>
+      ) : null}
+    </>
+  );
+}
+
+function MemberPlanItem({
+  member,
+  home,
+}: {
+  member: MemberPlan;
+  home: string | null;
+}) {
+  const action = ACTIONS[member.action];
+  return (
+    <li className="flex min-w-0 flex-col gap-2">
+      <div className="flex min-w-0 items-center gap-2">
+        <Text
+          className="min-w-0 flex-1 truncate"
+          mono
+          size="label"
+          title={member.path}
+        >
+          {displayPath(member.path, home)}
+        </Text>
+        <Badge color={action.color}>{action.label}</Badge>
+      </div>
 
       {member.warnings.map((warning) => (
-        <p
-          className="mt-1 flex items-center gap-1.5 text-destructive text-xs"
+        <Text
+          as="p"
+          className="flex items-start gap-1.5"
           key={warning}
+          size="label"
+          tone="warning"
         >
-          <AlertTriangle className="size-3" />
+          <TriangleAlert
+            aria-hidden="true"
+            className="mt-0.5 size-3.5 shrink-0"
+          />
           {WARNING_TEXT[warning]}
-        </p>
+        </Text>
       ))}
 
-      {member.diff ? (
-        <div className="mt-2">
-          <DiffLines diff={member.diff} />
-        </div>
-      ) : null}
-    </div>
+      {member.diff ? <DiffLines diff={member.diff} /> : null}
+    </li>
   );
 }

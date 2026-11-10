@@ -3,7 +3,7 @@ export type FileKind =
   | "claude-md"
   | "gemini-md"
   | "cursor-rule"
-  | "claude-skill"
+  | "skill"
   | "claude-agent";
 
 export interface ScanTarget {
@@ -18,12 +18,8 @@ export interface ScanTarget {
 
 /** Rust mirror: src-tauri/src/scanner/targets.rs — both sides are frozen by a test */
 export const SCAN_TARGETS: readonly ScanTarget[] = [
-  {
-    kind: "claude-skill",
-    label: "Claude skill",
-    fileNames: ["SKILL.md"],
-    ancestorDir: ".claude/skills",
-  },
+  // no ancestor: skills live in `.agents/skills`, `~/.codex/skills`, a repo's `skills/`, …
+  { kind: "skill", label: "Skill", fileNames: ["SKILL.md"] },
   {
     kind: "claude-agent",
     label: "Claude agent",
@@ -68,6 +64,20 @@ export const SKIP_DIRS: readonly string[] = [
   ".terraform",
   "coverage",
 ] as const;
+
+/**
+ * Agent homes whose `plugins` directory holds read-only marketplace copies the user
+ * does not maintain — Rust mirror: `VENDOR_PLUGIN_PARENTS` in scanner/targets.rs
+ */
+export const VENDOR_PLUGIN_PARENTS: readonly string[] = [
+  ".claude",
+  ".codex",
+  ".cursor",
+  ".gemini",
+  ".agents",
+] as const;
+
+const VENDOR_PLUGIN_DIR = "plugins";
 
 const SEPARATOR_PATTERN = /[\\/]+/;
 
@@ -130,6 +140,17 @@ export function classifyPath(path: string): FileKind | null {
 
 export function isSkippedDir(dirName: string): boolean {
   return SKIP_DIRS.includes(dirName);
+}
+
+/** Path-aware: `plugins` is only skipped directly inside an agent home */
+export function isVendorPluginDir(dirPath: string): boolean {
+  const segments = toSegments(dirPath);
+  const parent = segments.at(-2);
+  return (
+    segments.at(-1) === VENDOR_PLUGIN_DIR &&
+    parent !== undefined &&
+    VENDOR_PLUGIN_PARENTS.includes(parent)
+  );
 }
 
 export function targetLabel(kind: FileKind): string {

@@ -12,8 +12,10 @@ use crate::fsops;
 use crate::paths::{canonicalize, ensure_openable};
 use crate::scanner::hash::hash_bytes;
 use crate::scanner::refs;
+use crate::scanner::store::store_content;
 use crate::scanner::targets::FileKind;
 use crate::state::AppState;
+use crate::trash::{self, TrashResult};
 
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -110,7 +112,7 @@ pub fn write_file(
 
     state.db.with_tx(|tx| {
         files_repo::touch_after_write(tx, row.id, stat.size, stat.mtime_ns, &hash)?;
-        links_repo::replace_refs(tx, row.id, &hash, &refs::extract(&content))
+        store_content(tx, row.id, &hash, &refs::read_content(row.kind, &content))
     })?;
     events::emit_index_updated(&app, vec![row.id]);
 
@@ -120,6 +122,18 @@ pub fn write_file(
         mtime_ms: stat.mtime_ms(),
         size: stat.size,
     })
+}
+
+/// Off the main thread: moving a whole skill directory to the Trash is blocking I/O.
+#[tauri::command(async)]
+pub fn trash_file(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    file_id: i64,
+) -> AppResult<TrashResult> {
+    let trashed = trash::trash_indexed(&state.db, file_id, trash::move_to_os_trash)?;
+    events::emit_index_updated(&app, trashed.file_ids);
+    Ok(trashed.result)
 }
 
 #[tauri::command]

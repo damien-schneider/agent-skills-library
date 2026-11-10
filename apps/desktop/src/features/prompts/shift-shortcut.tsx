@@ -1,57 +1,42 @@
-import { cn } from "@/lib/utils";
+import { cn } from "@ctrl-ui/react/lib/cn";
+import { Kbd, KbdGroup } from "@ctrl-ui/react/ui/kbd";
 
 export type ShiftShortcutProgress = 0 | 1 | 2;
 
+const TAPS = [1, 2] as const;
+const COMPLETED_KEY_STYLE = {
+  "--cui-kbd-foreground": "var(--primary-foreground)",
+} as const;
+
+/** The two Shift taps of the capture shortcut; each key fills as its tap lands. */
 export function ShiftShortcut({
   className,
   completedTaps,
-  contrast = "app",
 }: {
   className?: string;
   completedTaps: ShiftShortcutProgress;
-  contrast?: "app" | "overlay";
 }) {
-  const taps: readonly [1, 2] = [1, 2];
-
   return (
-    <span
-      aria-hidden="true"
-      className={cn("flex items-center gap-1", className)}
-    >
-      {taps.map((tap) => {
+    <KbdGroup aria-hidden="true" className={className}>
+      {TAPS.map((tap) => {
         const completed = completedTaps >= tap;
         return (
-          <kbd
-            className={cn(
-              "relative flex size-[22px] overflow-hidden rounded-md font-sans text-[10px]",
-              contrast === "overlay"
-                ? "bg-white/10 text-white"
-                : "bg-background text-foreground shadow-sm"
-            )}
+          <Kbd
+            className="relative overflow-hidden"
             data-completed={completed}
             key={tap}
+            style={completed ? COMPLETED_KEY_STYLE : undefined}
           >
             <span
               className={cn(
-                "absolute inset-0 origin-bottom transition-transform duration-150 ease-out motion-reduce:transition-none",
-                completed ? "scale-y-100" : "scale-y-0",
-                contrast === "overlay" ? "bg-white" : "bg-primary"
+                "absolute inset-0 origin-bottom bg-primary transition-transform duration-150 ease-out motion-reduce:transition-none",
+                completed ? "scale-y-100" : "scale-y-0"
               )}
             />
-            <span
-              className={cn(
-                "relative m-auto transition-colors duration-150 motion-reduce:transition-none",
-                completed &&
-                  (contrast === "overlay"
-                    ? "text-neutral-950"
-                    : "text-primary-foreground")
-              )}
-            >
-              ⇧
-            </span>
-          </kbd>
+            <span className="relative">⇧</span>
+          </Kbd>
         );
       })}
-    </span>
+    </KbdGroup>
   );
 }

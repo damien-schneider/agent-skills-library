@@ -1,148 +1,177 @@
-import { api } from "@skills-agent-library/backend/convex/_generated/api";
-import { usePaginatedQuery, useQuery } from "convex/react";
-import { Download, Search, Store, X } from "lucide-react";
-import { useState } from "react";
-import { Button } from "@/shared/components/ui/button";
-import { Input } from "@/shared/components/ui/input";
+import { Input } from "@ctrl-ui/react/ui/input";
+import { InputGroup, InputGroupAddon } from "@ctrl-ui/react/ui/input-group";
 import {
-  EmptyState,
-  ListSkeleton,
-  ViewHeader,
-  ViewLayout,
-} from "@/shared/components/view-layout";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@ctrl-ui/react/ui/select";
+import { api } from "@skills-agent-library/backend/convex/_generated/api";
+import { useQuery } from "convex/react";
+import { Search, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+
+import type { LibraryIndex } from "@/features/library/use-library-index";
+import { IconButton } from "@/shared/components/icon-button";
+import { ErrorState, ViewLayout } from "@/shared/components/view-layout";
+
 import {
   type InstallableSkill,
   InstallSkillDialog,
 } from "./install-skill-dialog";
+import { QueryErrorBoundary } from "./query-error-boundary";
+import { RegistryResults } from "./registry-results";
 
-const PAGE_SIZE = 30;
+const ALL_CATEGORIES = "__all__";
+/** Long enough that typing a word is one search, short enough to feel immediate. */
+const SEARCH_DEBOUNCE_MS = 200;
 
-export function RegistryView() {
-  const [search, setSearch] = useState("");
-  const [category, setCategory] = useState<string | undefined>(undefined);
-  const [selected, setSelected] = useState<InstallableSkill | null>(null);
+function useDebouncedValue(value: string, delayMs: number): string {
+  const [debounced, setDebounced] = useState(value);
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebounced(value), delayMs);
+    return () => window.clearTimeout(timer);
+  }, [value, delayMs]);
+
+  return debounced;
+}
+
+function CategoryFilter({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (category: string) => void;
+}) {
   const categories = useQuery(api.categories.list, {});
-  const skills = usePaginatedQuery(
-    api.skills.listPaginated,
-    { search: search.trim() || undefined, category },
-    { initialNumItems: PAGE_SIZE }
+  const sorted = useMemo(
+    () =>
+      [...(categories ?? [])].sort((left, right) =>
+        left.name.localeCompare(right.name)
+      ),
+    [categories]
   );
 
-  return (
-    <ViewLayout>
-      <ViewHeader
-        description="Browse skills published on agents-library.dev and install them locally."
-        title="Registry"
-      />
+  if (categories?.length === 0) {
+    return null;
+  }
 
-      <div className="flex items-center gap-2 rounded-xl border border-border px-3">
-        <Search className="size-3.5 shrink-0 text-muted-foreground" />
-        <Input
-          aria-label="Search skills"
-          className="h-9 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
-          onChange={(event) => setSearch(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Escape" && search.length > 0) {
-              event.preventDefault();
-              setSearch("");
-            }
-          }}
-          placeholder="Search skills"
-          value={search}
-        />
-        {search.length > 0 ? (
-          <button
-            aria-label="Clear skill search"
-            className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none"
-            onClick={() => setSearch("")}
-            type="button"
-          >
-            <X className="size-3.5" />
-          </button>
-        ) : null}
+  return (
+    <Select
+      disabled={categories === undefined}
+      onValueChange={onChange}
+      value={value}
+    >
+      <SelectTrigger aria-label="Category" className="w-48 shrink-0">
+        <SelectValue>
+          {(selected: string) =>
+            sorted.find((category) => category.slug === selected)?.name ??
+            "All categories"
+          }
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value={ALL_CATEGORIES}>All categories</SelectItem>
+        {sorted.map((category) => (
+          <SelectItem key={category._id} value={category.slug}>
+            {category.name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+export function RegistryView({
+  index,
+  onInstalled,
+}: {
+  index: LibraryIndex;
+  onInstalled: (fileId: number) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const [category, setCategory] = useState(ALL_CATEGORIES);
+  const [selected, setSelected] = useState<InstallableSkill | null>(null);
+  const [installOpen, setInstallOpen] = useState(false);
+
+  const term = search.trim();
+  const debouncedTerm = useDebouncedValue(term, SEARCH_DEBOUNCE_MS);
+  // Emptying the field is a decision already made: the full list comes back at once.
+  const query = term === "" ? "" : debouncedTerm;
+  const filtered = query !== "" || category !== ALL_CATEGORIES;
+
+  return (
+    <ViewLayout
+      description="Skills published on agents-library.dev."
+      title="Registry"
+    >
+      <div className="flex items-center gap-2">
+        <InputGroup className="min-w-0 flex-1" size="sm">
+          <InputGroupAddon>
+            <Search aria-hidden="true" className="size-3.5" />
+          </InputGroupAddon>
+          <Input
+            aria-label="Search the registry"
+            onChange={(event) => setSearch(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape" && search.length > 0) {
+                event.preventDefault();
+                setSearch("");
+              }
+            }}
+            placeholder="Search skills by name"
+            type="search"
+            value={search}
+          />
+          {search.length > 0 ? (
+            <InputGroupAddon>
+              <IconButton
+                label="Clear search"
+                onClick={() => setSearch("")}
+                size="xs"
+              >
+                <X />
+              </IconButton>
+            </InputGroupAddon>
+          ) : null}
+        </InputGroup>
+        <QueryErrorBoundary fallback={() => null}>
+          <CategoryFilter onChange={setCategory} value={category} />
+        </QueryErrorBoundary>
       </div>
 
-      <fieldset className="flex flex-wrap gap-2">
-        <legend className="sr-only">Skill category</legend>
-        <Button
-          aria-pressed={category === undefined}
-          onClick={() => setCategory(undefined)}
-          size="sm"
-          variant={category === undefined ? "default" : "outline"}
-        >
-          All
-        </Button>
-        {categories?.map((item) => (
-          <Button
-            aria-pressed={category === item.slug}
-            key={item._id}
-            onClick={() => setCategory(item.slug)}
-            size="sm"
-            variant={category === item.slug ? "default" : "outline"}
-          >
-            {item.name}
-          </Button>
-        ))}
-      </fieldset>
-
-      {skills.status === "LoadingFirstPage" ? (
-        <ListSkeleton rows={5} />
-      ) : (
-        <ul className="overflow-hidden rounded-xl border border-border">
-          {skills.results.map((skill) => (
-            <li
-              className="flex items-center gap-3 border-border border-b px-4 py-3 last:border-b-0"
-              key={skill._id}
-            >
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-medium text-sm">{skill.name}</p>
-                <p className="line-clamp-2 text-muted-foreground text-xs">
-                  {skill.description}
-                </p>
-              </div>
-              <Button
-                onClick={() =>
-                  setSelected({
-                    name: skill.name,
-                    markdown: skill.markdown,
-                    githubOwner: skill.githubOwner,
-                    githubRepo: skill.githubRepo,
-                    skillSlug: skill.skillSlug,
-                  })
-                }
-                size="sm"
-                variant="outline"
-              >
-                <Download />
-                Install
-              </Button>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {skills.status === "CanLoadMore" ? (
-        <Button
-          onClick={() => skills.loadMore(PAGE_SIZE)}
-          size="sm"
-          variant="outline"
-        >
-          Load more
-        </Button>
-      ) : null}
-
-      {skills.status === "Exhausted" && skills.results.length === 0 ? (
-        <EmptyState
-          description="Try a different search term or category."
-          icon={Store}
-          title="No skills found"
+      {/* Keyed by the query, so a new search is a fresh attempt after a failure. */}
+      <QueryErrorBoundary
+        fallback={(retry) => (
+          <ErrorState
+            message="The registry could not load these skills."
+            onRetry={retry}
+          />
+        )}
+        key={`${category}\n${query}`}
+      >
+        <RegistryResults
+          category={category === ALL_CATEGORIES ? undefined : category}
+          filtered={filtered}
+          onInstall={(skill) => {
+            setSelected(skill);
+            setInstallOpen(true);
+          }}
+          onShowAll={() => {
+            setSearch("");
+            setCategory(ALL_CATEGORIES);
+          }}
+          search={query}
         />
-      ) : null}
+      </QueryErrorBoundary>
 
       <InstallSkillDialog
-        onOpenChange={(open) => setSelected(open ? selected : null)}
-        open={selected !== null}
+        index={index}
+        onInstalled={onInstalled}
+        onOpenChange={setInstallOpen}
+        open={installOpen}
         skill={selected}
       />
     </ViewLayout>

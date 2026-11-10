@@ -1,4 +1,18 @@
-import { Combobox } from "@base-ui/react/combobox";
+import { Button } from "@ctrl-ui/react/ui/button";
+import {
+  Command,
+  CommandGroup,
+  CommandInput,
+  CommandList,
+} from "@ctrl-ui/react/ui/command";
+import { Kbd } from "@ctrl-ui/react/ui/kbd";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@ctrl-ui/react/ui/popover";
+import { toast } from "@ctrl-ui/react/ui/toast";
+import { Text } from "@ctrl-ui/react/ui/typography";
 import { open as openFolderDialog } from "@tauri-apps/plugin-dialog";
 import {
   Ban,
@@ -6,16 +20,19 @@ import {
   CornerDownLeft,
   Folder,
   FolderOpen,
-  Search,
   Star,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
+import {
+  type KeyboardEvent,
+  type ReactNode,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 import { useHomeDirectory } from "@/lib/home-dir";
 import { resolveDestinationFolder, toIpcError } from "@/lib/ipc";
 import type { DestinationFolder } from "@/lib/ipc-types";
-import { Button } from "@/shared/components/ui/button";
 import {
   destinationSections,
   displayPath,
@@ -24,6 +41,13 @@ import {
 } from "./destination-path";
 import { FolderRow, PickerRow } from "./destination-rows";
 import { useDestinationFolders } from "./use-destination-folders";
+
+const NO_DESTINATION_VALUE = "__none__";
+const TYPED_PATH_VALUE = "__typed__";
+const STAR_SHORTCUT_KEY = "d";
+const STAR_SHORTCUT_LABEL = navigator.platform.includes("Mac")
+  ? "⌘D"
+  : "Ctrl+D";
 
 export function DestinationPicker({
   disabled,
@@ -36,6 +60,7 @@ export function DestinationPicker({
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [highlighted, setHighlighted] = useState("");
   const destinations = useDestinationFolders();
   const home = useHomeDirectory();
   const typed = useTypedFolder(query);
@@ -56,6 +81,7 @@ export function DestinationPicker({
     setOpen(nextOpen);
     if (nextOpen) {
       setQuery("");
+      setHighlighted("");
       destinations.refresh();
     }
   };
@@ -87,121 +113,142 @@ export function DestinationPicker({
     }
   };
 
+  // The star sits inside an option, out of the tab order: the keyboard reaches
+  // it through the row that is highlighted.
+  const starHighlighted = (event: KeyboardEvent<HTMLDivElement>) => {
+    const starring =
+      (event.metaKey || event.ctrlKey) &&
+      event.key.toLowerCase() === STAR_SHORTCUT_KEY;
+    if (!starring) {
+      return;
+    }
+    const folder = sections
+      .flatMap((section) => section.folders)
+      .find((candidate) => candidate.path === highlighted);
+    if (folder) {
+      event.preventDefault();
+      destinations.toggleFavorite(folder.path);
+    }
+  };
+
   return (
-    <Combobox.Root
-      autoHighlight
-      filter={null}
-      inputValue={query}
-      onInputValueChange={setQuery}
-      onOpenChange={handleOpenChange}
-      open={open}
-    >
-      <Combobox.Trigger
-        aria-label={
-          value ? `Destination folder: ${value}` : "Choose a destination folder"
+    <Popover onOpenChange={handleOpenChange} open={open}>
+      <PopoverTrigger
+        render={
+          <Button
+            aria-label={
+              value
+                ? `Destination folder: ${value}`
+                : "Choose a destination folder"
+            }
+            disabled={disabled}
+            size="sm"
+            title={value ?? undefined}
+            variant={value ? "surface" : "ghost"}
+          />
         }
-        disabled={disabled}
-        render={<Button size="sm" variant={value ? "secondary" : "ghost"} />}
-        title={value ?? undefined}
       >
         <Folder />
         <span className="max-w-44 truncate">
           {value ? folderName(value) : "Destination"}
         </span>
-        {selected?.favorite ? <Star className="size-3 fill-current" /> : null}
-        <ChevronsUpDown className="opacity-50" data-icon="inline-end" />
-      </Combobox.Trigger>
+        {selected?.favorite ? <Star className="fill-current" /> : null}
+        <ChevronsUpDown />
+      </PopoverTrigger>
 
-      <Combobox.Portal>
-        <Combobox.Positioner
-          align="start"
-          className="z-50"
-          side="top"
-          sideOffset={8}
+      <PopoverContent
+        align="start"
+        className="w-120 max-w-(--available-width)"
+        padding="none"
+      >
+        <Command
+          chrome="embedded"
+          label="Destination folder"
+          onKeyDown={starHighlighted}
+          onValueChange={setHighlighted}
+          shouldFilter={false}
+          value={highlighted}
         >
-          <Combobox.Popup className="flex w-[min(30rem,calc(100vw-3rem))] flex-col overflow-hidden rounded-2xl bg-popover text-popover-foreground shadow-lg outline-none ring-1 ring-foreground/10">
-            <div className="flex items-center gap-2 border-border border-b px-3">
-              <Search className="size-3.5 shrink-0 text-muted-foreground" />
-              <Combobox.Input
-                className="h-11 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-                placeholder="Search folders, or paste a path"
-              />
-            </div>
-
-            <Combobox.List className="max-h-72 overflow-y-auto p-1.5">
-              {value === null ? null : (
-                <PickerRow
-                  icon={<Ban className="size-4 text-muted-foreground" />}
-                  label="No destination"
-                  onClick={() => choose(null)}
-                  value="__none__"
-                />
-              )}
-
-              {unlistedTyped ? (
-                <PickerRow
-                  icon={
-                    <CornerDownLeft className="size-4 text-muted-foreground" />
-                  }
-                  label={`Use ${displayPath(unlistedTyped.path, home)}`}
-                  onClick={() => adopt(unlistedTyped)}
-                  value="__typed__"
-                />
-              ) : null}
-
-              {sections.map((section) => (
-                <Combobox.Group className="pt-1" key={section.id}>
-                  <Combobox.GroupLabel className="px-2 py-1 font-medium text-[0.6875rem] text-muted-foreground uppercase tracking-wide">
-                    {section.label}
-                  </Combobox.GroupLabel>
-                  {section.folders.map((folder) => (
-                    <FolderRow
-                      folder={folder}
-                      home={home}
-                      key={folder.path}
-                      onSelect={choose}
-                      onToggleFavorite={destinations.toggleFavorite}
-                      selected={folder.path === value}
-                    />
-                  ))}
-                  {section.hidden > 0 ? (
-                    <p className="px-2 py-1 text-muted-foreground text-xs">
-                      {section.hidden} more — keep typing to narrow it down
-                    </p>
-                  ) : null}
-                </Combobox.Group>
-              ))}
-
-              {typed.status === "missing" ? (
-                <p className="px-2 py-2 text-muted-foreground text-sm">
-                  No folder at {typed.path}
-                </p>
-              ) : null}
-
-              <PickerStatus
-                empty={sections.length === 0 && typed.status === "none"}
-                error={destinations.error}
-                loading={destinations.loading}
-                onRetry={destinations.refresh}
-                query={query}
-              />
-            </Combobox.List>
-
-            <div className="border-border border-t p-1.5">
-              <Button
-                className="w-full justify-start"
-                onClick={browse}
-                size="sm"
-                variant="ghost"
+          <CommandInput
+            onValueChange={setQuery}
+            placeholder="Search folders, or paste a path"
+            value={query}
+          />
+          <CommandList>
+            {value === null ? null : (
+              <PickerRow
+                icon={<Ban aria-hidden="true" />}
+                onSelect={() => choose(null)}
+                value={NO_DESTINATION_VALUE}
               >
-                <FolderOpen />
-                Browse…
-              </Button>
-            </div>
-          </Combobox.Popup>
-        </Combobox.Positioner>
-      </Combobox.Portal>
-    </Combobox.Root>
+                No destination
+              </PickerRow>
+            )}
+
+            {unlistedTyped ? (
+              <PickerRow
+                icon={<CornerDownLeft aria-hidden="true" />}
+                onSelect={() => adopt(unlistedTyped)}
+                value={TYPED_PATH_VALUE}
+              >
+                Use {displayPath(unlistedTyped.path, home)}
+              </PickerRow>
+            ) : null}
+
+            {sections.map((section) => (
+              <CommandGroup heading={section.label} key={section.id}>
+                {section.folders.map((folder) => (
+                  <FolderRow
+                    folder={folder}
+                    highlighted={folder.path === highlighted}
+                    home={home}
+                    key={folder.path}
+                    onSelect={choose}
+                    onToggleFavorite={destinations.toggleFavorite}
+                    selected={folder.path === value}
+                  />
+                ))}
+                {section.hidden > 0 ? (
+                  <PickerNote>
+                    {section.hidden} more. Type to narrow the list.
+                  </PickerNote>
+                ) : null}
+              </CommandGroup>
+            ))}
+
+            {typed.status === "missing" ? (
+              <PickerNote>No folder at {typed.path}</PickerNote>
+            ) : null}
+
+            <PickerStatus
+              empty={sections.length === 0 && typed.status === "none"}
+              error={destinations.error}
+              loading={destinations.loading}
+              onRetry={destinations.refresh}
+              query={query}
+            />
+          </CommandList>
+
+          <div className="flex items-center justify-between gap-3 border-border border-t p-1">
+            <Button onClick={browse} size="sm" variant="ghost">
+              <FolderOpen />
+              Browse…
+            </Button>
+            {sections.length > 0 ? (
+              <Text
+                as="span"
+                className="flex items-center gap-1.5 pe-2"
+                size="caption"
+                tone="muted"
+              >
+                <Kbd>{STAR_SHORTCUT_LABEL}</Kbd>
+                Star
+              </Text>
+            ) : null}
+          </div>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -240,6 +287,14 @@ function useTypedFolder(query: string): TypedFolder {
   return typed;
 }
 
+function PickerNote({ children }: { children: ReactNode }) {
+  return (
+    <Text as="p" className="px-2 py-1.5" size="label" tone="muted">
+      {children}
+    </Text>
+  );
+}
+
 function PickerStatus({
   empty,
   error,
@@ -255,9 +310,14 @@ function PickerStatus({
 }) {
   if (error) {
     return (
-      <div className="flex items-center justify-between gap-3 px-2 py-3">
-        <p className="text-destructive text-xs">{error}</p>
-        <Button onClick={onRetry} size="xs" variant="outline">
+      <div
+        className="flex items-center justify-between gap-3 px-2 py-1.5"
+        role="alert"
+      >
+        <Text size="label" tone="destructive">
+          {error}
+        </Text>
+        <Button onClick={onRetry} size="xs" variant="surface">
           Try again
         </Button>
       </div>
@@ -267,17 +327,13 @@ function PickerStatus({
     return null;
   }
   if (loading) {
-    return (
-      <p className="px-2 py-3 text-muted-foreground text-sm">
-        Loading folders…
-      </p>
-    );
+    return <PickerNote>Loading folders…</PickerNote>;
   }
   return (
-    <p className="px-2 py-3 text-muted-foreground text-sm">
+    <PickerNote>
       {query.trim().length > 0
         ? "No folder matches. Paste a full path, or browse."
         : "No folder yet. Browse to pick one, and star it to keep it here."}
-    </p>
+    </PickerNote>
   );
 }

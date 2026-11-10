@@ -4,7 +4,7 @@ use std::time::UNIX_EPOCH;
 
 use ignore::{WalkBuilder, WalkState};
 
-use super::targets::{classify, is_skipped_dir, FileKind};
+use super::targets::{classify, is_skipped_dir, is_vendor_plugin_dir, FileKind};
 
 /// Scans stay background work: never take more than half a laptop's cores.
 const MAX_THREADS: usize = 4;
@@ -12,6 +12,8 @@ const MAX_THREADS: usize = 4;
 #[derive(Debug, Clone)]
 pub struct WalkEntry {
     pub path: PathBuf,
+    /// Where the bytes really live: every walked path sharing it is the same file.
+    pub real_path: PathBuf,
     pub kind: FileKind,
     pub size: i64,
     pub mtime_ns: i64,
@@ -30,7 +32,8 @@ fn mtime_ns(metadata: &std::fs::Metadata) -> i64 {
 
 /// `path` is the walked entry; content stats come from the resolved target so a
 /// symlinked CLAUDE.md is indexed by what it actually contains.
-fn describe(path: &Path, kind: FileKind) -> Option<WalkEntry> {
+pub fn describe(path: &Path, kind: FileKind) -> Option<WalkEntry> {
+    let real_path = path.canonicalize().ok()?;
     let link_metadata = std::fs::symlink_metadata(path).ok()?;
     let is_symlink = link_metadata.is_symlink();
     let metadata = if is_symlink {
@@ -49,6 +52,7 @@ fn describe(path: &Path, kind: FileKind) -> Option<WalkEntry> {
 
     Some(WalkEntry {
         path: path.to_path_buf(),
+        real_path,
         kind,
         size: metadata.len() as i64,
         mtime_ns: mtime_ns(&metadata),
@@ -57,25 +61,31 @@ fn describe(path: &Path, kind: FileKind) -> Option<WalkEntry> {
     })
 }
 
+/// The root itself is never filtered: rooting a folder is an explicit ask to index it.
 fn is_skipped(entry: &ignore::DirEntry) -> bool {
-    entry
-        .file_type()
-        .is_some_and(|file_type| file_type.is_dir())
-        && entry.file_name().to_str().is_some_and(is_skipped_dir)
+    entry.depth() > 0
+        && entry
+            .file_type()
+            .is_some_and(|file_type| file_type.is_dir())
+        && (entry.file_name().to_str().is_some_and(is_skipped_dir)
+            || is_vendor_plugin_dir(entry.path()))
+}
+
+pub fn worker_threads() -> usize {
+    std::thread::available_parallelism()
+        .map(|value| value.get().saturating_sub(2).clamp(1, MAX_THREADS))
+        .unwrap_or(1)
 }
 
 pub fn walk_root(root: &Path, cancel: &AtomicBool, on_entry: impl Fn(WalkEntry) + Send + Sync) {
-    let threads = std::thread::available_parallelism()
-        .map(|value| value.get().saturating_sub(2).clamp(1, MAX_THREADS))
-        .unwrap_or(1);
-
     WalkBuilder::new(root)
         // not gitignore-driven on purpose: `.claude/` is commonly ignored yet must be indexed
         .standard_filters(false)
         .hidden(false)
-        // skills are routinely symlinked into `~/.claude/skills`; the walker sees what the agent sees
+        // skills are routinely symlinked into `~/.claude/skills`; every path reaching a
+        // file is reported and the scanner folds them into one row plus its aliases
         .follow_links(true)
-        .threads(threads)
+        .threads(worker_threads())
         .filter_entry(|entry| !is_skipped(entry))
         .build_parallel()
         .run(|| {
@@ -189,6 +199,73 @@ mod tests {
     }
 
     #[test]
+    fn finds_a_skill_wherever_it_lives() {
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+        write(&root.join(".agents/skills/a/SKILL.md"), "a");
+        write(&root.join("skills/b/SKILL.md"), "b");
+        write(&root.join(".codex/skills/c/SKILL.md"), "c");
+
+        let entries = collect(root);
+
+        assert_eq!(entries.len(), 3);
+        assert!(entries.iter().all(|entry| entry.kind == FileKind::Skill));
+    }
+
+    #[test]
+    fn skips_the_vendor_plugin_caches_of_agent_homes() {
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+        write(
+            &root.join(".claude/plugins/marketplaces/x/skills/c/SKILL.md"),
+            "a",
+        );
+        write(&root.join(".claude/plugins/cache/x/skills/d/SKILL.md"), "b");
+        write(&root.join(".codex/plugins/cache/x/AGENTS.md"), "c");
+        write(&root.join(".claude/skills/kept/SKILL.md"), "d");
+        write(&root.join("repo/plugins/kept/SKILL.md"), "e");
+
+        let paths: Vec<String> = collect(root)
+            .iter()
+            .map(|entry| {
+                entry
+                    .path
+                    .strip_prefix(root)
+                    .unwrap()
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .collect();
+
+        assert_eq!(
+            paths,
+            [".claude/skills/kept/SKILL.md", "repo/plugins/kept/SKILL.md"]
+        );
+    }
+
+    #[test]
+    fn skips_the_plugins_of_an_agent_home_that_is_the_root() {
+        let dir = tempdir().unwrap();
+        let home = dir.path().join(".claude");
+        write(&home.join("plugins/cache/x/skills/c/SKILL.md"), "a");
+        write(&home.join("skills/kept/SKILL.md"), "b");
+
+        assert_eq!(collect(&home).len(), 1);
+    }
+
+    #[test]
+    fn a_root_is_walked_whatever_its_own_name() {
+        let dir = tempdir().unwrap();
+        let build = dir.path().join("build");
+        let plugins = dir.path().join(".claude/plugins");
+        write(&build.join("CLAUDE.md"), "a");
+        write(&plugins.join("mine/SKILL.md"), "b");
+
+        assert_eq!(collect(&build).len(), 1);
+        assert_eq!(collect(&plugins).len(), 1);
+    }
+
+    #[test]
     fn walks_into_symlinked_skill_directories() {
         let dir = tempdir().unwrap();
         let root = dir.path();
@@ -208,7 +285,14 @@ mod tests {
                 .map(|entry| entry.path.strip_prefix(root).unwrap().to_string_lossy())
                 .collect::<Vec<_>>(),
             vec![".claude/skills/humanizer/SKILL.md"],
-            "the skill is indexed under the path the agent resolves"
+            "the walker reports the path the agent resolves"
+        );
+        assert_eq!(
+            entries[0].real_path,
+            root.canonicalize()
+                .unwrap()
+                .join("shared/humanizer/SKILL.md"),
+            "and where the bytes really are"
         );
     }
 
@@ -258,6 +342,13 @@ mod tests {
             .as_ref()
             .unwrap()
             .ends_with("source/AGENTS.md"));
+        assert!(
+            entries
+                .iter()
+                .all(|entry| entry.real_path
+                    == root.canonicalize().unwrap().join("source/AGENTS.md")),
+            "both walked paths name the same real file"
+        );
     }
 
     #[test]

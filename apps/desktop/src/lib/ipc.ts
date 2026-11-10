@@ -21,6 +21,7 @@ import type {
   SyncGroupView,
   SyncPreview,
   SyncStrategy,
+  TrashResult,
   WatcherStatus,
   WriteResult,
 } from "./ipc-types";
@@ -130,6 +131,9 @@ export const writeFile = (
   content: string,
   expectedHash: string
 ) => call<WriteResult>("write_file", { fileId, content, expectedHash });
+
+export const trashFile = (fileId: number) =>
+  call<TrashResult>("trash_file", { fileId });
 
 export const listFileLinks = (fileId: number) =>
   call<FileLinks>("list_file_links", { fileId });

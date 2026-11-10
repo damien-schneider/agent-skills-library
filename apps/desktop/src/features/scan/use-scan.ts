@@ -47,8 +47,13 @@ export function useScan(): UseScan {
     try {
       await startScan(rootIds);
     } catch (cause) {
+      const failure = toIpcError(cause);
+      // Asking twice is not a failure: the scan already under way will report when it is done.
+      if (failure.code === "scan_busy") {
+        return;
+      }
       setRunning(false);
-      setError(toIpcError(cause).message);
+      setError(failure.message);
     }
   }, []);
 

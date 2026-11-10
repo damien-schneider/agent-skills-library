@@ -1,3 +1,5 @@
+import { cn } from "@ctrl-ui/react/lib/cn";
+import { Text } from "@ctrl-ui/react/ui/typography";
 import { Check, CircleX, ScanText } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -20,6 +22,24 @@ interface CaptureNotice {
   id: number;
   tone: "error" | "saved" | "shortcut";
 }
+
+const NOTICE_LOOK = {
+  error: {
+    Icon: CircleX,
+    iconTone: "bg-destructive/15 text-destructive-text",
+    title: "Nothing saved",
+  },
+  saved: {
+    Icon: Check,
+    iconTone: "bg-success/15 text-success-text",
+    title: "Saved to Prompts",
+  },
+  shortcut: {
+    Icon: ScanText,
+    iconTone: "bg-muted text-foreground",
+    title: "Capture selection",
+  },
+} as const;
 
 function capturePreview(content: string): string {
   const characters: string[] = [];
@@ -129,20 +149,7 @@ export function CaptureOverlay() {
     return null;
   }
 
-  const shortcut = notice.tone === "shortcut";
-  const saved = notice.tone === "saved";
-  let Icon = CircleX;
-  let iconTone = "bg-red-400 text-red-950";
-  let title = "Nothing saved";
-  if (shortcut) {
-    Icon = ScanText;
-    iconTone = "bg-white/10 text-white";
-    title = "Capture selection";
-  } else if (saved) {
-    Icon = Check;
-    iconTone = "bg-emerald-400 text-emerald-950";
-    title = "Saved to Prompts";
-  }
+  const { Icon, iconTone, title } = NOTICE_LOOK[notice.tone];
 
   return (
     <output
@@ -150,32 +157,36 @@ export function CaptureOverlay() {
       aria-live="polite"
       className="flex h-full items-start justify-center p-2"
     >
+      {/* Opaque on purpose: this window is transparent, so a translucent
+          surface would let the app behind it show through the text. */}
       <span
-        className="capture-island flex h-[60px] w-full items-center gap-3 rounded-full bg-neutral-950/90 px-3 text-white shadow-[0_12px_32px_rgb(0_0_0/0.3)] ring-1 ring-white/10 backdrop-blur-xl"
+        className="capture-island flex h-15 w-full items-center gap-3 rounded-full border border-border bg-card px-3 text-card-foreground shadow-md"
         data-exiting={exiting}
         key={notice.id}
       >
         <span
-          className={`flex size-9 shrink-0 items-center justify-center rounded-full ${iconTone}`}
+          className={cn(
+            "flex size-9 shrink-0 items-center justify-center rounded-full",
+            iconTone
+          )}
         >
-          <Icon aria-hidden="true" className="size-[18px]" strokeWidth={2.5} />
+          <Icon aria-hidden="true" className="size-4.5" strokeWidth={2.5} />
         </span>
-        <span className="min-w-0 flex-1">
-          <span className="block font-medium text-[13px] leading-5">
+        <span className="flex min-w-0 flex-1 flex-col">
+          <Text as="span" weight="medium">
             {title}
-          </span>
-          <span className="block truncate text-[12px] text-neutral-300 leading-5">
+          </Text>
+          <Text as="span" className="truncate" size="label" tone="muted">
             {notice.detail}
-          </span>
+          </Text>
         </span>
-        <span className="mr-1 shrink-0 text-neutral-400">
+        <span className="me-1 flex shrink-0 items-center">
           {notice.tone === "error" ? (
-            <span className="text-[11px]">Try again</span>
+            <Text as="span" size="caption" tone="muted">
+              Try again
+            </Text>
           ) : (
-            <ShiftShortcut
-              completedTaps={notice.completedTaps}
-              contrast="overlay"
-            />
+            <ShiftShortcut completedTaps={notice.completedTaps} />
           )}
         </span>
       </span>

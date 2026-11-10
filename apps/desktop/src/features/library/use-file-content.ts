@@ -3,44 +3,72 @@ import {
   joinFrontmatter,
   splitFrontmatter,
 } from "@skills-agent-library/skills-core/frontmatter";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+} from "react";
 
+import { prepareRichDocument } from "@/lib/document-markdown";
 import { onIndexUpdated } from "@/lib/events";
+import {
+  type FrontmatterKey,
+  writeFrontmatterField,
+} from "@/lib/frontmatter-fields";
 import { type IpcError, readFile, toIpcError, writeFile } from "@/lib/ipc";
 import type { FileContent } from "@/lib/ipc-types";
+import type { PreservedMarkdown } from "@/lib/markdown-preserve";
 
-export type EditorMode = "rich" | "preview" | "raw";
+/** `rich` is the visual editor; `raw` is the whole file as text, frontmatter included. */
+export type EditorMode = "rich" | "raw";
 
 export interface FileBuffer {
-  content: FileContent;
-  split: FrontmatterSplit;
   body: string;
+  content: FileContent;
   raw: string;
+  /** The body prepared for the visual editor; null when only source editing is safe. */
+  rich: PreservedMarkdown | null;
+  split: FrontmatterSplit;
 }
 
 export interface UseFileContent {
+  /** Gives up on the visual editor for this document and continues in source. */
+  abandonRich: () => void;
   buffer: FileBuffer | null;
-  mode: EditorMode;
-  dirty: boolean;
-  loading: boolean;
-  saving: boolean;
-  error: string | null;
-  conflict: boolean;
   changedOnDisk: boolean;
+  conflict: boolean;
+  dirty: boolean;
+  dismissConflict: () => void;
   documentText: string;
-  setMode: (mode: EditorMode) => void;
-  setBody: (body: string) => void;
-  setRaw: (raw: string) => void;
-  replaceDocument: (text: string) => void;
-  save: () => Promise<boolean>;
+  error: string | null;
+  loading: boolean;
+  mode: EditorMode;
   overwrite: () => Promise<void>;
   reload: () => Promise<void>;
-  dismissConflict: () => void;
+  replaceDocument: (text: string) => void;
+  /** Changes whenever the document is replaced other than by typing in the visual editor. */
+  revision: number;
+  save: () => Promise<boolean>;
+  saving: boolean;
+  setBody: (body: string) => void;
+  /** Returns false when the frontmatter cannot be edited field by field. */
+  setFrontmatterField: (key: FrontmatterKey, value: string) => boolean;
+  /** Returns false when the visual editor cannot show the document as it stands. */
+  setMode: (mode: EditorMode) => boolean;
+  setRaw: (raw: string) => void;
 }
 
 function toBuffer(content: FileContent, text = content.content): FileBuffer {
   const split = splitFrontmatter(text);
-  return { content, split, body: split.body, raw: text };
+  return {
+    content,
+    split,
+    body: split.body,
+    raw: text,
+    rich: prepareRichDocument(split.body),
+  };
 }
 
 function documentOf(buffer: FileBuffer, mode: EditorMode): string {
@@ -56,7 +84,8 @@ interface FileError {
 
 export function useFileContent(fileId: number | null): UseFileContent {
   const [buffer, setBuffer] = useState<FileBuffer | null>(null);
-  const [mode, setModeState] = useState<EditorMode>("rich");
+  const [revision, setRevision] = useState(0);
+  const [preferredMode, setPreferredMode] = useState<EditorMode>("rich");
   const [loadingFileId, setLoadingFileId] = useState<number | null>(null);
   const [savingFileId, setSavingFileId] = useState<number | null>(null);
   const [error, setError] = useState<FileError | null>(null);
@@ -66,31 +95,39 @@ export function useFileContent(fileId: number | null): UseFileContent {
   );
   const loadRequestRef = useRef(0);
 
-  const load = useCallback(async (id: number) => {
-    loadRequestRef.current += 1;
-    const requestId = loadRequestRef.current;
-    setLoadingFileId(id);
-    setError(null);
-    try {
-      const content = await readFile(id);
-      if (loadRequestRef.current !== requestId) {
-        return;
-      }
-      setBuffer(toBuffer(content));
-      setConflictFileId(null);
-      setChangedOnDiskFileId(null);
-    } catch (cause) {
-      if (loadRequestRef.current !== requestId) {
-        return;
-      }
-      setBuffer(null);
-      setError({ fileId: id, message: toIpcError(cause).message });
-    } finally {
-      if (loadRequestRef.current === requestId) {
-        setLoadingFileId(null);
-      }
-    }
+  const show = useCallback((next: FileBuffer) => {
+    setBuffer(next);
+    setRevision((current) => current + 1);
   }, []);
+
+  const load = useCallback(
+    async (id: number) => {
+      loadRequestRef.current += 1;
+      const requestId = loadRequestRef.current;
+      setLoadingFileId(id);
+      setError(null);
+      try {
+        const content = await readFile(id);
+        if (loadRequestRef.current !== requestId) {
+          return;
+        }
+        show(toBuffer(content));
+        setConflictFileId(null);
+        setChangedOnDiskFileId(null);
+      } catch (cause) {
+        if (loadRequestRef.current !== requestId) {
+          return;
+        }
+        setBuffer(null);
+        setError({ fileId: id, message: toIpcError(cause).message });
+      } finally {
+        if (loadRequestRef.current === requestId) {
+          setLoadingFileId(null);
+        }
+      }
+    },
+    [show]
+  );
 
   useEffect(() => {
     if (fileId === null) {
@@ -105,17 +142,6 @@ export function useFileContent(fileId: number | null): UseFileContent {
     load(fileId);
   }, [fileId, load]);
 
-  useEffect(() => {
-    const unlisten = onIndexUpdated(({ fileIds }) => {
-      if (fileId !== null && fileIds.includes(fileId)) {
-        setChangedOnDiskFileId(fileId);
-      }
-    });
-    return () => {
-      unlisten.then((stop) => stop());
-    };
-  }, [fileId]);
-
   const currentBuffer =
     fileId !== null && buffer?.content.fileId === fileId ? buffer : null;
   const currentError =
@@ -124,29 +150,80 @@ export function useFileContent(fileId: number | null): UseFileContent {
     fileId !== null &&
     currentError === null &&
     (currentBuffer === null || loadingFileId === fileId);
+  const mode: EditorMode =
+    preferredMode === "rich" && currentBuffer?.rich ? "rich" : "raw";
+  const documentText = currentBuffer ? documentOf(currentBuffer, mode) : "";
+  const dirty = currentBuffer
+    ? documentText !== currentBuffer.content.content
+    : false;
+
+  // What is on screen when a disk read comes back, which may be long after it was asked for.
+  const latest = useRef({ buffer: currentBuffer, dirty });
+  latest.current = { buffer: currentBuffer, dirty };
+
+  const followDisk = useEffectEvent(async (id: number) => {
+    let fresh: FileContent;
+    try {
+      fresh = await readFile(id);
+    } catch {
+      setChangedOnDiskFileId(id);
+      return;
+    }
+    const now = latest.current;
+    const isSameText =
+      now.buffer?.content.fileId !== id ||
+      now.buffer.content.hash === fresh.hash;
+    if (isSameText) {
+      return;
+    }
+    // Nothing of the user's is at stake, so the editor simply shows the new file.
+    if (now.dirty) {
+      setChangedOnDiskFileId(id);
+    } else {
+      show(toBuffer(fresh));
+    }
+  });
+
+  useEffect(() => {
+    const unlisten = onIndexUpdated(({ fileIds }) => {
+      if (fileId !== null && fileIds.includes(fileId)) {
+        followDisk(fileId);
+      }
+    });
+    return () => {
+      unlisten.then((stop) => stop());
+    };
+  }, [fileId]);
 
   const setMode = useCallback(
-    (next: EditorMode) => {
-      if (mode === next) {
-        return;
+    (next: EditorMode): boolean => {
+      if (!currentBuffer || next === mode) {
+        return next === mode;
       }
-      setBuffer((previous) => {
-        if (!previous || previous.content.fileId !== fileId) {
-          return previous;
-        }
-        if (next === "raw") {
-          return { ...previous, raw: documentOf(previous, mode) };
-        }
-        if (mode === "raw") {
-          const split = splitFrontmatter(previous.raw);
-          return { ...previous, split, body: split.body };
-        }
-        return previous;
-      });
-      setModeState(next);
+      if (next === "raw") {
+        setBuffer({ ...currentBuffer, raw: documentOf(currentBuffer, "rich") });
+        setPreferredMode("raw");
+        return true;
+      }
+      const split = splitFrontmatter(currentBuffer.raw);
+      const rich = prepareRichDocument(split.body);
+      if (!rich) {
+        return false;
+      }
+      show({ ...currentBuffer, split, body: split.body, rich });
+      setPreferredMode("rich");
+      return true;
     },
-    [fileId, mode]
+    [currentBuffer, mode, show]
   );
+
+  const abandonRich = useCallback(() => {
+    setBuffer((previous) =>
+      previous?.content.fileId === fileId
+        ? { ...previous, raw: documentOf(previous, "rich"), rich: null }
+        : previous
+    );
+  }, [fileId]);
 
   const setBody = useCallback(
     (body: string) => {
@@ -166,21 +243,42 @@ export function useFileContent(fileId: number | null): UseFileContent {
     [fileId]
   );
 
-  const replaceDocument = useCallback(
-    (text: string) => {
-      setBuffer((previous) =>
-        previous?.content.fileId === fileId
-          ? toBuffer(previous.content, text)
-          : previous
+  const setFrontmatterField = useCallback(
+    (key: FrontmatterKey, value: string): boolean => {
+      if (!currentBuffer) {
+        return false;
+      }
+      const { split } = currentBuffer;
+      const frontmatter = writeFrontmatterField(
+        split.frontmatter,
+        key,
+        value,
+        split.lineEnding
       );
+      if (frontmatter === null) {
+        return false;
+      }
+      const fence = `---${split.lineEnding}`;
+      setBuffer({
+        ...currentBuffer,
+        split:
+          split.frontmatter === null
+            ? { ...split, frontmatter, prefix: fence, suffix: fence }
+            : { ...split, frontmatter },
+      });
+      return true;
     },
-    [fileId]
+    [currentBuffer]
   );
 
-  const documentText = currentBuffer ? documentOf(currentBuffer, mode) : "";
-  const dirty = currentBuffer
-    ? documentText !== currentBuffer.content.content
-    : false;
+  const replaceDocument = useCallback(
+    (text: string) => {
+      if (currentBuffer) {
+        show(toBuffer(currentBuffer.content, text));
+      }
+    },
+    [currentBuffer, show]
+  );
 
   const persist = useCallback(
     async (expectedHash: string): Promise<boolean> => {
@@ -272,6 +370,7 @@ export function useFileContent(fileId: number | null): UseFileContent {
   return {
     buffer: currentBuffer,
     mode,
+    revision,
     dirty,
     loading,
     saving,
@@ -280,8 +379,10 @@ export function useFileContent(fileId: number | null): UseFileContent {
     changedOnDisk: fileId !== null && changedOnDiskFileId === fileId,
     documentText,
     setMode,
+    abandonRich,
     setBody,
     setRaw,
+    setFrontmatterField,
     replaceDocument,
     save,
     overwrite,

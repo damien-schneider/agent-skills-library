@@ -156,6 +156,7 @@ mod tests {
         let record = FileRecord {
             root_id,
             path: path.to_string(),
+            real_path: path.to_string(),
             rel_path: path.to_string(),
             kind,
             name: name.map(str::to_string),
@@ -174,8 +175,9 @@ mod tests {
         let record = FileRecord {
             root_id,
             path: path.to_string(),
+            real_path: path.to_string(),
             rel_path: path.to_string(),
-            kind: FileKind::ClaudeSkill,
+            kind: FileKind::Skill,
             name: Some(name.to_string()),
             project_dir: None,
             size: 0,
@@ -210,7 +212,7 @@ mod tests {
             &db,
             root,
             "/root/.claude/skills/react-doctor/SKILL.md",
-            FileKind::ClaudeSkill,
+            FileKind::Skill,
             Some("react-doctor"),
         );
         refs(&db, claude, &["react-doctor", "not-a-skill"]);
@@ -229,7 +231,7 @@ mod tests {
             &db,
             root,
             "/root/.claude/skills/upgrade/SKILL.md",
-            FileKind::ClaudeSkill,
+            FileKind::Skill,
             Some("upgrade"),
         );
         refs(&db, skill, &["upgrade"]);
@@ -248,14 +250,14 @@ mod tests {
             &db,
             root,
             "/root/.claude/skills/humanizer/SKILL.md",
-            FileKind::ClaudeSkill,
+            FileKind::Skill,
             Some("humanizer"),
         );
         insert(
             &db,
             other_root,
             "/other/.claude/skills/humanizer/SKILL.md",
-            FileKind::ClaudeSkill,
+            FileKind::Skill,
             Some("humanizer"),
         );
         refs(&db, claude, &["humanizer"]);
@@ -276,7 +278,7 @@ mod tests {
             &db,
             root,
             "/root/.claude/skills/humanizer/SKILL.md",
-            FileKind::ClaudeSkill,
+            FileKind::Skill,
             Some("humanizer"),
         );
         refs(&db, claude, &["humanizer"]);

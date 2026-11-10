@@ -123,6 +123,10 @@ export interface FileRow {
   hash: string;
   isSymlink: boolean;
   symlinkTarget: string | null;
+  /** YAML frontmatter `description`; null when absent or unreadable */
+  description: string | null;
+  /** Other absolute paths (symlinks) that reach this same file */
+  aliases: string[];
   firstSeenAt: number;
   lastSeenScanId: number | null;
   deletedAt: number | null;
@@ -157,6 +161,14 @@ export interface WriteResult {
   hash: string;
   mtimeMs: number;
   size: number;
+}
+
+/** Mirrors trash::TrashResult */
+export interface TrashResult {
+  /** What went to the OS trash: a skill's whole directory, the lone file otherwise */
+  trashed: string;
+  /** Symlinks that pointed into it and were removed */
+  removedLinks: string[];
 }
 
 /** Mirrors commands::files::ListFilesArgs */

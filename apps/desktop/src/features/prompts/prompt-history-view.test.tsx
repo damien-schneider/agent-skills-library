@@ -5,6 +5,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -91,22 +92,7 @@ const storedPrompt: PromptHistoryEntry = {
   attachments: [],
 };
 
-const COPY_BUTTON_NAME = /Copy prompt saved/;
 const DESTINATION_ROW_NAME = /project/;
-const DELETE_BUTTON_NAME = /Delete prompt saved/;
-
-function deferred<T>() {
-  let resolveValue: (value: T) => void = () => {
-    throw new Error("Deferred promise was not initialized");
-  };
-  const promise = new Promise<T>((resolve) => {
-    resolveValue = resolve;
-  });
-  return {
-    promise,
-    resolve: (value: T) => resolveValue(value),
-  };
-}
 
 describe("PromptHistoryView", () => {
   beforeEach(() => {
@@ -147,7 +133,7 @@ describe("PromptHistoryView", () => {
       target: { value: storedPrompt.content },
     });
     fireEvent.click(
-      screen.getByRole("combobox", { name: "Choose a destination folder" })
+      screen.getByRole("button", { name: "Choose a destination folder" })
     );
     fireEvent.click(
       await screen.findByRole("option", { name: DESTINATION_ROW_NAME })
@@ -164,27 +150,39 @@ describe("PromptHistoryView", () => {
     );
     expect(screen.getByLabelText("New prompt")).toHaveValue("");
     expect(
-      screen.getByRole("combobox", {
+      screen.getByRole("button", {
         name: `Destination folder: ${DESTINATION_PATH}`,
       })
     ).toBeVisible();
     expect(mocks.open).not.toHaveBeenCalled();
   });
 
+  it("keeps the draft and says why when the prompt cannot be saved", async () => {
+    mocks.createPrompt.mockRejectedValue(new Error("disk is full"));
+    render(<PromptHistoryView />);
+    await waitFor(() => expect(mocks.listPromptHistory).toHaveBeenCalledOnce());
+
+    fireEvent.change(screen.getByLabelText("New prompt"), {
+      target: { value: storedPrompt.content },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save prompt" }));
+
+    expect(await screen.findByText("disk is full")).toBeVisible();
+    expect(screen.getByLabelText("New prompt")).toHaveValue(
+      storedPrompt.content
+    );
+  });
+
   it("copies a saved prompt from history", async () => {
     mocks.listPromptHistory.mockResolvedValue([storedPrompt]);
     render(<PromptHistoryView />);
 
-    fireEvent.click(
-      await screen.findByRole("button", { name: COPY_BUTTON_NAME })
-    );
+    fireEvent.click(await screen.findByRole("button", { name: "Copy prompt" }));
 
     await waitFor(() =>
       expect(mocks.writeText).toHaveBeenCalledWith(storedPrompt.content)
     );
-    expect(
-      screen.getByRole("button", { name: COPY_BUTTON_NAME })
-    ).toHaveTextContent("Copied");
+    expect(await screen.findByRole("button", { name: "Copied" })).toBeVisible();
   });
 
   it("loads prompts from local history", async () => {
@@ -192,65 +190,70 @@ describe("PromptHistoryView", () => {
     render(<PromptHistoryView />);
 
     expect(await screen.findByText(storedPrompt.content)).toBeVisible();
-    expect(screen.getByTitle(DESTINATION_PATH)).toHaveTextContent("~project");
+    expect(screen.getByTitle(DESTINATION_PATH)).toHaveTextContent("~/project");
     expect(screen.getByText("1 prompt")).toBeVisible();
   });
 
-  it("deletes a saved prompt after inline confirmation", async () => {
+  it("offers to retry when the history cannot be loaded", async () => {
+    mocks.listPromptHistory
+      .mockRejectedValueOnce(new Error("database is locked"))
+      .mockResolvedValue([storedPrompt]);
+    render(<PromptHistoryView />);
+
+    expect(await screen.findByText("database is locked")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+
+    expect(await screen.findByText(storedPrompt.content)).toBeVisible();
+  });
+
+  it("deletes a saved prompt only once the confirmation naming it is accepted", async () => {
     mocks.listPromptHistory.mockResolvedValue([storedPrompt]);
     render(<PromptHistoryView />);
 
     fireEvent.click(
-      await screen.findByRole("button", { name: DELETE_BUTTON_NAME })
+      await screen.findByRole("button", { name: "Delete prompt" })
     );
+    const confirmation = await screen.findByRole("alertdialog");
+    expect(within(confirmation).getByText(storedPrompt.content)).toBeVisible();
     expect(mocks.deletePrompt).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    fireEvent.click(
+      within(confirmation).getByRole("button", { name: "Delete" })
+    );
 
     await waitFor(() =>
       expect(mocks.deletePrompt).toHaveBeenCalledWith(storedPrompt.id)
     );
-    expect(screen.queryByText(storedPrompt.content)).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.queryByText(storedPrompt.content)).not.toBeInTheDocument()
+    );
     expect(screen.getByText("No saved prompts yet")).toBeVisible();
   });
 
-  it("locks other delete requests while one is pending", async () => {
-    const deletion = deferred<null>();
-    const otherPrompt = {
-      ...storedPrompt,
-      id: 8,
-      content: "Ship the release notes",
-      createdAt: storedPrompt.createdAt - 60_000,
-    };
-    mocks.listPromptHistory.mockResolvedValue([storedPrompt, otherPrompt]);
-    mocks.deletePrompt.mockReturnValue(deletion.promise);
+  it("keeps the prompt and says why when it cannot be deleted", async () => {
+    mocks.listPromptHistory.mockResolvedValue([storedPrompt]);
+    mocks.deletePrompt.mockRejectedValue(new Error("database is locked"));
     render(<PromptHistoryView />);
 
-    const [firstDeleteButton] = await screen.findAllByRole("button", {
-      name: DELETE_BUTTON_NAME,
-    });
-    if (!firstDeleteButton) {
-      throw new Error("First delete button was not rendered");
-    }
-    fireEvent.click(firstDeleteButton);
-    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Delete prompt" })
+    );
+    const confirmation = await screen.findByRole("alertdialog");
+    fireEvent.click(
+      within(confirmation).getByRole("button", { name: "Delete" })
+    );
 
-    const otherDeleteButton = screen.getByRole("button", {
-      name: DELETE_BUTTON_NAME,
-    });
-    expect(otherDeleteButton).toBeDisabled();
-    fireEvent.click(otherDeleteButton);
-    expect(mocks.deletePrompt).toHaveBeenCalledOnce();
+    expect(
+      await within(confirmation).findByText("database is locked")
+    ).toBeVisible();
+    fireEvent.click(
+      within(confirmation).getByRole("button", { name: "Cancel" })
+    );
 
-    await act(async () => {
-      deletion.resolve(null);
-      await deletion.promise;
-    });
-
-    await waitFor(() => expect(otherDeleteButton).toBeEnabled());
-    expect(screen.queryByText(storedPrompt.content)).not.toBeInTheDocument();
-    fireEvent.click(otherDeleteButton);
-    expect(screen.getByRole("button", { name: "Delete" })).toBeVisible();
+    await waitFor(() =>
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument()
+    );
+    expect(screen.getByText(storedPrompt.content)).toBeVisible();
   });
 
   it("adds a globally captured selection to the visible history", async () => {
@@ -267,24 +270,25 @@ describe("PromptHistoryView", () => {
     expect(screen.getByText("1 prompt")).toBeVisible();
   });
 
-  it("fills each shortcut key as the double tap progresses", async () => {
-    const { container } = render(<PromptHistoryView />);
-    expect(await screen.findByText("Capture selection")).toBeVisible();
+  it("narrows the history to the prompts matching the search", async () => {
+    const otherPrompt = {
+      ...storedPrompt,
+      id: 8,
+      content: "Ship the release notes",
+      destinationPath: null,
+    };
+    mocks.listPromptHistory.mockResolvedValue([storedPrompt, otherPrompt]);
+    render(<PromptHistoryView />);
 
-    const listener = mocks.onCaptureShortcutProgress.mock.calls[0]?.[0];
-    if (typeof listener !== "function") {
-      throw new Error("Shortcut progress listener was not registered");
-    }
-    act(() => listener({ completedTaps: 1 }));
-    expect(container.querySelectorAll('[data-completed="true"]')).toHaveLength(
-      1
-    );
+    fireEvent.change(await screen.findByLabelText("Search prompts"), {
+      target: { value: "release" },
+    });
 
-    act(() => listener({ completedTaps: 2 }));
-    expect(container.querySelectorAll('[data-completed="true"]')).toHaveLength(
-      2
-    );
+    expect(screen.getByText(otherPrompt.content)).toBeVisible();
+    expect(screen.queryByText(storedPrompt.content)).not.toBeInTheDocument();
+    expect(screen.getByText("1 of 2 prompts")).toBeVisible();
   });
+
   it("offers a copy action on every saved attachment", async () => {
     mocks.listPromptHistory.mockResolvedValue([
       {
@@ -313,11 +317,9 @@ describe("PromptHistoryView", () => {
     render(<PromptHistoryView />);
 
     expect(
-      await screen.findByRole("button", { name: "Copy saved attachment 1" })
+      await screen.findByRole("button", { name: "Copy image 1" })
     ).toBeVisible();
-    expect(
-      screen.getByRole("button", { name: "Copy saved attachment 2" })
-    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "Copy image 2" })).toBeVisible();
   });
 
   it("pastes a clipboard image and stores its RGBA payload", async () => {

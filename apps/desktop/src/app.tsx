@@ -1,203 +1,276 @@
 import {
-  Copy,
-  FolderTree,
-  History,
-  RefreshCw,
-  Settings,
-  Store,
-} from "lucide-react";
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarHeader,
+  SidebarIconRail,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarPanel,
+  SidebarProvider,
+  SidebarRail,
+} from "@ctrl-ui/react/ui/sidebar";
+import { Settings } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
+import { PRIMARY_VIEWS, VIEW_IDS, type ViewId } from "./app-views";
+import { CommandPalette } from "./features/command/command-palette";
 import { DuplicatesView } from "./features/duplicates/duplicates-view";
-import { LibraryView } from "./features/library/library-view";
+import { EditorPane } from "./features/library/editor-pane";
+import { LibraryPanel } from "./features/library/library-panel";
+import { NewSkillDialog } from "./features/library/new-skill-dialog";
+import { UnsavedChangesDialog } from "./features/library/unsaved-changes-dialog";
 import { useLibraryFile } from "./features/library/use-library-file";
+import { useLibraryIndex } from "./features/library/use-library-index";
+import { useFavoriteProjects } from "./features/projects/use-favorite-projects";
 import { PromptHistoryView } from "./features/prompts/prompt-history-view";
 import { RegistryPane } from "./features/registry/registry-pane";
 import { useScan } from "./features/scan/use-scan";
-import { RootsSettings } from "./features/settings/roots-settings";
+import { SettingsView } from "./features/settings/settings-view";
 import { GroupsView } from "./features/sync/groups-view";
-import { UpdateBanner } from "./features/updates/update-banner";
+import { UpdateButton } from "./features/updates/update-button";
 import { useAppUpdate } from "./features/updates/use-app-update";
-import { cn } from "./lib/utils";
-import { Toaster } from "./shared/components/ui/sonner";
+import type { FileRow } from "./lib/ipc-types";
 import { useAppReloadShortcut } from "./use-app-reload-shortcut";
-
-export type ViewId =
-  | "library"
-  | "prompts"
-  | "duplicates"
-  | "sync"
-  | "registry"
-  | "settings";
-
-const PRIMARY_RAIL_ITEMS: {
-  id: Exclude<ViewId, "settings">;
-  label: string;
-  icon: typeof FolderTree;
-}[] = [
-  { id: "library", label: "Library", icon: FolderTree },
-  { id: "prompts", label: "Prompts", icon: History },
-  { id: "duplicates", label: "Duplicates", icon: Copy },
-  { id: "sync", label: "Sync", icon: RefreshCw },
-  { id: "registry", label: "Registry", icon: Store },
-];
-
-const SETTINGS_RAIL_ITEM = {
-  id: "settings",
-  label: "Settings",
-  icon: Settings,
-} satisfies { id: ViewId; label: string; icon: typeof FolderTree };
+import { useAppShortcuts } from "./use-app-shortcuts";
 
 const ACTIVE_VIEW_STORAGE_KEY = "another-dev-tool.active-view";
-
-function isViewId(value: string | null): value is ViewId {
-  return (
-    value === "library" ||
-    value === "prompts" ||
-    value === "duplicates" ||
-    value === "sync" ||
-    value === "registry" ||
-    value === "settings"
-  );
-}
+const PANEL_STORAGE_KEY = "another-dev-tool.library-panel";
 
 function readStoredView(): ViewId {
-  const storedView = window.localStorage.getItem(ACTIVE_VIEW_STORAGE_KEY);
-  return isViewId(storedView) ? storedView : "library";
+  const stored = window.localStorage.getItem(ACTIVE_VIEW_STORAGE_KEY);
+  return VIEW_IDS.find((id) => id === stored) ?? "library";
 }
 
 export function App() {
   useAppReloadShortcut();
   const [view, setView] = useState<ViewId>(readStoredView);
-  const [mountedViews, setMountedViews] = useState<Set<ViewId>>(
+  const [mountedViews, setMountedViews] = useState<ReadonlySet<ViewId>>(
     () => new Set([view])
   );
+  const [panelOpen, setPanelOpen] = useState(
+    () => window.localStorage.getItem(PANEL_STORAGE_KEY) !== "closed"
+  );
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [newSkillOpen, setNewSkillOpen] = useState(false);
+  const [awaitedFileId, setAwaitedFileId] = useState<number | null>(null);
+  const index = useLibraryIndex();
   const library = useLibraryFile();
+  const favoriteProjects = useFavoriteProjects();
   const scan = useScan();
   const update = useAppUpdate();
 
-  useEffect(() => {
-    window.localStorage.setItem(ACTIVE_VIEW_STORAGE_KEY, view);
-  }, [view]);
-
-  const selectView = useCallback((nextView: ViewId) => {
-    setMountedViews((current) => {
-      if (current.has(nextView)) {
-        return current;
-      }
-      const nextMountedViews = new Set(current);
-      nextMountedViews.add(nextView);
-      return nextMountedViews;
-    });
-    setView(nextView);
+  const selectView = useCallback((next: ViewId) => {
+    setMountedViews((current) =>
+      current.has(next) ? current : new Set([...current, next])
+    );
+    setView(next);
+    window.localStorage.setItem(ACTIVE_VIEW_STORAGE_KEY, next);
   }, []);
 
-  return (
-    <div className="flex h-full flex-col">
-      <UpdateBanner {...update} />
+  const togglePanel = useCallback((open: boolean) => {
+    setPanelOpen(open);
+    window.localStorage.setItem(PANEL_STORAGE_KEY, open ? "open" : "closed");
+  }, []);
 
-      <div className="flex min-h-0 flex-1">
-        <nav
-          aria-label="Main navigation"
-          className="flex w-16 shrink-0 flex-col items-center border-border border-r bg-sidebar py-3"
-        >
-          <div className="flex flex-col gap-1">
-            {PRIMARY_RAIL_ITEMS.map((item) => (
-              <RailItem
-                active={view === item.id}
-                item={item}
-                key={item.id}
-                onSelect={selectView}
-                unsaved={item.id === "library" && library.editor.dirty}
+  const selectFile = library.select;
+  const openFile = useCallback(
+    (file: FileRow) => {
+      selectView("library");
+      selectFile(file);
+    },
+    [selectFile, selectView]
+  );
+
+  // A file written a moment ago (new skill, registry install) is opened as soon
+  // as the index reports it, rather than racing the index refresh.
+  const awaitedFile =
+    awaitedFileId === null
+      ? undefined
+      : index.files.find((file) => file.id === awaitedFileId);
+  useEffect(() => {
+    if (awaitedFile) {
+      setAwaitedFileId(null);
+      openFile(awaitedFile);
+    }
+  }, [awaitedFile, openFile]);
+
+  const openNewSkill = useCallback(() => setNewSkillOpen(true), []);
+  useAppShortcuts({
+    onOpenPalette: () => setPaletteOpen(true),
+    onNewSkill: openNewSkill,
+    onSave: library.editor.save,
+  });
+
+  // Folders are picked up without asking: what is on disk is what the app shows.
+  const startScan = scan.start;
+  useEffect(() => {
+    startScan();
+  }, [startScan]);
+
+  const selected =
+    index.files.find((file) => file.id === library.fileId) ??
+    (library.file?.id === library.fileId ? library.file : null);
+
+  return (
+    <SidebarProvider
+      className="h-dvh"
+      defaultWidth={332}
+      layout="contained"
+      maxWidth={560}
+      minWidth={288}
+      onOpenChange={togglePanel}
+      open={panelOpen && view === "library"}
+      persistOpen={false}
+    >
+      <Sidebar collapsible="icon" variant="inset">
+        <SidebarIconRail>
+          <SidebarHeader>
+            <div
+              className="h-(--sidebar-strip-height)"
+              data-tauri-drag-region
+            />
+          </SidebarHeader>
+          <SidebarContent>
+            <SidebarGroup>
+              <SidebarMenu aria-label="Views">
+                {PRIMARY_VIEWS.map(({ id, label, icon: Icon }) => {
+                  const unsaved = id === "library" && library.editor.dirty;
+                  return (
+                    <SidebarMenuItem key={id}>
+                      <SidebarMenuButton
+                        aria-label={
+                          unsaved ? `${label}, unsaved changes` : label
+                        }
+                        isActive={view === id}
+                        onClick={() => {
+                          if (id === "library" && view === "library") {
+                            togglePanel(!panelOpen);
+                          }
+                          selectView(id);
+                        }}
+                        tooltip={label}
+                      >
+                        <Icon />
+                        <span>{label}</span>
+                      </SidebarMenuButton>
+                      {unsaved ? (
+                        <span
+                          aria-hidden="true"
+                          className="pointer-events-none absolute end-1 top-1 size-1.5 rounded-full bg-warning"
+                        />
+                      ) : null}
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroup>
+          </SidebarContent>
+          <SidebarFooter>
+            <SidebarMenu aria-label="App">
+              <UpdateButton
+                unsavedFile={library.editor.dirty ? selected : null}
+                update={update}
               />
-            ))}
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  isActive={view === "settings"}
+                  onClick={() => selectView("settings")}
+                  tooltip="Settings"
+                >
+                  <Settings />
+                  <span>Settings</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarFooter>
+        </SidebarIconRail>
+        <SidebarPanel layer="sidebar">
+          <LibraryPanel
+            favoritePaths={favoriteProjects.favoritePaths}
+            index={index}
+            onNewSkill={openNewSkill}
+            onOpenSettings={() => selectView("settings")}
+            onSelectFile={library.select}
+            scan={scan}
+            selectedFileId={library.fileId}
+          />
+        </SidebarPanel>
+        <SidebarRail />
+      </Sidebar>
+
+      <SidebarInset>
+        <div className="h-full min-h-0" hidden={view !== "library"}>
+          <EditorPane
+            editor={library.editor}
+            favorite={
+              selected?.projectDir
+                ? favoriteProjects.favoritePaths.has(selected.projectDir)
+                : false
+            }
+            file={selected}
+            hasFiles={index.files.length > 0}
+            onClose={library.close}
+            onNewSkill={openNewSkill}
+            onOpenFile={library.select}
+            onToggleFavorite={favoriteProjects.toggle}
+          />
+        </div>
+        {mountedViews.has("prompts") ? (
+          <div className="h-full min-h-0" hidden={view !== "prompts"}>
+            <PromptHistoryView />
           </div>
-          <div className="mt-auto border-sidebar-border border-t pt-2">
-            <RailItem
-              active={view === SETTINGS_RAIL_ITEM.id}
-              item={SETTINGS_RAIL_ITEM}
-              onSelect={selectView}
+        ) : null}
+        {mountedViews.has("duplicates") ? (
+          <div className="h-full min-h-0" hidden={view !== "duplicates"}>
+            <DuplicatesView
+              onGroupCreated={() => selectView("sync")}
+              onOpenFile={openFile}
             />
           </div>
-        </nav>
+        ) : null}
+        {mountedViews.has("sync") ? (
+          <div className="h-full min-h-0" hidden={view !== "sync"}>
+            <GroupsView onOpenFile={openFile} />
+          </div>
+        ) : null}
+        {mountedViews.has("registry") ? (
+          <div className="h-full min-h-0" hidden={view !== "registry"}>
+            <RegistryPane index={index} onInstalled={setAwaitedFileId} />
+          </div>
+        ) : null}
+        {mountedViews.has("settings") ? (
+          <div className="h-full min-h-0" hidden={view !== "settings"}>
+            <SettingsView
+              onFoldersChanged={index.refresh}
+              scan={scan}
+              update={update}
+            />
+          </div>
+        ) : null}
+      </SidebarInset>
 
-        <main className="min-h-0 min-w-0 flex-1">
-          {mountedViews.has("library") ? (
-            <div className="h-full" hidden={view !== "library"}>
-              <LibraryView
-                library={library}
-                onOpenSettings={() => selectView("settings")}
-                scan={scan}
-              />
-            </div>
-          ) : null}
-          {mountedViews.has("prompts") ? (
-            <div className="h-full" hidden={view !== "prompts"}>
-              <PromptHistoryView />
-            </div>
-          ) : null}
-          {mountedViews.has("duplicates") ? (
-            <div className="h-full" hidden={view !== "duplicates"}>
-              <DuplicatesView onGroupCreated={() => selectView("sync")} />
-            </div>
-          ) : null}
-          {mountedViews.has("sync") ? (
-            <div className="h-full" hidden={view !== "sync"}>
-              <GroupsView />
-            </div>
-          ) : null}
-          {mountedViews.has("registry") ? (
-            <div className="h-full" hidden={view !== "registry"}>
-              <RegistryPane />
-            </div>
-          ) : null}
-          {mountedViews.has("settings") ? (
-            <div className="h-full" hidden={view !== "settings"}>
-              <RootsSettings scan={scan} />
-            </div>
-          ) : null}
-        </main>
-      </div>
-
-      <Toaster />
-    </div>
-  );
-}
-
-function RailItem({
-  active,
-  item,
-  onSelect,
-  unsaved,
-}: {
-  active: boolean;
-  item: { id: ViewId; label: string; icon: typeof FolderTree };
-  onSelect: (view: ViewId) => void;
-  unsaved?: boolean;
-}) {
-  const Icon = item.icon;
-  return (
-    <button
-      aria-current={active ? "page" : undefined}
-      aria-label={`${item.label}${unsaved ? ", unsaved changes" : ""}`}
-      className={cn(
-        "relative flex h-12 w-12 flex-col items-center justify-center gap-1 rounded-lg outline-none transition-colors focus-visible:ring-2 focus-visible:ring-sidebar-ring motion-reduce:transition-none",
-        active
-          ? "bg-sidebar-accent text-sidebar-accent-foreground"
-          : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
-      )}
-      onClick={() => onSelect(item.id)}
-      title={item.label}
-      type="button"
-    >
-      <Icon className="size-4" />
-      <span className="text-[10px] leading-none">{item.label}</span>
-      {unsaved ? (
-        <span
-          aria-hidden="true"
-          className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-amber-500"
-        />
-      ) : null}
-    </button>
+      <CommandPalette
+        files={index.files}
+        onNewSkill={openNewSkill}
+        onOpenChange={setPaletteOpen}
+        onOpenFile={openFile}
+        onRescan={startScan}
+        onSelectView={selectView}
+        open={paletteOpen}
+      />
+      <NewSkillDialog
+        files={index.files}
+        onCreated={setAwaitedFileId}
+        onOpenChange={setNewSkillOpen}
+        open={newSkillOpen}
+        roots={index.roots}
+        selectedFile={selected}
+      />
+      <UnsavedChangesDialog library={library} />
+    </SidebarProvider>
   );
 }

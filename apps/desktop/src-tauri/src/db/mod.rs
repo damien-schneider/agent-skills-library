@@ -1,3 +1,4 @@
+pub mod aliases_repo;
 pub mod backups_repo;
 pub mod destinations_repo;
 pub mod favorite_projects_repo;
@@ -16,7 +17,8 @@ use rusqlite::{Connection, OptionalExtension as _, Transaction};
 
 use crate::error::{AppError, AppResult};
 
-pub const META_DEFAULT_ROOTS_SEEDED: &str = "default_roots_seeded";
+/// v2: the default list grew agent homes; a new key lets existing installs pick them up once.
+pub const META_DEFAULT_ROOTS_SEEDED: &str = "default_roots_seeded_v2";
 pub const META_WATCHER_ENABLED: &str = "watcher_enabled";
 const META_SCHEMA_VERSION: &str = "schema_version";
 
@@ -114,6 +116,9 @@ impl Db {
         if version < 6 {
             conn.execute_batch(schema::MIGRATION_6)?;
         }
+        if version < 7 {
+            conn.execute_batch(schema::MIGRATION_7)?;
+        }
 
         conn.execute(
             "INSERT INTO meta (key, value) VALUES (?1, ?2)
@@ -186,6 +191,7 @@ mod tests {
             "favorite_projects",
             "prompt_attachments",
             "file_refs",
+            "file_aliases",
         ] {
             assert!(tables.iter().any(|t| t == expected), "missing {expected}");
         }
@@ -327,6 +333,57 @@ mod tests {
             .unwrap();
 
         assert_eq!(counted, 0, "the new table and column answer queries");
+    }
+
+    #[test]
+    fn migrating_from_version_six_renames_the_skill_kind_and_adds_aliases() {
+        let conn = Connection::open_in_memory().unwrap();
+        for migration in [
+            schema::MIGRATION_1,
+            schema::MIGRATION_2,
+            schema::MIGRATION_3,
+            schema::MIGRATION_4,
+            schema::MIGRATION_5,
+            schema::MIGRATION_6,
+        ] {
+            conn.execute_batch(migration).unwrap();
+        }
+        conn.execute_batch(
+            "INSERT INTO meta (key, value) VALUES ('schema_version', '6');
+             INSERT INTO roots (id, path, enabled, added_at) VALUES (1, '/repo', 1, 0);
+             INSERT INTO files (root_id, path, rel_path, kind, size, mtime_ns, hash, refs_hash,
+                                first_seen_at)
+             VALUES (1, '/repo/.claude/skills/a/SKILL.md', '.claude/skills/a/SKILL.md',
+                     'claude-skill', 1, 1, 'h', 'h', 1),
+                    (1, '/repo/.claude/agents/b.md', '.claude/agents/b.md',
+                     'claude-agent', 1, 1, 'h2', 'h2', 1);",
+        )
+        .unwrap();
+
+        let db = Db::from_connection(conn).unwrap();
+
+        let files = db
+            .with_conn(|conn| files_repo::list(conn, &files_repo::FileFilter::default()))
+            .unwrap();
+        assert_eq!(
+            files
+                .iter()
+                .map(|file| file.kind.as_str())
+                .collect::<Vec<_>>(),
+            ["claude-agent", "skill"]
+        );
+        assert!(files.iter().all(|file| file.aliases.is_empty()));
+        let owed: i64 = db
+            .with_conn(|conn| {
+                Ok(conn.query_row(
+                    "SELECT COUNT(*) FROM files
+                     WHERE description_hash IS NULL AND real_path IS NULL",
+                    [],
+                    |row| row.get(0),
+                )?)
+            })
+            .unwrap();
+        assert_eq!(owed, 2, "migrated rows still owe their description");
     }
 
     #[test]

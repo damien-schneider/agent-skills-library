@@ -1,4 +1,5 @@
-import { ArrowDownLeft, ArrowUpRight, type LucideIcon } from "lucide-react";
+import { Button } from "@ctrl-ui/react/ui/button";
+import { Text } from "@ctrl-ui/react/ui/typography";
 
 import type { FileLinks, FileRow } from "@/lib/ipc-types";
 
@@ -7,12 +8,10 @@ import { SkillPreviewTrigger } from "./skill-preview";
 
 function LinkGroup({
   files,
-  icon: Icon,
   title,
   onSelect,
 }: {
   files: FileRow[];
-  icon: LucideIcon;
   title: string;
   onSelect: (file: FileRow) => void;
 }) {
@@ -21,26 +20,27 @@ function LinkGroup({
   }
 
   return (
-    <div className="flex min-w-0 items-center gap-1.5">
-      <Icon aria-hidden="true" className="size-3.5 shrink-0" />
-      <span className="sr-only">{title}</span>
-      <div className="flex min-w-0 flex-wrap items-center gap-1">
-        {files.map((file) => (
-          <SkillPreviewTrigger file={file} key={file.id} onOpen={onSelect}>
-            <button
-              className="max-w-56 truncate rounded-md bg-muted px-1.5 py-0.5 font-medium text-foreground/80 underline decoration-border underline-offset-2 transition-colors hover:bg-accent hover:text-foreground hover:decoration-foreground/40 motion-reduce:transition-none"
-              onClick={() => onSelect(file)}
-              type="button"
-            >
-              {linkLabel(file)}
-            </button>
-          </SkillPreviewTrigger>
-        ))}
-      </div>
+    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+      <Text className="me-1" size="caption" tone="muted">
+        {title}
+      </Text>
+      {files.map((file) => (
+        <SkillPreviewTrigger file={file} key={file.id} onOpen={onSelect}>
+          <Button
+            className="max-w-56"
+            onClick={() => onSelect(file)}
+            size="xs"
+            variant="surface"
+          >
+            <span className="truncate">{linkLabel(file)}</span>
+          </Button>
+        </SkillPreviewTrigger>
+      ))}
     </div>
   );
 }
 
+/** The files the open document names, and the files that name it. */
 export function LinksBar({
   links,
   onSelect,
@@ -53,19 +53,16 @@ export function LinksBar({
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 border-border border-b px-4 py-1.5 text-muted-foreground text-xs">
-      <LinkGroup
-        files={links.outgoing}
-        icon={ArrowUpRight}
-        onSelect={onSelect}
-        title="References"
-      />
+    <nav
+      aria-label="Linked files"
+      className="flex flex-wrap items-center gap-x-6 gap-y-2"
+    >
+      <LinkGroup files={links.outgoing} onSelect={onSelect} title="Mentions" />
       <LinkGroup
         files={links.incoming}
-        icon={ArrowDownLeft}
         onSelect={onSelect}
-        title="Referenced by"
+        title="Mentioned by"
       />
-    </div>
+    </nav>
   );
 }

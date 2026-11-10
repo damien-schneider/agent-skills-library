@@ -1,38 +1,25 @@
-import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
+import { useCallback, useEffect, useState } from "react";
 
 import { onCaptureSaved } from "@/lib/events";
-import { deletePrompt, listPromptHistory, toIpcError } from "@/lib/ipc";
+import { listPromptHistory, toIpcError } from "@/lib/ipc";
 import type { PromptHistoryEntry } from "@/lib/ipc-types";
-import { claudeCodePrompt } from "./prompt-attachments";
+import { ViewLayout } from "@/shared/components/view-layout";
+import { CaptureShortcut } from "./capture-shortcut";
+import { DeletePromptDialog } from "./delete-prompt-dialog";
 import { PromptComposer } from "./prompt-composer";
-import { PromptHistoryList } from "./prompt-history-list";
-
-type HistoryStatus =
-  | { type: "loading" }
-  | { type: "ready" }
-  | { type: "error"; message: string };
-
-interface DeleteState {
-  pendingId: number | null;
-  deleting: boolean;
-}
-
-const IDLE_DELETE_STATE: DeleteState = {
-  pendingId: null,
-  deleting: false,
-};
+import {
+  PromptHistoryList,
+  type PromptHistoryStatus,
+} from "./prompt-history-list";
 
 export function PromptHistoryView() {
   const [entries, setEntries] = useState<PromptHistoryEntry[]>([]);
-  const [search, setSearch] = useState("");
-  const [copiedId, setCopiedId] = useState<number | null>(null);
-  const [deleteState, setDeleteState] =
-    useState<DeleteState>(IDLE_DELETE_STATE);
-  const [status, setStatus] = useState<HistoryStatus>({ type: "loading" });
-  const copiedTimerRef = useRef<number | undefined>(undefined);
-  const deletingIdRef = useRef<number | null>(null);
+  const [status, setStatus] = useState<PromptHistoryStatus>({
+    type: "loading",
+  });
+  const [pendingDelete, setPendingDelete] = useState<PromptHistoryEntry | null>(
+    null
+  );
 
   const refresh = useCallback(async () => {
     setStatus({ type: "loading" });
@@ -60,87 +47,39 @@ export function PromptHistoryView() {
     };
   }, []);
 
-  useEffect(
-    () => () => {
-      window.clearTimeout(copiedTimerRef.current);
-    },
-    []
-  );
-
-  const visibleEntries = useMemo(() => {
-    const needle = search.trim().toLowerCase();
-    if (needle.length === 0) {
-      return entries;
-    }
-    return entries.filter(
-      (entry) =>
-        entry.content.toLowerCase().includes(needle) ||
-        entry.destinationPath?.toLowerCase().includes(needle)
-    );
-  }, [entries, search]);
-
   const handleCreated = useCallback((created: PromptHistoryEntry) => {
     setEntries((current) => [created, ...current]);
     setStatus({ type: "ready" });
   }, []);
 
-  const handleCopy = async (entry: PromptHistoryEntry) => {
-    try {
-      await writeText(claudeCodePrompt(entry));
-      setCopiedId(entry.id);
-      window.clearTimeout(copiedTimerRef.current);
-      copiedTimerRef.current = window.setTimeout(() => setCopiedId(null), 1600);
-    } catch {
-      toast.error("Could not copy the prompt");
-    }
-  };
-
-  const handleDeleteRequest = (pendingId: number | null) => {
-    if (deletingIdRef.current !== null) {
-      return;
-    }
-    setDeleteState({ pendingId, deleting: false });
-  };
-
-  const handleDelete = async (entry: PromptHistoryEntry) => {
-    if (deletingIdRef.current !== null) {
-      return;
-    }
-    deletingIdRef.current = entry.id;
-    setDeleteState({ pendingId: entry.id, deleting: true });
-    try {
-      await deletePrompt(entry.id);
-      setEntries((current) =>
-        current.filter((candidate) => candidate.id !== entry.id)
-      );
-      setDeleteState(IDLE_DELETE_STATE);
-      setCopiedId((current) => (current === entry.id ? null : current));
-    } catch (cause) {
-      toast.error(toIpcError(cause).message);
-      setDeleteState({ pendingId: entry.id, deleting: false });
-    } finally {
-      deletingIdRef.current = null;
-    }
-  };
+  const handleDeleted = useCallback((deleted: PromptHistoryEntry) => {
+    setEntries((current) =>
+      current.filter((candidate) => candidate.id !== deleted.id)
+    );
+    setPendingDelete(null);
+  }, []);
 
   return (
-    <div className="grid h-full min-h-0 grid-cols-[minmax(360px,44%)_1fr]">
-      <PromptComposer onCreated={handleCreated} />
+    <ViewLayout title="Prompts">
+      <div className="flex flex-col gap-3">
+        {/* The composer reserves a gutter around its field for a chat dock;
+            pulled back so the field sits on the page column. */}
+        <div className="-mx-2.5 -mt-1 -mb-2.5">
+          <PromptComposer onCreated={handleCreated} />
+        </div>
+        <CaptureShortcut />
+      </div>
       <PromptHistoryList
-        copiedId={copiedId}
-        deletingId={deleteState.deleting ? deleteState.pendingId : null}
         entries={entries}
-        error={status.type === "error" ? status.message : null}
-        loading={status.type === "loading"}
-        onCopy={handleCopy}
-        onDelete={handleDelete}
-        onDeleteRequest={handleDeleteRequest}
-        onRefresh={refresh}
-        onSearch={setSearch}
-        pendingDeleteId={deleteState.pendingId}
-        search={search}
-        visibleEntries={visibleEntries}
+        onRequestDelete={setPendingDelete}
+        onRetry={refresh}
+        status={status}
       />
-    </div>
+      <DeletePromptDialog
+        entry={pendingDelete}
+        onClose={() => setPendingDelete(null)}
+        onDeleted={handleDeleted}
+      />
+    </ViewLayout>
   );
 }

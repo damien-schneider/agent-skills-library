@@ -27,6 +27,7 @@ const HOME = "/Users/me";
 const APP_ROW = /app/;
 const GONE_ROW = /gone/;
 const USE_PATH_ROW = /^Use/;
+const TRIGGER_NAME = /destination folder/i;
 
 function folder(
   path: string,
@@ -45,7 +46,7 @@ function folder(
 async function openPicker(value: string | null = null) {
   const onChange = vi.fn();
   render(<DestinationPicker onChange={onChange} value={value} />);
-  fireEvent.click(screen.getByRole("combobox"));
+  fireEvent.click(screen.getByRole("button", { name: TRIGGER_NAME }));
   await screen.findByPlaceholderText("Search folders, or paste a path");
   return onChange;
 }
@@ -95,6 +96,27 @@ describe("DestinationPicker", () => {
     expect(
       await screen.findByRole("button", { name: "Remove app from favorites" })
     ).toBeVisible();
+  });
+
+  it("stars the highlighted folder from the keyboard", async () => {
+    mocks.listDestinationFolders.mockResolvedValue([
+      folder("/Users/me/GitHub/app", { fileCount: 1 }),
+    ]);
+
+    await openPicker();
+    const row = await screen.findByRole("option", { name: APP_ROW });
+    await waitFor(() => expect(row).toHaveAttribute("aria-selected", "true"));
+    fireEvent.keyDown(
+      screen.getByPlaceholderText("Search folders, or paste a path"),
+      { key: "d", metaKey: true }
+    );
+
+    await waitFor(() =>
+      expect(mocks.setProjectFavorite).toHaveBeenCalledWith(
+        "/Users/me/GitHub/app",
+        true
+      )
+    );
   });
 
   it("refuses to select a starred folder that no longer exists, but lets it go", async () => {
@@ -156,7 +178,7 @@ describe("DestinationPicker", () => {
     fireEvent.click(screen.getByRole("option", { name: "No destination" }));
     expect(onChange).toHaveBeenCalledWith(null);
 
-    fireEvent.click(screen.getByRole("combobox"));
+    fireEvent.click(screen.getByRole("button", { name: TRIGGER_NAME }));
     fireEvent.click(await screen.findByRole("button", { name: "Browse…" }));
 
     await waitFor(() =>
