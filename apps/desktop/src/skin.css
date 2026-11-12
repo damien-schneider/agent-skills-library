@@ -31,7 +31,8 @@
   --radius-panel: 10px;
   --radius-popover: 10px;
   --control-h: 32px;
-  --sidebar-width-icon: 3rem;
+  /* Wide enough that the macOS traffic lights (x 16–78px) clear the main panel when the library is collapsed. */
+  --sidebar-width-icon: 4.5rem;
   --shadow-size: 0.6;
   --shadow-opacity: 0.4;
   --duration-fast: 110ms;
