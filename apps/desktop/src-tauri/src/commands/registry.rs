@@ -56,7 +56,7 @@ fn normalize(raw: &str) -> AppResult<PathBuf> {
     Ok(normalized)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn install_files(
     app: AppHandle,
     state: State<'_, AppState>,

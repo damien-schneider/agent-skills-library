@@ -13,6 +13,7 @@ import {
   PageDescription,
   PageHeader,
   PageLayout,
+  type PageLayoutProps,
   PageTitle,
   type PageWidth,
 } from "@ctrl-ui/react/ui/page-layout";
@@ -26,16 +27,24 @@ export function ViewLayout({
   description,
   actions,
   width = "content",
+  scrollViewportRef,
   children,
 }: {
   title: string;
   description?: string;
   actions?: ReactNode;
   width?: PageWidth;
+  /** For lists that render only what is scrolled into view. */
+  scrollViewportRef?: PageLayoutProps["scrollViewportRef"];
   children: ReactNode;
 }) {
   return (
-    <PageLayout className="h-full" scroll="inset" width={width}>
+    <PageLayout
+      className="h-full"
+      scroll="inset"
+      scrollViewportRef={scrollViewportRef}
+      width={width}
+    >
       <PageHeader data-tauri-drag-region variant="sticky">
         <PageTitle data-tauri-drag-region>{title}</PageTitle>
         {description ? (

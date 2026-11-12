@@ -10,12 +10,12 @@ use crate::state::AppState;
 
 use super::watcher::restart as restart_watcher;
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_roots(state: State<'_, AppState>) -> AppResult<Vec<Root>> {
     state.db.with_conn(roots_repo::list)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn add_root(app: AppHandle, state: State<'_, AppState>, path: String) -> AppResult<Root> {
     let resolved = canonicalize(&PathBuf::from(&path))?;
     if !resolved.is_dir() {
@@ -44,7 +44,7 @@ pub fn add_root(app: AppHandle, state: State<'_, AppState>, path: String) -> App
     Ok(root)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn set_root_enabled(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -59,7 +59,7 @@ pub fn set_root_enabled(
     restart_watcher(&app, &state)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn remove_root(app: AppHandle, state: State<'_, AppState>, id: i64) -> AppResult<()> {
     state.db.with_conn(|conn| roots_repo::remove(conn, id))?;
     restart_watcher(&app, &state)

@@ -32,12 +32,12 @@ impl From<DestinationRow> for DestinationFolder {
     }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_destination_folders(state: State<'_, AppState>) -> AppResult<Vec<DestinationFolder>> {
     list_destination_folders_in(state.inner())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn resolve_destination_folder(
     state: State<'_, AppState>,
     path: String,

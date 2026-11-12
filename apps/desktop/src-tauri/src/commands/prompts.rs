@@ -63,12 +63,12 @@ fn validate_content(content: &str) -> AppResult<()> {
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_prompt_history(state: State<'_, AppState>) -> AppResult<Vec<PromptHistoryEntry>> {
     state.db.with_conn(prompts_repo::list)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn create_prompt(
     state: State<'_, AppState>,
     content: String,
@@ -150,7 +150,7 @@ pub fn create_prompt_in(
     prompt
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn read_prompt_attachment(
     state: State<'_, AppState>,
     attachment_id: i64,
@@ -162,7 +162,7 @@ pub fn read_prompt_attachment(
     fs::read(attachment.path).map_err(AppError::from)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn delete_prompt(state: State<'_, AppState>, prompt_id: i64) -> AppResult<()> {
     delete_prompt_in(state.inner(), prompt_id)
 }

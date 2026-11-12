@@ -220,7 +220,9 @@ export function App() {
               onClose={library.close}
               onNewSkill={openNewSkill}
               onOpenFile={library.select}
+              onScan={startScan}
               onToggleFavorite={favoriteProjects.toggle}
+              scanning={scan.running}
             />
           </ViewBoundary>
         </div>

@@ -6,12 +6,12 @@ use crate::error::AppResult;
 use crate::paths::resolve_directory;
 use crate::state::AppState;
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_favorite_projects(state: State<'_, AppState>) -> AppResult<Vec<FavoriteProject>> {
     state.db.with_conn(favorite_projects_repo::list)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn set_project_favorite(
     state: State<'_, AppState>,
     path: String,

@@ -26,7 +26,7 @@ pub fn agent_cancel(state: State<'_, AppState>) {
     state.agent.cancel();
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn agent_send(
     app: AppHandle,
     state: State<'_, AppState>,

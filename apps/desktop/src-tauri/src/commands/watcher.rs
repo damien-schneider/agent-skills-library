@@ -15,7 +15,7 @@ pub struct WatcherStatus {
     pub running: bool,
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_watcher_status(state: State<'_, AppState>) -> AppResult<WatcherStatus> {
     let enabled = state
         .db
@@ -26,7 +26,7 @@ pub fn get_watcher_status(state: State<'_, AppState>) -> AppResult<WatcherStatus
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn set_watcher_enabled(
     app: AppHandle,
     state: State<'_, AppState>,

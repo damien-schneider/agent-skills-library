@@ -13,7 +13,7 @@ use crate::state::AppState;
 
 const PROGRESS_INTERVAL: Duration = Duration::from_millis(100);
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn start_scan(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -41,7 +41,7 @@ pub fn start_scan(
     Ok(scan_id)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn cancel_scan(state: State<'_, AppState>) -> AppResult<Option<i64>> {
     state.cancel_scan()
 }

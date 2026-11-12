@@ -73,9 +73,14 @@ function renderView() {
 
 describe("DuplicatesView", () => {
   // happy-dom has no Web Animations API, which Base UI's scroll area asks for
-  // once it is mounted.
+  // once it is mounted, and no layout, so the virtualized list would see a
+  // zero-height viewport and render no cards.
   beforeAll(() => {
     Element.prototype.getAnimations ??= () => [];
+    Object.defineProperty(HTMLElement.prototype, "clientHeight", {
+      configurable: true,
+      value: 800,
+    });
   });
 
   beforeEach(() => {
@@ -165,5 +170,26 @@ describe("DuplicatesView", () => {
     renderView();
 
     expect(await screen.findByText("No duplicates")).toBeVisible();
+  });
+
+  it("folds long lists of copies until asked", async () => {
+    const folders = [".a", ".b", ".c", ".d", ".e", ".f"];
+    mocks.listDuplicates.mockResolvedValue([
+      {
+        hash: "same",
+        files: folders.map((folder, index) => skill(index + 1, folder)),
+      },
+    ]);
+    renderView();
+
+    const group = await screen.findByRole("group", { name: "caveman" });
+    expect(within(group).getAllByRole("listitem")).toHaveLength(4);
+
+    fireEvent.click(within(group).getByRole("button", { name: "Show 2 more" }));
+
+    expect(within(group).getAllByRole("listitem")).toHaveLength(6);
+    expect(
+      within(group).getByText("~/.f/skills/caveman/SKILL.md")
+    ).toBeVisible();
   });
 });

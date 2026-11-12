@@ -59,7 +59,7 @@ fn resolve(state: &AppState, file_id: i64) -> AppResult<(FileRow, PathBuf)> {
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_files(
     state: State<'_, AppState>,
     args: Option<ListFilesArgs>,
@@ -74,7 +74,7 @@ pub fn list_files(
     state.db.with_conn(|conn| files_repo::list(conn, &filter))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn read_file(state: State<'_, AppState>, file_id: i64) -> AppResult<FileContent> {
     let (row, path) = resolve(&state, file_id)?;
     let (content, bytes) = fsops::read_text(&path)?;
@@ -91,7 +91,7 @@ pub fn read_file(state: State<'_, AppState>, file_id: i64) -> AppResult<FileCont
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn write_file(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -136,14 +136,14 @@ pub fn trash_file(
     Ok(trashed.result)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_file_links(state: State<'_, AppState>, file_id: i64) -> AppResult<FileLinks> {
     state
         .db
         .with_conn(|conn| links_repo::links_of(conn, file_id))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_duplicates(state: State<'_, AppState>) -> AppResult<Vec<DuplicateGroup>> {
     state.db.with_conn(files_repo::duplicates)
 }

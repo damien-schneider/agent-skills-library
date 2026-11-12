@@ -2,7 +2,8 @@ import { Button } from "@ctrl-ui/react/ui/button";
 import { Kbd } from "@ctrl-ui/react/ui/kbd";
 import { ScrollArea } from "@ctrl-ui/react/ui/scroll-area";
 import { Skeleton } from "@ctrl-ui/react/ui/skeleton";
-import { FileText } from "lucide-react";
+import { Spinner } from "@ctrl-ui/react/ui/spinner";
+import { FileText, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { AgentPanel } from "@/features/agent/agent-panel";
@@ -39,6 +40,9 @@ export interface EditorPaneProps {
   /** Called once the open file no longer exists, after it went to the Trash. */
   onClose: () => void;
   onNewSkill: () => void;
+  /** Re-reads every library folder from disk. */
+  onScan: () => void;
+  scanning: boolean;
   onOpenFile: (file: FileRow) => void;
   onToggleFavorite: (path: string) => Promise<void>;
 }
@@ -49,9 +53,13 @@ const DOCUMENT_COLUMN =
 function NothingOpen({
   hasFiles,
   onNewSkill,
+  onScan,
+  scanning,
 }: {
   hasFiles: boolean;
   onNewSkill: () => void;
+  onScan: () => void;
+  scanning: boolean;
 }) {
   return (
     <div className="flex h-full flex-col">
@@ -59,15 +67,26 @@ function NothingOpen({
       <div className="flex min-h-0 flex-1 items-center justify-center pb-(--titlebar-height)">
         <EmptyState
           action={
-            <Button onClick={onNewSkill} size="sm" variant="surface">
-              New skill
-              <Kbd>⌘N</Kbd>
-            </Button>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <Button
+                disabled={scanning}
+                onClick={onScan}
+                size="sm"
+                variant="surface"
+              >
+                {scanning ? <Spinner /> : <RefreshCw aria-hidden="true" />}
+                {scanning ? "Scanning…" : "Scan folders"}
+              </Button>
+              <Button onClick={onNewSkill} size="sm" variant="surface">
+                New skill
+                <Kbd>⌘N</Kbd>
+              </Button>
+            </div>
           }
           description={
             hasFiles
               ? "Pick a file in the library, or press ⌘K to search everything."
-              : "Add the folders that hold your skills from the library, or write your first skill."
+              : "Scan your folders for skills, or write your first one."
           }
           icon={FileText}
           title={hasFiles ? "Nothing open" : "No files yet"}
@@ -161,6 +180,8 @@ export function EditorPane({
   hasFiles,
   onClose,
   onNewSkill,
+  onScan,
+  scanning,
   onOpenFile,
   onToggleFavorite,
 }: EditorPaneProps) {
@@ -189,7 +210,14 @@ export function EditorPane({
   }, [editor.dirty]);
 
   if (!file) {
-    return <NothingOpen hasFiles={hasFiles} onNewSkill={onNewSkill} />;
+    return (
+      <NothingOpen
+        hasFiles={hasFiles}
+        onNewSkill={onNewSkill}
+        onScan={onScan}
+        scanning={scanning}
+      />
+    );
   }
 
   return (

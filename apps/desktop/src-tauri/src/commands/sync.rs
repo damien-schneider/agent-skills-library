@@ -72,7 +72,7 @@ fn ensure_group_within_roots(state: &AppState, group_id: i64) -> AppResult<()> {
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_sync_groups(state: State<'_, AppState>) -> AppResult<Vec<SyncGroupView>> {
     let groups = state.db.with_conn(groups_repo::list)?;
     let mut views = Vec::with_capacity(groups.len());
@@ -143,7 +143,7 @@ fn member_status(
     }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn create_sync_group(
     state: State<'_, AppState>,
     name: String,
@@ -166,14 +166,14 @@ pub fn create_sync_group(
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn set_canonical(state: State<'_, AppState>, group_id: i64, file_id: i64) -> AppResult<()> {
     state
         .db
         .with_tx(|tx| groups_repo::set_canonical(tx, group_id, file_id))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn add_members(
     state: State<'_, AppState>,
     group_id: i64,
@@ -189,27 +189,27 @@ pub fn add_members(
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn remove_member(state: State<'_, AppState>, group_id: i64, file_id: i64) -> AppResult<()> {
     state
         .db
         .with_conn(|conn| groups_repo::remove_member(conn, group_id, file_id))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn delete_sync_group(state: State<'_, AppState>, group_id: i64) -> AppResult<()> {
     state
         .db
         .with_conn(|conn| groups_repo::delete(conn, group_id))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn preview_sync(state: State<'_, AppState>, group_id: i64) -> AppResult<SyncPreview> {
     ensure_group_within_roots(&state, group_id)?;
     apply::preview(&state.db, group_id)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn apply_sync(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -222,12 +222,12 @@ pub fn apply_sync(
     Ok(result)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_backups(state: State<'_, AppState>, file_id: Option<i64>) -> AppResult<Vec<Backup>> {
     state.db.with_conn(|conn| backups_repo::list(conn, file_id))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn restore_backup(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -249,7 +249,7 @@ pub fn restore_backup(
     Ok(file_id)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn diff_files(
     state: State<'_, AppState>,
     left_file_id: i64,
