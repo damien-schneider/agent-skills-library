@@ -1,3 +1,9 @@
+import {
+  Activity,
+  ActivityIcon,
+  ActivityRow,
+  ActivityTitle,
+} from "@ctrl-ui/react/activity";
 import { Button } from "@ctrl-ui/react/ui/button";
 import {
   Card,
@@ -45,5 +51,55 @@ export function AgentProposal({
         </Button>
       </CardFooter>
     </Card>
+  );
+}
+
+/** A proposal that went into the editor, kept so it can be taken back out. */
+export interface AppliedChange {
+  before: string;
+  after: string;
+  undone: boolean;
+}
+
+export interface AppliedNoticeProps {
+  change: AppliedChange;
+  documentText: string;
+  onUndo: () => void;
+  onReapply: () => void;
+}
+
+/**
+ * Undo only shows while the editor still holds exactly what was applied: once the
+ * user types, swapping the document back would throw their own edits away.
+ */
+export function AppliedNotice({
+  change,
+  documentText,
+  onUndo,
+  onReapply,
+}: AppliedNoticeProps) {
+  const expected = change.undone ? change.before : change.after;
+  const untouched = documentText === expected;
+
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <Activity state="success">
+        <ActivityRow>
+          <ActivityIcon />
+          <ActivityTitle>
+            {change.undone ? "Change undone" : "Applied to the editor"}
+          </ActivityTitle>
+        </ActivityRow>
+      </Activity>
+      {untouched ? (
+        <Button
+          onClick={change.undone ? onReapply : onUndo}
+          size="sm"
+          variant="ghost"
+        >
+          {change.undone ? "Apply again" : "Undo"}
+        </Button>
+      ) : null}
+    </div>
   );
 }

@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { AgentPanel } from "./agent-panel";
@@ -31,6 +32,37 @@ function renderPanel(overrides: Partial<UseAgentSession> = {}) {
     />
   );
   return { session, onApply, onClose };
+}
+
+/** Lets a test type into the live editor below, as the user would after applying. */
+let typeInEditor: (text: string) => void = () => undefined;
+
+/** The editor's side of the loop: applying really replaces the open document. */
+function LiveEditor() {
+  const [document, setDocument] = useState(DOCUMENT);
+  const [proposal, setProposal] = useState<string | null>(PROPOSAL);
+  typeInEditor = setDocument;
+  return (
+    <>
+      <output data-testid="editor">{document}</output>
+      <AgentPanel
+        documentText={document}
+        onApply={setDocument}
+        onClose={vi.fn()}
+        session={{
+          available: true,
+          messages: [{ key: "you-1", role: "you", text: "be kind" }],
+          activity: null,
+          running: false,
+          error: null,
+          proposal,
+          send: vi.fn().mockResolvedValue(undefined),
+          cancel: vi.fn().mockResolvedValue(undefined),
+          dismissProposal: () => setProposal(null),
+        }}
+      />
+    </>
+  );
 }
 
 const composer = () => screen.getByRole<HTMLTextAreaElement>("textbox");
@@ -89,6 +121,33 @@ describe("AgentPanel", () => {
 
     expect(onApply).toHaveBeenCalledWith(PROPOSAL);
     expect(session.dismissProposal).toHaveBeenCalled();
+  });
+
+  it("takes an applied change back out, and offers it again", () => {
+    render(<LiveEditor />);
+    const editor = () => screen.getByTestId("editor").textContent;
+
+    fireEvent.click(screen.getByRole("button", { name: "Apply to editor" }));
+    expect(editor()).toBe(PROPOSAL);
+
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(editor()).toBe(DOCUMENT);
+    expect(screen.getByText("Change undone")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Apply again" }));
+    expect(editor()).toBe(PROPOSAL);
+  });
+
+  it("never offers an undo that would erase edits made after applying", () => {
+    render(<LiveEditor />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Apply to editor" }));
+    act(() => {
+      typeInEditor(`${PROPOSAL} Typed by hand.`);
+    });
+
+    expect(screen.getByText("Applied to the editor")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
   });
 
   it("dismisses a proposal without touching the editor", () => {

@@ -1,10 +1,4 @@
 import {
-  Activity,
-  ActivityIcon,
-  ActivityRow,
-  ActivityTitle,
-} from "@ctrl-ui/react/activity";
-import {
   ChatComposer,
   ChatComposerShell,
   ChatComposerSubmit,
@@ -34,7 +28,11 @@ import { type RefObject, useRef, useState } from "react";
 
 import { IconButton } from "@/shared/components/icon-button";
 
-import { AgentProposal } from "./agent-proposal";
+import {
+  AgentProposal,
+  type AppliedChange,
+  AppliedNotice,
+} from "./agent-proposal";
 import { AgentTranscript } from "./agent-transcript";
 import type { UseAgentSession } from "./use-agent-session";
 
@@ -167,7 +165,7 @@ function AgentConversation({
   onApply,
 }: Omit<AgentPanelProps, "onClose">) {
   const [prompt, setPrompt] = useState("");
-  const [applied, setApplied] = useState(false);
+  const [applied, setApplied] = useState<AppliedChange | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const proposed =
@@ -184,7 +182,7 @@ function AgentConversation({
     proposed === null;
 
   const ask = async (asked: string) => {
-    setApplied(false);
+    setApplied(null);
     await session.send(asked, documentText);
   };
 
@@ -234,18 +232,28 @@ function AgentConversation({
           onApply={() => {
             onApply(proposed);
             session.dismissProposal();
-            setApplied(true);
+            setApplied({
+              before: documentText,
+              after: proposed,
+              undone: false,
+            });
           }}
           onDismiss={session.dismissProposal}
         />
       )}
       {applied && hasTranscript && !session.running ? (
-        <Activity state="success">
-          <ActivityRow>
-            <ActivityIcon />
-            <ActivityTitle>Applied to the editor</ActivityTitle>
-          </ActivityRow>
-        </Activity>
+        <AppliedNotice
+          change={applied}
+          documentText={documentText}
+          onReapply={() => {
+            onApply(applied.after);
+            setApplied({ ...applied, undone: false });
+          }}
+          onUndo={() => {
+            onApply(applied.before);
+            setApplied({ ...applied, undone: true });
+          }}
+        />
       ) : null}
     </ChatThread>
   );
