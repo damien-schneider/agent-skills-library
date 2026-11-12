@@ -236,32 +236,22 @@ export function EditorHeader({
   return (
     <header
       className="flex h-(--titlebar-height) shrink-0 items-center gap-3 border-b px-4"
-      data-tauri-drag-region
+      data-tauri-drag-region="deep"
     >
       <FileKindIcon
         className="size-4 shrink-0 text-muted-foreground"
         kind={file.kind}
       />
-      <div className="flex min-w-0 flex-1 flex-col" data-tauri-drag-region>
-        <div className="flex min-w-0 items-center gap-2" data-tauri-drag-region>
-          <Heading
-            className="min-w-0 truncate"
-            data-tauri-drag-region
-            level={1}
-            size="label"
-          >
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex min-w-0 items-center gap-2">
+          <Heading className="min-w-0 truncate" level={1} size="label">
             {fileTitle(file)}
           </Heading>
           <AliasBadge aliases={file.aliases} home={home} />
         </div>
-        <Text
-          className="truncate"
-          data-tauri-drag-region
-          size="caption"
-          tone="muted"
-        >
+        <Text className="truncate" size="caption" tone="muted">
           {targetLabel(file.kind)} ·{" "}
-          <Text as="span" data-tauri-drag-region mono size="caption">
+          <Text as="span" mono size="caption">
             {displayPath(file.path, home)}
           </Text>
         </Text>

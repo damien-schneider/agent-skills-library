@@ -23,8 +23,12 @@
     @apply overflow-hidden bg-canvas font-body text-foreground antialiased;
   }
 
-  /* The window has no native titlebar; Tauri moves it from these regions. */
-  [data-tauri-drag-region] {
+  /*
+   * The window has no native titlebar; Tauri moves it from these regions. Title
+   * strips use "deep" so any non-interactive child drags too; the bare attribute is
+   * kept for backdrops, which hold no text of their own to protect.
+   */
+  [data-tauri-drag-region="deep"] {
     @apply cursor-default select-none;
   }
 }

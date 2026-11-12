@@ -196,7 +196,7 @@ export function LibraryPanel({
       <SidebarHeader>
         <div
           className="flex h-(--sidebar-strip-height) items-center gap-1 ps-4"
-          data-tauri-drag-region
+          data-tauri-drag-region="deep"
         >
           <Heading className="min-w-0 flex-1" level={2} size="label">
             Library

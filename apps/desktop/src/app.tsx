@@ -135,6 +135,7 @@ export function App() {
   return (
     <SidebarProvider
       className="h-dvh"
+      data-tauri-drag-region
       defaultWidth={332}
       layout="contained"
       maxWidth={560}
@@ -143,13 +144,10 @@ export function App() {
       open={view === "library" && (panelOpen || !selected)}
       persistOpen={false}
     >
-      <Sidebar collapsible="icon" variant="inset">
-        <SidebarIconRail>
+      <Sidebar collapsible="icon" data-tauri-drag-region variant="inset">
+        <SidebarIconRail data-tauri-drag-region="deep">
           <SidebarHeader>
-            <div
-              className="h-(--sidebar-strip-height)"
-              data-tauri-drag-region
-            />
+            <div className="h-(--sidebar-strip-height)" />
           </SidebarHeader>
           <SidebarContent>
             <SidebarGroup>

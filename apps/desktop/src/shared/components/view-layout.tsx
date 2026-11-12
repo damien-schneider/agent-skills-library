@@ -45,13 +45,9 @@ export function ViewLayout({
       scrollViewportRef={scrollViewportRef}
       width={width}
     >
-      <PageHeader data-tauri-drag-region variant="sticky">
-        <PageTitle data-tauri-drag-region>{title}</PageTitle>
-        {description ? (
-          <PageDescription data-tauri-drag-region>
-            {description}
-          </PageDescription>
-        ) : null}
+      <PageHeader data-tauri-drag-region="deep" variant="sticky">
+        <PageTitle>{title}</PageTitle>
+        {description ? <PageDescription>{description}</PageDescription> : null}
         {actions ? <PageActions>{actions}</PageActions> : null}
       </PageHeader>
       <PageBody contentClassName="flex flex-col gap-5">{children}</PageBody>

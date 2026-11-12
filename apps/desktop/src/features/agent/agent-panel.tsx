@@ -271,7 +271,10 @@ export function AgentPanel({
       className="flex w-96 shrink-0 border-border border-l"
     >
       <ChatLayout chrome="embedded">
-        <ChatLayoutHeader className="h-(--titlebar-height) shrink-0">
+        <ChatLayoutHeader
+          className="h-(--titlebar-height) shrink-0"
+          data-tauri-drag-region="deep"
+        >
           {/* biome-ignore lint/a11y/useHeadingContent: the title's children become the heading's content */}
           <ChatLayoutTitle render={<h2 />}>Ask Claude</ChatLayoutTitle>
           <ChatLayoutActions>
