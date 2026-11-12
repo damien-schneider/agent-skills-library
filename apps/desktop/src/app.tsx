@@ -124,6 +124,13 @@ export function App() {
   const selected =
     index.files.find((file) => file.id === library.fileId) ??
     (library.file?.id === library.fileId ? library.file : null);
+  // With nothing open the tree is the only way in, so it cannot be folded away;
+  // a fold asked for then is dropped rather than springing on the next file.
+  const foldTree = (open: boolean) => {
+    if (selected) {
+      setPanelOpen(open);
+    }
+  };
 
   return (
     <SidebarProvider
@@ -132,8 +139,7 @@ export function App() {
       layout="contained"
       maxWidth={560}
       minWidth={288}
-      onOpenChange={setPanelOpen}
-      // With nothing open the tree is the only way in, so it cannot be folded away.
+      onOpenChange={foldTree}
       open={view === "library" && (panelOpen || !selected)}
       persistOpen={false}
     >
@@ -159,7 +165,7 @@ export function App() {
                         isActive={view === id}
                         onClick={() => {
                           if (id === "library" && view === "library") {
-                            setPanelOpen(!panelOpen);
+                            foldTree(!panelOpen);
                           }
                           selectView(id);
                         }}
