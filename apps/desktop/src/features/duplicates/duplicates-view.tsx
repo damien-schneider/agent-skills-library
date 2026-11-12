@@ -1,5 +1,9 @@
 import { toast } from "@ctrl-ui/react/ui/toast";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import {
+  observeElementOffset,
+  useVirtualizer,
+  type Virtualizer,
+} from "@tanstack/react-virtual";
 import { CopyCheck } from "lucide-react";
 import {
   useCallback,
@@ -39,6 +43,32 @@ const ESTIMATED_CARD_HEIGHT = 220;
 const CARDS_RENDERED_OFFSCREEN = 3;
 /** Matches the `gap-5` between the page's sections. */
 const CARD_GAP = 20;
+
+type OnScrollOffset = (offset: number, isScrolling: boolean) => void;
+
+/**
+ * The view stays mounted while hidden: hiding resets the viewport's scroll
+ * position and showing it restores the position without a scroll event, so
+ * the offset is read again whenever the viewport is resized or shown.
+ */
+function observeOffsetAcrossVisibility(
+  instance: Virtualizer<HTMLDivElement, Element>,
+  onOffset: OnScrollOffset
+): () => void {
+  const stopScroll = observeElementOffset(instance, onOffset);
+  const viewport = instance.scrollElement;
+  if (!viewport) {
+    return () => stopScroll?.();
+  }
+  const observer = new ResizeObserver(() =>
+    onOffset(viewport.scrollTop, false)
+  );
+  observer.observe(viewport);
+  return () => {
+    stopScroll?.();
+    observer.disconnect();
+  };
+}
 
 interface ListedGroup {
   group: DuplicateGroup;
@@ -162,6 +192,7 @@ export function DuplicatesView({
     gap: CARD_GAP,
     getItemKey: (index) => listed[index]?.group.hash ?? index,
     getScrollElement: () => viewportRef.current,
+    observeElementOffset: observeOffsetAcrossVisibility,
     overscan: CARDS_RENDERED_OFFSCREEN,
     scrollMargin: listOffset,
   });
