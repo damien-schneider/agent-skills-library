@@ -3,6 +3,7 @@ import { Kbd } from "@ctrl-ui/react/ui/kbd";
 import { ScrollArea } from "@ctrl-ui/react/ui/scroll-area";
 import { Skeleton } from "@ctrl-ui/react/ui/skeleton";
 import { Spinner } from "@ctrl-ui/react/ui/spinner";
+import { Text } from "@ctrl-ui/react/ui/typography";
 import { FileText, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -15,6 +16,8 @@ import {
   type SkillMentions,
   useSkillMentions,
 } from "@/features/links/use-skill-mentions";
+import { scanSummary } from "@/features/scan/scan-status";
+import type { UseScan } from "@/features/scan/use-scan";
 import type { FileLinks, FileRow } from "@/lib/ipc-types";
 import { EmptyState, ErrorState } from "@/shared/components/view-layout";
 
@@ -40,9 +43,8 @@ export interface EditorPaneProps {
   /** Called once the open file no longer exists, after it went to the Trash. */
   onClose: () => void;
   onNewSkill: () => void;
-  /** Re-reads every library folder from disk. */
-  onScan: () => void;
-  scanning: boolean;
+  /** Re-reads every library folder from disk; its outcome shows while nothing is open. */
+  scan: UseScan;
   onOpenFile: (file: FileRow) => void;
   onToggleFavorite: (path: string) => Promise<void>;
 }
@@ -53,34 +55,59 @@ const DOCUMENT_COLUMN =
 function NothingOpen({
   hasFiles,
   onNewSkill,
-  onScan,
-  scanning,
+  scan,
 }: {
   hasFiles: boolean;
   onNewSkill: () => void;
-  onScan: () => void;
-  scanning: boolean;
+  scan: UseScan;
 }) {
+  const failed = !scan.running && scan.error !== null;
+  const scannedOnce = scan.running || scan.lastResult !== null;
+
   return (
     <div className="flex h-full flex-col">
       <div className="h-(--titlebar-height) shrink-0" data-tauri-drag-region />
       <div className="flex min-h-0 flex-1 items-center justify-center pb-(--titlebar-height)">
         <EmptyState
           action={
-            <div className="flex flex-wrap items-center justify-center gap-2">
-              <Button
-                disabled={scanning}
-                onClick={onScan}
-                size="sm"
-                variant="surface"
-              >
-                {scanning ? <Spinner /> : <RefreshCw aria-hidden="true" />}
-                {scanning ? "Scanning…" : "Scan folders"}
-              </Button>
-              <Button onClick={onNewSkill} size="sm" variant="surface">
-                New skill
-                <Kbd>⌘N</Kbd>
-              </Button>
+            <div className="flex flex-col items-center gap-3">
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <Button
+                  disabled={scan.running}
+                  onClick={() => {
+                    scan.start();
+                  }}
+                  size="sm"
+                  variant="surface"
+                >
+                  {scan.running ? (
+                    <Spinner />
+                  ) : (
+                    <RefreshCw aria-hidden="true" />
+                  )}
+                  {scan.running ? "Scanning…" : "Scan folders"}
+                </Button>
+                <Button onClick={onNewSkill} size="sm" variant="surface">
+                  New skill
+                  <Kbd>⌘N</Kbd>
+                </Button>
+              </div>
+              {failed ? (
+                <Text as="p" role="alert" size="caption" tone="destructive">
+                  {scan.error}
+                </Text>
+              ) : null}
+              {!failed && scannedOnce ? (
+                <Text
+                  aria-live="polite"
+                  as="p"
+                  numeric
+                  size="caption"
+                  tone="muted"
+                >
+                  {scanSummary(scan)}
+                </Text>
+              ) : null}
             </div>
           }
           description={
@@ -180,8 +207,7 @@ export function EditorPane({
   hasFiles,
   onClose,
   onNewSkill,
-  onScan,
-  scanning,
+  scan,
   onOpenFile,
   onToggleFavorite,
 }: EditorPaneProps) {
@@ -211,12 +237,7 @@ export function EditorPane({
 
   if (!file) {
     return (
-      <NothingOpen
-        hasFiles={hasFiles}
-        onNewSkill={onNewSkill}
-        onScan={onScan}
-        scanning={scanning}
-      />
+      <NothingOpen hasFiles={hasFiles} onNewSkill={onNewSkill} scan={scan} />
     );
   }
 
