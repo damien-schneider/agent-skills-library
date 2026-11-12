@@ -30,7 +30,7 @@ import {
 } from "@ctrl-ui/react/ui/empty";
 import { Text } from "@ctrl-ui/react/ui/typography";
 import { ArrowUp, SquareTerminal, X } from "lucide-react";
-import { type RefObject, useEffect, useRef, useState } from "react";
+import { type RefObject, useRef, useState } from "react";
 
 import { IconButton } from "@/shared/components/icon-button";
 
@@ -128,11 +128,6 @@ function AgentComposer({
   onStop: () => void;
   textareaRef: RefObject<HTMLTextAreaElement | null>;
 }) {
-  // The panel was opened to type a request, so the caret starts there.
-  useEffect(() => {
-    textareaRef.current?.focus();
-  }, [textareaRef]);
-
   return (
     <ChatComposer
       density="compact"

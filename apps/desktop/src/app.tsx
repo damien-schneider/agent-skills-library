@@ -23,7 +23,10 @@ import { EditorPane } from "./features/library/editor-pane";
 import { LibraryPanel } from "./features/library/library-panel";
 import { NewSkillDialog } from "./features/library/new-skill-dialog";
 import { UnsavedChangesDialog } from "./features/library/unsaved-changes-dialog";
-import { useLibraryFile } from "./features/library/use-library-file";
+import {
+  readLastOpenedFileId,
+  useLibraryFile,
+} from "./features/library/use-library-file";
 import { useLibraryIndex } from "./features/library/use-library-index";
 import { useFavoriteProjects } from "./features/projects/use-favorite-projects";
 import { PromptHistoryView } from "./features/prompts/prompt-history-view";
@@ -39,7 +42,6 @@ import { useAppReloadShortcut } from "./use-app-reload-shortcut";
 import { useAppShortcuts } from "./use-app-shortcuts";
 
 const ACTIVE_VIEW_STORAGE_KEY = "another-dev-tool.active-view";
-const PANEL_STORAGE_KEY = "another-dev-tool.library-panel";
 
 function readStoredView(): ViewId {
   const stored = window.localStorage.getItem(ACTIVE_VIEW_STORAGE_KEY);
@@ -52,12 +54,12 @@ export function App() {
   const [mountedViews, setMountedViews] = useState<ReadonlySet<ViewId>>(
     () => new Set([view])
   );
-  const [panelOpen, setPanelOpen] = useState(
-    () => window.localStorage.getItem(PANEL_STORAGE_KEY) !== "closed"
-  );
+  // The tree, editor and chat form one workspace: every launch shows the tree.
+  const [panelOpen, setPanelOpen] = useState(true);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [newSkillOpen, setNewSkillOpen] = useState(false);
   const [awaitedFileId, setAwaitedFileId] = useState<number | null>(null);
+  const [restoringFileId, setRestoringFileId] = useState(readLastOpenedFileId);
   const index = useLibraryIndex();
   const library = useLibraryFile();
   const favoriteProjects = useFavoriteProjects();
@@ -70,11 +72,6 @@ export function App() {
     );
     setView(next);
     window.localStorage.setItem(ACTIVE_VIEW_STORAGE_KEY, next);
-  }, []);
-
-  const togglePanel = useCallback((open: boolean) => {
-    setPanelOpen(open);
-    window.localStorage.setItem(PANEL_STORAGE_KEY, open ? "open" : "closed");
   }, []);
 
   const selectFile = library.select;
@@ -98,6 +95,18 @@ export function App() {
       openFile(awaitedFile);
     }
   }, [awaitedFile, openFile]);
+
+  // Launch reopens the last file in place; a file gone since then is let go.
+  useEffect(() => {
+    if (restoringFileId === null || !index.ready) {
+      return;
+    }
+    setRestoringFileId(null);
+    const restored = index.files.find((file) => file.id === restoringFileId);
+    if (restored) {
+      selectFile(restored);
+    }
+  }, [index.files, index.ready, restoringFileId, selectFile]);
 
   const openNewSkill = useCallback(() => setNewSkillOpen(true), []);
   useAppShortcuts({
@@ -123,8 +132,9 @@ export function App() {
       layout="contained"
       maxWidth={560}
       minWidth={288}
-      onOpenChange={togglePanel}
-      open={panelOpen && view === "library"}
+      onOpenChange={setPanelOpen}
+      // With nothing open the tree is the only way in, so it cannot be folded away.
+      open={view === "library" && (panelOpen || !selected)}
       persistOpen={false}
     >
       <Sidebar collapsible="icon" variant="inset">
@@ -149,7 +159,7 @@ export function App() {
                         isActive={view === id}
                         onClick={() => {
                           if (id === "library" && view === "library") {
-                            togglePanel(!panelOpen);
+                            setPanelOpen(!panelOpen);
                           }
                           selectView(id);
                         }}

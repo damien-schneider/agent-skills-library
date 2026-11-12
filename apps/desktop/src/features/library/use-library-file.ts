@@ -4,6 +4,14 @@ import type { FileRow } from "@/lib/ipc-types";
 
 import { type UseFileContent, useFileContent } from "./use-file-content";
 
+const OPEN_FILE_STORAGE_KEY = "another-dev-tool.open-file";
+
+/** The file that was open when the app last closed, so a launch picks up where work stopped. */
+export function readLastOpenedFileId(): number | null {
+  const stored = Number(window.localStorage.getItem(OPEN_FILE_STORAGE_KEY));
+  return Number.isInteger(stored) && stored > 0 ? stored : null;
+}
+
 export interface UseLibraryFile {
   cancelPending: () => void;
   /** Closes the open file without asking: only for a file that no longer exists. */
@@ -27,6 +35,7 @@ export function useLibraryFile(): UseLibraryFile {
   const open = useCallback((next: FileRow) => {
     setFile(next);
     setFileId(next.id);
+    window.localStorage.setItem(OPEN_FILE_STORAGE_KEY, String(next.id));
   }, []);
 
   const select = useCallback(
@@ -54,6 +63,7 @@ export function useLibraryFile(): UseLibraryFile {
     setFile(null);
     setFileId(null);
     setPending(null);
+    window.localStorage.removeItem(OPEN_FILE_STORAGE_KEY);
   }, []);
 
   return {

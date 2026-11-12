@@ -51,6 +51,7 @@ export interface EditorPaneProps {
 
 const DOCUMENT_COLUMN =
   "mx-auto flex w-full max-w-3xl flex-col gap-8 px-10 py-8";
+const AGENT_PANEL_STORAGE_KEY = "another-dev-tool.agent-panel";
 
 function NothingOpen({
   hasFiles,
@@ -213,7 +214,17 @@ export function EditorPane({
 }: EditorPaneProps) {
   const [reviewOpen, setReviewOpen] = useState(false);
   const [trashOpen, setTrashOpen] = useState(false);
-  const [agentOpen, setAgentOpen] = useState(false);
+  // Docked by default, like the editor's other half; closing it is remembered.
+  const [agentOpen, setAgentOpen] = useState(
+    () => window.localStorage.getItem(AGENT_PANEL_STORAGE_KEY) !== "closed"
+  );
+  const toggleAgent = (open: boolean) => {
+    setAgentOpen(open);
+    window.localStorage.setItem(
+      AGENT_PANEL_STORAGE_KEY,
+      open ? "open" : "closed"
+    );
+  };
   const agent = useAgentSession(file?.id ?? null);
   const links = useFileLinks(file?.id ?? null);
   const mentions = useSkillMentions({
@@ -253,7 +264,7 @@ export function EditorPane({
           favorite={favorite}
           file={file}
           onReview={() => setReviewOpen(true)}
-          onToggleAgent={() => setAgentOpen((open) => !open)}
+          onToggleAgent={() => toggleAgent(!agentOpen)}
           onToggleFavorite={onToggleFavorite}
           onTrash={() => setTrashOpen(true)}
         />
@@ -272,7 +283,7 @@ export function EditorPane({
         <AgentPanel
           documentText={editor.documentText}
           onApply={editor.replaceDocument}
-          onClose={() => setAgentOpen(false)}
+          onClose={() => toggleAgent(false)}
           session={agent}
         />
       ) : null}
